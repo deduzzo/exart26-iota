@@ -9,6 +9,7 @@
  */
 
 const {sep} = require('path');
+const crypto = require('crypto');
 
 module.exports.custom = {
 
@@ -109,6 +110,4 @@ module.exports.custom = {
   IOTA_STRONGHOLD_PASSWORD: 'a-secure-password',
   IOTA_STRONGHOLD_SNAPSHOT_PATH: 'wallet-db' + sep + 'vault.stronghold',
   IOTA_MAIN_ACCOUNT_ALIAS: 'main-account',
-  IOTA_MNEMONIC: '',
-
 };
