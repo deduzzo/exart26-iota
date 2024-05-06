@@ -25,6 +25,11 @@ module.exports.bootstrap = async function() {
   // depends on some factors:
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+/*  let data = await Organizzazione.create({
+    denominazione: 'ASP 5 Messina',
+    walletPath: 'wallet-db'
+  }).fetch();*/
+
   // If the hard-coded data version has been incremented, or we're being forced
   // (i.e. `--drop` or `--environment=test` was set), then run the meat of this
   // bootstrap script to wipe all existing data and rebuild hard-coded data.
@@ -62,6 +67,7 @@ module.exports.bootstrap = async function() {
   await User.createEach([
     { emailAddress: 'admin@example.com', fullName: 'Ryan Dahl', isSuperAdmin: true, password: await sails.helpers.passwords.hashPassword('abc123') },
   ]);
+
 
   // Save new bootstrap version
   await sails.helpers.fs.writeJson.with({

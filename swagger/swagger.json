@@ -105,24 +105,17 @@
   ],
   "components": {
     "schemas": {
-      "user": {
+      "assistitiliste": {
         "type": "object",
         "allOf": [
           {
-            "$ref": "#/components/schemas/user-without-required-constraint"
-          },
-          {
-            "required": [
-              "emailAddress",
-              "password",
-              "fullName"
-            ]
+            "$ref": "#/components/schemas/assistitiliste-without-required-constraint"
           }
         ]
       },
-      "user-without-required-constraint": {
+      "assistitiliste-without-required-constraint": {
         "type": "object",
-        "description": "Sails ORM Model **User**",
+        "description": "Sails ORM Model **AssistitiListe**",
         "properties": {
           "createdAt": {
             "type": "number",
@@ -138,102 +131,242 @@
             "uniqueItems": true,
             "description": "Note Sails special attributes: autoIncrement"
           },
-          "emailAddress": {
-            "type": "string",
-            "format": "email",
-            "example": "mary.sue@example.com",
-            "maxLength": 200,
-            "uniqueItems": true
+          "assistito": {
+            "description": "JSON dictionary representing the **assistito** instance or FK when creating / updating / not populated",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/assistito"
+              }
+            ]
           },
-          "emailStatus": {
-            "type": "string",
-            "default": "confirmed",
-            "description": "The confirmation status of the user's email address.",
-            "enum": [
-              "unconfirmed",
-              "change-requested",
-              "confirmed"
-            ],
-            "example": "confirmed"
+          "lista": {
+            "description": "JSON dictionary representing the **lista** instance or FK when creating / updating / not populated",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/lista"
+              }
+            ]
           },
-          "emailChangeCandidate": {
-            "type": "string",
-            "format": "email",
-            "description": "A still-unconfirmed email address that this user wants to change to (if relevant)."
+          "stato": {
+            "type": "number",
+            "format": "double",
+            "default": 1,
+            "example": 1
           },
-          "password": {
-            "type": "string",
-            "description": "Securely hashed representation of the user's login password.",
-            "example": "2$28a8eabna301089103-13948134nad"
-          },
-          "fullName": {
-            "type": "string",
-            "description": "Full representation of the user's name.",
-            "example": "Mary Sue van der McHenst",
-            "maxLength": 120
-          },
-          "isSuperAdmin": {
+          "chiuso": {
             "type": "boolean",
-            "description": "Whether this user is a \"super admin\" with extra permissions, etc."
+            "default": false
+          }
+        }
+      },
+      "assistito": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/assistito-without-required-constraint"
           },
-          "passwordResetToken": {
-            "type": "string",
-            "description": "A unique token used to verify the user's identity when recovering a password.  Expires after 1 use, or after a set amount of time has elapsed."
-          },
-          "passwordResetTokenExpiresAt": {
+          {
+            "required": [
+              "nome",
+              "cognome",
+              "codiceFiscale"
+            ]
+          }
+        ]
+      },
+      "assistito-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **Assistito**",
+        "properties": {
+          "createdAt": {
             "type": "number",
-            "format": "double",
-            "description": "A JS timestamp (epoch ms) representing the moment when this user's `passwordResetToken` will expire (or 0 if the user currently has no such token).",
-            "example": 1502844074211
+            "format": "double"
           },
-          "emailProofToken": {
-            "type": "string",
-            "description": "A pseudorandom, probabilistically-unique token for use in our account verification emails."
-          },
-          "emailProofTokenExpiresAt": {
+          "updatedAt": {
             "type": "number",
-            "format": "double",
-            "description": "A JS timestamp (epoch ms) representing the moment when this user's `emailProofToken` will expire (or 0 if the user currently has no such token).",
-            "example": 1502844074211
+            "format": "double"
           },
-          "stripeCustomerId": {
-            "type": "string",
-            "description": "The id of the customer entry in Stripe associated with this user (or empty string if this user is not linked to a Stripe customer -- e.g. if billing features are not enabled)."
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
           },
-          "hasBillingCard": {
+          "nome": {
+            "type": "string"
+          },
+          "cognome": {
+            "type": "string"
+          },
+          "codiceFiscale": {
+            "type": "string"
+          },
+          "dataNascita": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "liste": {
+            "description": "Array of **lista**'s or array of FK's when creating / updating / not populated",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/lista"
+            }
+          }
+        }
+      },
+      "lista": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/lista-without-required-constraint"
+          },
+          {
+            "required": [
+              "denominazione"
+            ]
+          }
+        ]
+      },
+      "lista-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **Lista**",
+        "properties": {
+          "createdAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
+          },
+          "denominazione": {
+            "type": "string"
+          },
+          "aperta": {
             "type": "boolean",
-            "description": "Whether this user has a default billing card hooked up as their payment method."
+            "default": true,
+            "example": true
           },
-          "billingCardBrand": {
-            "type": "string",
-            "description": "The brand of this user's default billing card (or empty string if no billing card is set up).",
-            "example": "Visa"
+          "struttura": {
+            "description": "JSON dictionary representing the **struttura** instance or FK when creating / updating / not populated",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/struttura"
+              }
+            ]
           },
-          "billingCardLast4": {
-            "type": "string",
-            "description": "The last four digits of the card number for this user's default billing card (or empty string if no billing card is set up).",
-            "example": "4242"
+          "assistiti": {
+            "description": "Array of **assistito**'s or array of FK's when creating / updating / not populated",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/assistito"
+            }
+          }
+        }
+      },
+      "organizzazione": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/organizzazione-without-required-constraint"
           },
-          "billingCardExpMonth": {
-            "type": "string",
-            "description": "The two-digit expiration month from this user's default billing card, formatted as MM (or empty string if no billing card is set up).",
-            "example": "08"
-          },
-          "billingCardExpYear": {
-            "type": "string",
-            "description": "The four-digit expiration year from this user's default billing card, formatted as YYYY (or empty string if no credit card is set up).",
-            "example": "2023"
-          },
-          "tosAcceptedByIp": {
-            "type": "string",
-            "description": "The IP (ipv4) address of the request that accepted the terms of service.",
-            "externalDocs": "https://en.wikipedia.org/wiki/Know_your_customer"
-          },
-          "lastSeenAt": {
+          {
+            "required": [
+              "denominazione",
+              "walletPath"
+            ]
+          }
+        ]
+      },
+      "organizzazione-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **Organizzazione**",
+        "properties": {
+          "createdAt": {
             "type": "number",
-            "format": "double",
-            "description": "A JS timestamp (epoch ms) representing the moment at which this user most recently interacted with the backend while logged in (or 0 if they have not interacted with the backend at all yet).",
-            "example": 1502844074211
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
+          },
+          "denominazione": {
+            "type": "string"
+          },
+          "walletPath": {
+            "type": "string"
+          },
+          "strutture": {
+            "description": "Array of **struttura**'s or array of FK's when creating / updating / not populated",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/struttura"
+            }
+          }
+        }
+      },
+      "struttura": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/struttura-without-required-constraint"
+          },
+          {
+            "required": [
+              "idOrganizzazione"
+            ]
+          }
+        ]
+      },
+      "struttura-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **Struttura**",
+        "properties": {
+          "createdAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
+          },
+          "denominazione": {
+            "type": "string"
+          },
+          "idOrganizzazione": {
+            "type": "number",
+            "format": "double"
+          },
+          "walletAddress": {
+            "type": "string"
+          },
+          "organizzazione": {
+            "description": "JSON dictionary representing the **organizzazione** instance or FK when creating / updating / not populated",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/organizzazione"
+              }
+            ]
           }
         }
       }
