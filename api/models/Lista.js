@@ -16,6 +16,11 @@ module.exports = {
       type: 'boolean',
       defaultsTo: true
     },
+    ultimaVersioneSuBlockchain: {
+      type: 'number',
+      columnType: 'int',
+      defaultsTo: 0
+    },
     struttura: {
       model: 'struttura',
     },

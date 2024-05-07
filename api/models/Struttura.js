@@ -16,6 +16,10 @@ module.exports = {
       columnName: 'denominazione',
       required: false
     },
+    attiva: {
+      type: 'boolean',
+      defaultsTo: true
+    },
     indirizzo: {
       type: 'string',
       columnName: 'indirizzo',
@@ -28,9 +32,18 @@ module.exports = {
       type: 'string',
       columnType: 'text',
     },
+    ultimaVersioneSuBlockchain: {
+      type: 'number',
+      columnType: 'int',
+      defaultsTo: 0
+    },
     organizzazione: {
       model: 'organizzazione',
     },
+    liste: {
+      collection: 'lista',
+      via: 'struttura',
+    }
 
 
     //  ╔═╗╔╦╗╔╗ ╔═╗╔╦╗╔═╗

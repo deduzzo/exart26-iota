@@ -34,6 +34,15 @@ module.exports = {
       type: 'string',
       required: false
     },
+    indirizzo: {
+      type: 'string',
+      required: false
+    },
+    ultimaVersioneSuBlockchain: {
+      type: 'number',
+      columnType: 'int',
+      defaultsTo: 0
+    },
     liste: {
       collection: 'lista',
       via: 'assistito',

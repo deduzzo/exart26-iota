@@ -7,7 +7,7 @@ const STRONGHOLD_SNAPSHOT_PATH = sails.config.custom.IOTA_STRONGHOLD_SNAPSHOT_PA
 const MAIN_ACCOUNT_ALIAS = sails.config.custom.IOTA_MAIN_ACCOUNT_ALIAS;
 const IOTA_EXPLORER_URL = sails.config.custom.IOTA_EXPLORER_URL;
 const TRANSACTION_VALUE = BigInt(100000);
-const ACCOUNT_BASE_BALANCE = BigInt(200000);
+const ACCOUNT_BASE_BALANCE = BigInt(500000);
 const TRANSACTION_ZERO_VALUE = BigInt(0);
 
 
@@ -76,7 +76,9 @@ let getOrCreateWalletAccount = async (wallet, accountAlias) => {
     });
     if (accountAlias !== MAIN_ACCOUNT_ALIAS) {
       let mainAccount = await getMainAccount(wallet);
+      let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
       await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
+      console.log('MAIN BALANCE: ' + mainAccountBalanceBefore.baseCoin.available);
       await waitUntilBalanceIsGreaterThanZero(account);
     }
   }
@@ -98,6 +100,7 @@ let getOrInitWallet = async () => {
     init = true;
   }
   console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
+  await waitUntilBalanceIsGreaterThanZero(mainAccount);
   return {wallet: wallet, init: init, mnemonic: mnemonic, mainAccount: mainAccount};
 
 };
@@ -126,16 +129,20 @@ let makeTransactionWithText = async (wallet, account, destAddr, tag, dataObject,
   try {
     response = await account.send(amount, destAddr, transactionOptions);
     console.log(`Block sent: ${IOTA_EXPLORER_URL}/block/${response.blockId}`);
+    return {success: true, blockId: response.blockId,error: null};
   } catch (e) {
     console.error(e);
-    return null;
+    return {success: false, error: e};
   }
 };
 
 let getAllTransactionOfAccountWithTag = async (account, tag) => {
   await account.sync();
   let transactions = await account.transactions();
-  return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
+  transactions = transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
+  // ordered by timestamp
+  transactions = transactions.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
+  return transactions;
 };
 
 let getLastTransactionOfAccountWithTag = async (account, tag) => {

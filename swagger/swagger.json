@@ -206,6 +206,15 @@
           "email": {
             "type": "string"
           },
+          "indirizzo": {
+            "type": "string"
+          },
+          "ultimaVersioneSuBlockchain": {
+            "type": "integer",
+            "format": "int64",
+            "default": 1,
+            "example": 1
+          },
           "liste": {
             "description": "Array of **lista**'s or array of FK's when creating / updating / not populated",
             "type": "array",
@@ -253,6 +262,12 @@
             "type": "boolean",
             "default": true,
             "example": true
+          },
+          "ultimaVersioneSuBlockchain": {
+            "type": "integer",
+            "format": "int64",
+            "default": 1,
+            "example": 1
           },
           "struttura": {
             "description": "JSON dictionary representing the **struttura** instance or FK when creating / updating / not populated",
@@ -317,6 +332,12 @@
             "items": {
               "$ref": "#/components/schemas/struttura"
             }
+          },
+          "ultimaVersioneSuBlockchain": {
+            "type": "integer",
+            "format": "int64",
+            "default": 1,
+            "example": 1
           }
         }
       },
@@ -357,6 +378,12 @@
           },
           "publicKey": {
             "type": "string"
+          },
+          "ultimaVersioneSuBlockchain": {
+            "type": "integer",
+            "format": "int64",
+            "default": 1,
+            "example": 1
           },
           "organizzazione": {
             "description": "JSON dictionary representing the **organizzazione** instance or FK when creating / updating / not populated",

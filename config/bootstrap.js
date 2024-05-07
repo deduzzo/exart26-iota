@@ -10,14 +10,12 @@
  */
 
 
-const CryptHelper = require('../api/utility/CryptHelper');
 module.exports.bootstrap = async function () {
-
+  const CryptHelper = require('../api/utility/CryptHelper');
+  const iota = require('../api/utility/iota');
   // Import dependencies
   var path = require('path');
-  const iota = require('../api/utility/iota');
   const {STRUTTURE_DATA,DATI_SENSIBILI} = require('../api/enums/TransactionDataType');
-  const CryptHelper = require('../api/utility/CryptHelper');
   const ListManager = require('../api/utility/ListManager');
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
@@ -36,97 +34,115 @@ module.exports.bootstrap = async function () {
       walletPath: 'wallet-db'
     }).fetch();*/
 
-  // remove all from Organizzazione
-  await Organizzazione.destroy({});
-  let keyPairOrg1 = await CryptHelper.RSAGenerateKeyPair();
-  let organizzazione1 = await Organizzazione.create({
-    id: 1,
-    denominazione: 'ASP 5 Messina',
-    publicKey: keyPairOrg1.publicKey,
-    privateKey: keyPairOrg1.privateKey,
-  }).fetch();
-  let keyPairOrg2 = await CryptHelper.RSAGenerateKeyPair();
-  let organizzazione2 = await Organizzazione.create({
-    id: 2,
-    denominazione: 'ASP 6 Catania',
-    publicKey: keyPairOrg2.publicKey,
-    privateKey: keyPairOrg2.privateKey,
-  }).fetch();
-  // create 2 struttura
-  await Struttura.destroy({});
-  let keyPair1 = await CryptHelper.RSAGenerateKeyPair();
-  let struttura1 = await Struttura.create(
-    {
+  let initFromZero = false;
+  let walletData = null;
+  let wallet = null;
+  let mainAccount = null;
+  if (initFromZero) {
+
+    // remove all from Organizzazione
+    await Organizzazione.destroy({});
+    let keyPairOrg1 = await CryptHelper.RSAGenerateKeyPair();
+    let organizzazione1 = await Organizzazione.create({
       id: 1,
-      privateKey: keyPair1.privateKey,
-      publicKey: keyPair1.publicKey,
-      indirizzo: "Indirizzo della struttura 1",
-      denominazione: 'Struttura 1',
-      organizzazione: organizzazione1.id,
+      denominazione: 'ASP 5 Messina',
+      publicKey: keyPairOrg1.publicKey,
+      privateKey: keyPairOrg1.privateKey,
     }).fetch();
-  let keyPair2 = await CryptHelper.RSAGenerateKeyPair();
-  let struttura2 = await Struttura.create(
-    {
+    let keyPairOrg2 = await CryptHelper.RSAGenerateKeyPair();
+    let organizzazione2 = await Organizzazione.create({
       id: 2,
-      privateKey: keyPair2.privateKey,
-      publicKey: keyPair2.publicKey,
-      indirizzo: "Indirizzo della struttura 2",
-      denominazione: 'Struttura 2',
-      organizzazione: organizzazione1.id,
+      denominazione: 'ASP 6 Catania',
+      publicKey: keyPairOrg2.publicKey,
+      privateKey: keyPairOrg2.privateKey,
     }).fetch();
-  await Lista.destroy({});
-  let lista1Struttura1 = await Lista.create({
-    id: 1,
-    denominazione: 'Lista 1 Struttura 1',
-    struttura: struttura1.id,
-  }).fetch();
-  let lista2Struttura1 = await Lista.create({
-    id: 2,
-    denominazione: 'Lista 2 Struttura 1',
-    struttura: struttura1.id,
-  }).fetch();
-  let lista1Struttura2 = await Lista.create({
-    id: 3,
-    denominazione: 'Lista 1 Struttura 2',
-    struttura: struttura2.id,
-  }).fetch();
+    // create 2 struttura
+    await Struttura.destroy({});
+    let keyPair1 = await CryptHelper.RSAGenerateKeyPair();
+    let struttura1 = await Struttura.create(
+      {
+        id: 1,
+        privateKey: keyPair1.privateKey,
+        publicKey: keyPair1.publicKey,
+        indirizzo: "Indirizzo della struttura 1",
+        denominazione: 'Struttura 1',
+        organizzazione: organizzazione1.id,
+      }).fetch();
+    let keyPair2 = await CryptHelper.RSAGenerateKeyPair();
+    let struttura2 = await Struttura.create(
+      {
+        id: 2,
+        privateKey: keyPair2.privateKey,
+        publicKey: keyPair2.publicKey,
+        indirizzo: "Indirizzo della struttura 2",
+        denominazione: 'Struttura 2',
+        organizzazione: organizzazione1.id,
+      }).fetch();
+    await Lista.destroy({});
+    let lista1Struttura1 = await Lista.create({
+      id: 1,
+      denominazione: 'Lista 1 Struttura 1',
+      struttura: struttura1.id,
+    }).fetch();
+    let lista2Struttura1 = await Lista.create({
+      id: 2,
+      denominazione: 'Lista 2 Struttura 1',
+      struttura: struttura1.id,
+    }).fetch();
+    let lista1Struttura2 = await Lista.create({
+      id: 3,
+      denominazione: 'Lista 1 Struttura 2',
+      struttura: struttura2.id,
+    }).fetch();
 
-  let idWalletStruttura1 = await Struttura.getWalletIdStruttura({id: struttura1.id});
-  let idWalletStruttura2 = await Struttura.getWalletIdStruttura({id: struttura2.id});
-  let idWalleetLista1Struttura1 = await Lista.getWalletIdLista({id: lista1Struttura1.id});
-  let idWalleetLista2Struttura1 = await Lista.getWalletIdLista({id: lista2Struttura1.id});
-  let idWalleetLista1Struttura2 = await Lista.getWalletIdLista({id: lista1Struttura2.id});
+    let idWalletStruttura1 = await Struttura.getWalletIdStruttura({id: struttura1.id});
+    let idWalletStruttura2 = await Struttura.getWalletIdStruttura({id: struttura2.id});
+    let idWalleetLista1Struttura1 = await Lista.getWalletIdLista({id: lista1Struttura1.id});
+    let idWalleetLista2Struttura1 = await Lista.getWalletIdLista({id: lista2Struttura1.id});
+    let idWalleetLista1Struttura2 = await Lista.getWalletIdLista({id: lista1Struttura2.id});
 
-  let walletData = await iota.getOrInitWallet();
-  let wallet = walletData.wallet;
-  let mainAccount = walletData.mainAccount;
-  //let mainAccountBalance = await iota.getAccountBalance(mainAccount);
-  /*let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
-  let accountStruttura2 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura2);
-  let accountLista1Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura1);
-  let accountLista2Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista2Struttura1);
-  let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);*/
+    walletData = await iota.getOrInitWallet();
+    wallet = walletData.wallet;
+    mainAccount = walletData.mainAccount;
+    //let mainAccountBalance = await iota.getAccountBalance(mainAccount);
+    /*let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
+    let accountStruttura2 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura2);
+    let accountLista1Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura1);
+    let accountLista2Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista2Struttura1);
+    let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);*/
 
-  let mainBalance = await iota.getAccountBalance(mainAccount);
-  await iota.waitUntilBalanceIsGreaterThanZero(mainAccount);
-  let allOrganizzazioni = await Organizzazione.find().populate('strutture');
-  let dataToStore = [];
-  for (let organizzazione of allOrganizzazioni) {
-    console.log(organizzazione);
-    for(let struttura of organizzazione.strutture){
-      // omit private key
-      struttura.privateKey = null;
-      let allListe = await Lista.find({struttura: struttura.id});
-      struttura.liste = allListe;
+    let mainBalance = await iota.getAccountBalance(mainAccount);
+    await iota.waitUntilBalanceIsGreaterThanZero(mainAccount);
+    let allOrganizzazioni = await Organizzazione.find().populate('strutture');
+    let dataToStore = [];
+    for (let organizzazione of allOrganizzazioni) {
+      console.log(organizzazione);
+      for (let struttura of organizzazione.strutture) {
+        // omit private key
+        struttura.privateKey = null;
+        let allListe = await Lista.find({struttura: struttura.id});
+        struttura.liste = allListe;
+      }
+      dataToStore.push(organizzazione);
     }
-    dataToStore.push(organizzazione);
+
+    //await iota.makeTransactionWithText(wallet, mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, dataToStore, 'Snaposnot del ' + new Date().getTime());
   }
-
-  //await iota.makeTransactionWithText(wallet, mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, dataToStore, 'Snaposnot del ' + new Date().getTime());
-
+  else
+  {
+    let walletData = await iota.getOrInitWallet();
+    wallet = walletData.wallet;
+    mainAccount = walletData.mainAccount;
+  }
   let manager = new ListManager(wallet);
-  //await manager.updateDatiStruttureToBlockchain(1);
-  await manager.getLastTransactionDataFromBlockchain(1);
+  await manager.updateDatiOrganizzazioneToBlockchain(1);
+  let data = await manager.getLastDatiOrganizzazioneFromBlockchain(1);
+  await manager.updateDatiOrganizzazioneToBlockchain(2);
+  let data2 = await manager.getLastDatiOrganizzazioneFromBlockchain(2);
+  await manager.updateDatiStrutturaToBlockchain(1);
+  let data3 = await manager.getLastDatiStrutturaFromBlockchain(1);
+  await manager.updateDatiStrutturaToBlockchain(2);
+  let data4 = await manager.getLastDatiStrutturaFromBlockchain(2);
   console.log('ciao');
 
 

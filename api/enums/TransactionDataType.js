@@ -2,8 +2,8 @@ class TransactionDataType {
   static get BALANCE_DISTRIBUTE() {
     return 'BALANCE_DISTRIBUTE';
   }
-  static get STRUTTURE_DATA() {
-    return 'STRUTTURE_DATA';
+  static get ORGANIZZAZIONE_DATA() {
+    return 'ORGANIZZAZIONE_DATA';
   }
   static get DATI_SENSIBILI() {
     return 'DATI_SENSIBILI';

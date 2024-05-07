@@ -28,7 +28,12 @@ module.exports = {
     strutture: {
       collection: 'struttura',
       via: 'organizzazione'
-    }
+    },
+    ultimaVersioneSuBlockchain: {
+      type: 'number',
+      columnType: 'int',
+      defaultsTo: 0
+    },
     //  ╔═╗╔╦╗╔╗ ╔═╗╔╦╗╔═╗
     //  ║╣ ║║║╠╩╗║╣  ║║╚═╗
     //  ╚═╝╩ ╩╚═╝╚═╝═╩╝╚═╝
