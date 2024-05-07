@@ -148,10 +148,8 @@
             ]
           },
           "stato": {
-            "type": "number",
-            "format": "double",
-            "default": 1,
-            "example": 1
+            "type": "integer",
+            "format": "int64"
           },
           "chiuso": {
             "type": "boolean",
@@ -169,9 +167,7 @@
             "required": [
               "nome",
               "cognome",
-              "codiceFiscale",
-              "privateKey",
-              "publicKey"
+              "codiceFiscale"
             ]
           }
         ]
@@ -208,12 +204,6 @@
             "type": "string"
           },
           "email": {
-            "type": "string"
-          },
-          "privateKey": {
-            "type": "string"
-          },
-          "publicKey": {
             "type": "string"
           },
           "liste": {
@@ -313,6 +303,12 @@
             "description": "Note Sails special attributes: autoIncrement"
           },
           "denominazione": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "strutture": {

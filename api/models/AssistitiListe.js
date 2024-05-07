@@ -24,6 +24,7 @@ module.exports = {
     },
     stato: {
       type: 'number',
+      columnType: 'tinyint',
       defaultsTo: IN_CODA
     },
     chiuso: {

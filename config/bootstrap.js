@@ -16,8 +16,9 @@ module.exports.bootstrap = async function () {
   // Import dependencies
   var path = require('path');
   const iota = require('../api/utility/iota');
-  const {MAIN_DATA} = require('../api/enums/TransactionDataType');
+  const {STRUTTURE_DATA,DATI_SENSIBILI} = require('../api/enums/TransactionDataType');
   const CryptHelper = require('../api/utility/CryptHelper');
+  const ListManager = require('../api/utility/ListManager');
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
   var HARD_CODED_DATA_VERSION = 0;
@@ -37,14 +38,19 @@ module.exports.bootstrap = async function () {
 
   // remove all from Organizzazione
   await Organizzazione.destroy({});
+  let keyPairOrg1 = await CryptHelper.RSAGenerateKeyPair();
   let organizzazione1 = await Organizzazione.create({
     id: 1,
     denominazione: 'ASP 5 Messina',
-    walletPath: 'wallet-db'
+    publicKey: keyPairOrg1.publicKey,
+    privateKey: keyPairOrg1.privateKey,
   }).fetch();
+  let keyPairOrg2 = await CryptHelper.RSAGenerateKeyPair();
   let organizzazione2 = await Organizzazione.create({
     id: 2,
     denominazione: 'ASP 6 Catania',
+    publicKey: keyPairOrg2.publicKey,
+    privateKey: keyPairOrg2.privateKey,
   }).fetch();
   // create 2 struttura
   await Struttura.destroy({});
@@ -54,6 +60,7 @@ module.exports.bootstrap = async function () {
       id: 1,
       privateKey: keyPair1.privateKey,
       publicKey: keyPair1.publicKey,
+      indirizzo: "Indirizzo della struttura 1",
       denominazione: 'Struttura 1',
       organizzazione: organizzazione1.id,
     }).fetch();
@@ -63,6 +70,7 @@ module.exports.bootstrap = async function () {
       id: 2,
       privateKey: keyPair2.privateKey,
       publicKey: keyPair2.publicKey,
+      indirizzo: "Indirizzo della struttura 2",
       denominazione: 'Struttura 2',
       organizzazione: organizzazione1.id,
     }).fetch();
@@ -92,13 +100,15 @@ module.exports.bootstrap = async function () {
   let walletData = await iota.getOrInitWallet();
   let wallet = walletData.wallet;
   let mainAccount = walletData.mainAccount;
-  let sub = walletData.subAccount;
-  let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
+  //let mainAccountBalance = await iota.getAccountBalance(mainAccount);
+  /*let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
   let accountStruttura2 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura2);
   let accountLista1Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura1);
   let accountLista2Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista2Struttura1);
-  let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);
+  let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);*/
 
+  let mainBalance = await iota.getAccountBalance(mainAccount);
+  await iota.waitUntilBalanceIsGreaterThanZero(mainAccount);
   let allOrganizzazioni = await Organizzazione.find().populate('strutture');
   let dataToStore = [];
   for (let organizzazione of allOrganizzazioni) {
@@ -112,8 +122,11 @@ module.exports.bootstrap = async function () {
     dataToStore.push(organizzazione);
   }
 
-  await iota.makeTransactionWithText(wallet, mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, dataToStore, 'Snaposnot del ' + new Date().getTime());
+  //await iota.makeTransactionWithText(wallet, mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, dataToStore, 'Snaposnot del ' + new Date().getTime());
 
+  let manager = new ListManager(wallet);
+  //await manager.updateDatiStruttureToBlockchain(1);
+  await manager.getLastTransactionDataFromBlockchain(1);
   console.log('ciao');
 
 
@@ -150,6 +163,7 @@ module.exports.bootstrap = async function () {
   }//∞
 
 // By convention, this is a good place to set up fake data during development.
+/*
   await User.createEach([
     {
       emailAddress: 'admin@example.com',
@@ -158,6 +172,7 @@ module.exports.bootstrap = async function () {
       password: await sails.helpers.passwords.hashPassword('abc123')
     },
   ]);
+*/
 
 
 // Save new bootstrap version

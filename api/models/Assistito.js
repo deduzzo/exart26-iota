@@ -34,14 +34,6 @@ module.exports = {
       type: 'string',
       required: false
     },
-    privateKey: {
-      type: 'string',
-      required: true
-    },
-    publicKey: {
-      type: 'string',
-      required: true
-    },
     liste: {
       collection: 'lista',
       via: 'assistito',
@@ -58,6 +50,5 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
-
 };
 

@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 
+const VERSION = 1;
+
 class CryptHelper {
   static generateIv() {
     return crypto.randomBytes(16);
@@ -88,7 +90,7 @@ class CryptHelper {
     return hmac.digest('base64');
   }
 
-  static async encryptAndSend(message, AESKey = null, publicKey = null, privateKey = null) {
+  static async encryptAndSend(message, publicKey = null, privateKey = null,AESKey = null,) {
     if (!publicKey || !privateKey) {
       ({publicKey, privateKey} = await CryptHelper.RSAGenerateKeyPair());
     }
@@ -106,10 +108,10 @@ class CryptHelper {
       key: encryptedAESKey,
       iv: iv.toString('base64'),
       hmac: hmac,
-      version: 1
+      version: VERSION
     };
 
-    return {privateKey, publicKey, AESKey, data};
+    return {privateKey, publicKey, AESKey, data, originalMessage: message};
   }
 
   static async receiveAndDecrypt(data, privateKey) {

@@ -17,11 +17,18 @@ module.exports = {
       columnName: 'denominazione',
       required: true
     },
+    privateKey: {
+      type: 'string',
+      columnType: 'text',
+    },
+    publicKey: {
+      type: 'string',
+      columnType: 'text',
+    },
     strutture: {
       collection: 'struttura',
       via: 'organizzazione'
     }
-
     //  ╔═╗╔╦╗╔╗ ╔═╗╔╦╗╔═╗
     //  ║╣ ║║║╠╩╗║╣  ║║╚═╗
     //  ╚═╝╩ ╩╚═╝╚═╝═╩╝╚═╝
@@ -32,6 +39,12 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
+  getWalletIdOrganizzazione: async function (opts) {
+    return opts.id.toString();
+  },
+  customToJSON: function() {
+    return _.omit(this, ['privateKey']);
+  }
 
 };
 
