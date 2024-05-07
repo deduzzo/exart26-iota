@@ -1,7 +1,9 @@
 class ListManager {
-    constructor($wallet) {
-        this.list = [];
+    constructor(wallet) {
+        this.wallet = wallet;
     }
+
+
 
 
 }

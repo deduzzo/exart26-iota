@@ -110,4 +110,5 @@ module.exports.custom = {
   IOTA_STRONGHOLD_PASSWORD: 'a-secure-password',
   IOTA_STRONGHOLD_SNAPSHOT_PATH: 'wallet-db' + sep + 'vault.stronghold',
   IOTA_MAIN_ACCOUNT_ALIAS: 'main-account',
+  IOTA_SUB_ACCOUNT_ALIAS: 'sub-account',
 };

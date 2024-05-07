@@ -23,7 +23,7 @@ module.exports = {
       model: 'lista',
     },
     stato: {
-      type: 'integer',
+      type: 'number',
       defaultsTo: IN_CODA
     },
     chiuso: {

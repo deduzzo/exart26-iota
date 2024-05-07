@@ -17,11 +17,6 @@ module.exports = {
       columnName: 'denominazione',
       required: true
     },
-    walletPath: {
-      type: 'string',
-      columnName: 'wallet_path',
-      required: true
-    },
     strutture: {
       collection: 'struttura',
       via: 'organizzazione'

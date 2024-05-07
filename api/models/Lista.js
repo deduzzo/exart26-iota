@@ -23,7 +23,7 @@ module.exports = {
       collection: 'assistito',
       via: 'lista',
       through: 'assistitiliste'
-    }
+    },
 
     //  ╔═╗╦═╗╦╔╦╗╦╔╦╗╦╦  ╦╔═╗╔═╗
     //  ╠═╝╠╦╝║║║║║ ║ ║╚╗╔╝║╣ ╚═╗
@@ -40,6 +40,14 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
+  // METODI
+  getWalletIdLista: async function (opts) {
+    let lista = await Lista.findOne({id: opts.id}).populate('struttura');
+    if (lista) {
+      return lista.struttura.organizzazione + '_' + lista.struttura.id + '_' + lista.id;
+    }
+    return null;
+  }
 
 };
 

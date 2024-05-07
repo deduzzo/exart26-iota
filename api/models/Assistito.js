@@ -23,7 +23,8 @@ module.exports = {
     },
     codiceFiscale: {
       type: 'string',
-      required: true
+      required: true,
+      unique: true
     },
     dataNascita: {
       type: 'string',
@@ -32,6 +33,14 @@ module.exports = {
     email: {
       type: 'string',
       required: false
+    },
+    privateKey: {
+      type: 'string',
+      required: true
+    },
+    publicKey: {
+      type: 'string',
+      required: true
     },
     liste: {
       collection: 'lista',

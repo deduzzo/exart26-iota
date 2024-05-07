@@ -9,10 +9,15 @@
  * https://sailsjs.com/config/bootstrap
  */
 
-module.exports.bootstrap = async function() {
+
+const CryptHelper = require('../api/utility/CryptHelper');
+module.exports.bootstrap = async function () {
 
   // Import dependencies
   var path = require('path');
+  const iota = require('../api/utility/iota');
+  const {MAIN_DATA} = require('../api/enums/TransactionDataType');
+  const CryptHelper = require('../api/utility/CryptHelper');
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
   var HARD_CODED_DATA_VERSION = 0;
@@ -25,51 +30,137 @@ module.exports.bootstrap = async function() {
   // depends on some factors:
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-/*  let data = await Organizzazione.create({
+  /*  let data = await Organizzazione.create({
+      denominazione: 'ASP 5 Messina',
+      walletPath: 'wallet-db'
+    }).fetch();*/
+
+  // remove all from Organizzazione
+  await Organizzazione.destroy({});
+  let organizzazione1 = await Organizzazione.create({
+    id: 1,
     denominazione: 'ASP 5 Messina',
     walletPath: 'wallet-db'
-  }).fetch();*/
+  }).fetch();
+  let organizzazione2 = await Organizzazione.create({
+    id: 2,
+    denominazione: 'ASP 6 Catania',
+  }).fetch();
+  // create 2 struttura
+  await Struttura.destroy({});
+  let keyPair1 = await CryptHelper.RSAGenerateKeyPair();
+  let struttura1 = await Struttura.create(
+    {
+      id: 1,
+      privateKey: keyPair1.privateKey,
+      publicKey: keyPair1.publicKey,
+      denominazione: 'Struttura 1',
+      organizzazione: organizzazione1.id,
+    }).fetch();
+  let keyPair2 = await CryptHelper.RSAGenerateKeyPair();
+  let struttura2 = await Struttura.create(
+    {
+      id: 2,
+      privateKey: keyPair2.privateKey,
+      publicKey: keyPair2.publicKey,
+      denominazione: 'Struttura 2',
+      organizzazione: organizzazione1.id,
+    }).fetch();
+  await Lista.destroy({});
+  let lista1Struttura1 = await Lista.create({
+    id: 1,
+    denominazione: 'Lista 1 Struttura 1',
+    struttura: struttura1.id,
+  }).fetch();
+  let lista2Struttura1 = await Lista.create({
+    id: 2,
+    denominazione: 'Lista 2 Struttura 1',
+    struttura: struttura1.id,
+  }).fetch();
+  let lista1Struttura2 = await Lista.create({
+    id: 3,
+    denominazione: 'Lista 1 Struttura 2',
+    struttura: struttura2.id,
+  }).fetch();
 
-  // If the hard-coded data version has been incremented, or we're being forced
-  // (i.e. `--drop` or `--environment=test` was set), then run the meat of this
-  // bootstrap script to wipe all existing data and rebuild hard-coded data.
+  let idWalletStruttura1 = await Struttura.getWalletIdStruttura({id: struttura1.id});
+  let idWalletStruttura2 = await Struttura.getWalletIdStruttura({id: struttura2.id});
+  let idWalleetLista1Struttura1 = await Lista.getWalletIdLista({id: lista1Struttura1.id});
+  let idWalleetLista2Struttura1 = await Lista.getWalletIdLista({id: lista2Struttura1.id});
+  let idWalleetLista1Struttura2 = await Lista.getWalletIdLista({id: lista1Struttura2.id});
+
+  let walletData = await iota.getOrInitWallet();
+  let wallet = walletData.wallet;
+  let mainAccount = walletData.mainAccount;
+  let sub = walletData.subAccount;
+  let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
+  let accountStruttura2 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura2);
+  let accountLista1Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura1);
+  let accountLista2Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista2Struttura1);
+  let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);
+
+  let allOrganizzazioni = await Organizzazione.find().populate('strutture');
+  let dataToStore = [];
+  for (let organizzazione of allOrganizzazioni) {
+    console.log(organizzazione);
+    for(let struttura of organizzazione.strutture){
+      // omit private key
+      struttura.privateKey = null;
+      let allListe = await Lista.find({struttura: struttura.id});
+      struttura.liste = allListe;
+    }
+    dataToStore.push(organizzazione);
+  }
+
+  await iota.makeTransactionWithText(wallet, mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, dataToStore, 'Snaposnot del ' + new Date().getTime());
+
+  console.log('ciao');
+
+
+// If the hard-coded data version has been incremented, or we're being forced
+// (i.e. `--drop` or `--environment=test` was set), then run the meat of this
+// bootstrap script to wipe all existing data and rebuild hard-coded data.
   if (sails.config.models.migrate !== 'drop' && sails.config.environment !== 'test') {
     // If this is _actually_ a production environment (real or simulated), or we have
     // `migrate: safe` enabled, then prevent accidentally removing all data!
-    if (process.env.NODE_ENV==='production' || sails.config.models.migrate === 'safe') {
-      sails.log('Since we are running with migrate: \'safe\' and/or NODE_ENV=production (in the "'+sails.config.environment+'" Sails environment, to be precise), skipping the rest of the bootstrap to avoid data loss...');
+    if (process.env.NODE_ENV === 'production' || sails.config.models.migrate === 'safe') {
+      sails.log('Since we are running with migrate: \'safe\' and/or NODE_ENV=production (in the "' + sails.config.environment + '" Sails environment, to be precise), skipping the rest of the bootstrap to avoid data loss...');
       return;
     }//•
 
     // Compare bootstrap version from code base to the version that was last run
     var lastRunBootstrapInfo = await sails.helpers.fs.readJson(bootstrapLastRunInfoPath)
-    .tolerate('doesNotExist');// (it's ok if the file doesn't exist yet-- just keep going.)
+      .tolerate('doesNotExist');// (it's ok if the file doesn't exist yet-- just keep going.)
 
     if (lastRunBootstrapInfo && lastRunBootstrapInfo.lastRunVersion === HARD_CODED_DATA_VERSION) {
-      sails.log('Skipping v'+HARD_CODED_DATA_VERSION+' bootstrap script...  (because it\'s already been run)');
-      sails.log('(last run on this computer: @ '+(new Date(lastRunBootstrapInfo.lastRunAt))+')');
+      sails.log('Skipping v' + HARD_CODED_DATA_VERSION + ' bootstrap script...  (because it\'s already been run)');
+      sails.log('(last run on this computer: @ ' + (new Date(lastRunBootstrapInfo.lastRunAt)) + ')');
       return;
     }//•
 
-    sails.log('Running v'+HARD_CODED_DATA_VERSION+' bootstrap script...  ('+(lastRunBootstrapInfo ? 'before this, the last time the bootstrap ran on this computer was for v'+lastRunBootstrapInfo.lastRunVersion+' @ '+(new Date(lastRunBootstrapInfo.lastRunAt)) : 'looks like this is the first time the bootstrap has run on this computer')+')');
-  }
-  else {
+    sails.log('Running v' + HARD_CODED_DATA_VERSION + ' bootstrap script...  (' + (lastRunBootstrapInfo ? 'before this, the last time the bootstrap ran on this computer was for v' + lastRunBootstrapInfo.lastRunVersion + ' @ ' + (new Date(lastRunBootstrapInfo.lastRunAt)) : 'looks like this is the first time the bootstrap has run on this computer') + ')');
+  } else {
     sails.log('Running bootstrap script because it was forced...  (either `--drop` or `--environment=test` was used)');
   }
 
-  // Since the hard-coded data version has been incremented, and we're running in
-  // a "throwaway data" environment, delete all records from all models.
+// Since the hard-coded data version has been incremented, and we're running in
+// a "throwaway data" environment, delete all records from all models.
   for (let identity in sails.models) {
     await sails.models[identity].destroy({});
   }//∞
 
-  // By convention, this is a good place to set up fake data during development.
+// By convention, this is a good place to set up fake data during development.
   await User.createEach([
-    { emailAddress: 'admin@example.com', fullName: 'Ryan Dahl', isSuperAdmin: true, password: await sails.helpers.passwords.hashPassword('abc123') },
+    {
+      emailAddress: 'admin@example.com',
+      fullName: 'Ryan Dahl',
+      isSuperAdmin: true,
+      password: await sails.helpers.passwords.hashPassword('abc123')
+    },
   ]);
 
 
-  // Save new bootstrap version
+// Save new bootstrap version
   await sails.helpers.fs.writeJson.with({
     destination: bootstrapLastRunInfoPath,
     json: {
@@ -78,8 +169,8 @@ module.exports.bootstrap = async function() {
     },
     force: true
   })
-  .tolerate((err)=>{
-    sails.log.warn('For some reason, could not write bootstrap version .json file.  This could be a result of a problem with your configured paths, or, if you are in production, a limitation of your hosting provider related to `pwd`.  As a workaround, try updating app.js to explicitly pass in `appPath: __dirname` instead of relying on `chdir`.  Current sails.config.appPath: `'+sails.config.appPath+'`.  Full error details: '+err.stack+'\n\n(Proceeding anyway this time...)');
-  });
+    .tolerate((err) => {
+      sails.log.warn('For some reason, could not write bootstrap version .json file.  This could be a result of a problem with your configured paths, or, if you are in production, a limitation of your hosting provider related to `pwd`.  As a workaround, try updating app.js to explicitly pass in `appPath: __dirname` instead of relying on `chdir`.  Current sails.config.appPath: `' + sails.config.appPath + '`.  Full error details: ' + err.stack + '\n\n(Proceeding anyway this time...)');
+    });
 
 };

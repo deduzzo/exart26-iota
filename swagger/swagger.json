@@ -169,7 +169,9 @@
             "required": [
               "nome",
               "cognome",
-              "codiceFiscale"
+              "codiceFiscale",
+              "privateKey",
+              "publicKey"
             ]
           }
         ]
@@ -199,12 +201,19 @@
             "type": "string"
           },
           "codiceFiscale": {
-            "type": "string"
+            "type": "string",
+            "uniqueItems": true
           },
           "dataNascita": {
             "type": "string"
           },
           "email": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "liste": {
@@ -280,8 +289,7 @@
           },
           {
             "required": [
-              "denominazione",
-              "walletPath"
+              "denominazione"
             ]
           }
         ]
@@ -307,9 +315,6 @@
           "denominazione": {
             "type": "string"
           },
-          "walletPath": {
-            "type": "string"
-          },
           "strutture": {
             "description": "Array of **struttura**'s or array of FK's when creating / updating / not populated",
             "type": "array",
@@ -324,11 +329,6 @@
         "allOf": [
           {
             "$ref": "#/components/schemas/struttura-without-required-constraint"
-          },
-          {
-            "required": [
-              "idOrganizzazione"
-            ]
           }
         ]
       },
@@ -353,11 +353,13 @@
           "denominazione": {
             "type": "string"
           },
-          "idOrganizzazione": {
-            "type": "number",
-            "format": "double"
+          "indirizzo": {
+            "type": "string"
           },
-          "walletAddress": {
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "organizzazione": {

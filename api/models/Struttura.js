@@ -16,15 +16,17 @@ module.exports = {
       columnName: 'denominazione',
       required: false
     },
-    idOrganizzazione: {
-      type: 'number',
-      columnName: 'id_organizzazione',
-      required: true
-    },
-    walletAddress: {
+    indirizzo: {
       type: 'string',
-      columnName: 'wallet_address',
-      required: false
+      columnName: 'indirizzo',
+    },
+    privateKey: {
+      type: 'string',
+      columnType: 'text',
+    },
+    publicKey: {
+      type: 'string',
+      columnType: 'text',
     },
     organizzazione: {
       model: 'organizzazione',
@@ -35,12 +37,22 @@ module.exports = {
     //  ║╣ ║║║╠╩╗║╣  ║║╚═╗
     //  ╚═╝╩ ╩╚═╝╚═╝═╩╝╚═╝
 
-
     //  ╔═╗╔═╗╔═╗╔═╗╔═╗╦╔═╗╔╦╗╦╔═╗╔╗╔╔═╗
     //  ╠═╣╚═╗╚═╗║ ║║  ║╠═╣ ║ ║║ ║║║║╚═╗
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
-
   },
+
+  // METODI
+  getWalletIdStruttura: async function (opts) {
+    let struttura = await Struttura.findOne({ id: opts.id }).populate('organizzazione');
+    if (struttura) {
+      return struttura.organizzazione.id + '_' + struttura.id;
+    }
+    return null;
+  },
+  customToJSON: function() {
+    return _.omit(this, ['privateKey']);
+  }
 
 };
 
