@@ -49,4 +49,6 @@ module.exports.globals = {
 
   sails: true,
 
+  IOTA_WALLET: "bau",
+
 };

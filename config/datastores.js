@@ -48,8 +48,9 @@ module.exports.datastores = {
     *    (See https://sailsjs.com/config/datastores for help.)                 *
     *                                                                          *
     ***************************************************************************/
-     adapter: 'sails-mysql',
-     url: 'mysql://root:root@localhost:3306/exart26_iota',
+
+    adapter: 'sails-disk',
+    inMemoryOnly: true
 
   },
 

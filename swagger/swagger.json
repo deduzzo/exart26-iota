@@ -40,9 +40,6 @@
       "name": "View account overview"
     },
     {
-      "name": "Wallet"
-    },
-    {
       "name": "View terms"
     },
     {
@@ -65,6 +62,9 @@
     },
     {
       "name": "View edit profile"
+    },
+    {
+      "name": "View verifica"
     },
     {
       "name": "Deliver contact form message"
@@ -601,27 +601,6 @@
         }
       }
     },
-    "/wallet": {
-      "get": {
-        "summary": "Wallet",
-        "description": "Wallet something.",
-        "tags": [
-          "Wallet"
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/legal/terms": {
       "get": {
         "summary": "View terms",
@@ -852,6 +831,27 @@
         "description": "Display \"Edit profile\" page.",
         "tags": [
           "View edit profile"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/wallet/verifica": {
+      "get": {
+        "summary": "View verifica",
+        "description": "Display \"Verifica\" page.",
+        "tags": [
+          "View verifica"
         ],
         "parameters": [],
         "responses": {

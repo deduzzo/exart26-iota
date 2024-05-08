@@ -9,7 +9,6 @@
  */
 
 const {sep} = require('path');
-const crypto = require('crypto');
 
 module.exports.custom = {
 
@@ -103,12 +102,5 @@ module.exports.custom = {
   * Any other custom config this Sails app should use during development.    *
   *                                                                          *
   ***************************************************************************/
-  //IOTA
-  IOTA_WALLET_DB_PATH: 'wallet-db',
-  IOTA_NODE_URL: 'https://api.testnet.shimmer.network',
-  IOTA_EXPLORER_URL: 'https://explorer.shimmer.network/testnet',
-  IOTA_STRONGHOLD_PASSWORD: 'a-secure-password',
-  IOTA_STRONGHOLD_SNAPSHOT_PATH: 'wallet-db' + sep + 'vault.stronghold',
-  IOTA_MAIN_ACCOUNT_ALIAS: 'main-account',
-  IOTA_SUB_ACCOUNT_ALIAS: 'sub-account',
+
 };
