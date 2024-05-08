@@ -1,6 +1,13 @@
 const iota = require('./iota');
 const CryptHelper = require('./CryptHelper');
-const {STRUTTURE_LISTE_DATA, ORGANIZZAZIONE_DATA} = require('../enums/TransactionDataType');
+const {
+  STRUTTURE_LISTE_DATA,
+  ORGANIZZAZIONE_DATA,
+  MOVIMENTI_ASSISTITI_LISTA,
+  LISTE_IN_CODA,
+  ASSISTITI_IN_LISTA
+} = require('../enums/TransactionDataType');
+const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
 class ListManager {
   constructor(wallet) {
@@ -79,6 +86,67 @@ class ListManager {
     }
     return null;
   }
+
+  async aggiungiAssistitoInLista(idAssistito, idLista) {
+    if (idAssistito && idLista) {
+      let lista = await Lista.findOne({id: idLista}).populate('struttura');
+      let assistito = await Assistito.findOne({id: idAssistito});
+      if (lista && assistito) {
+        let res = {success: false};
+        let res2 = {success: false};
+        let listaAccount = await iota.getOrCreateWalletAccount(this.wallet, await Lista.getWalletIdLista({id: idLista}));
+        let assistitoAccount = await iota.getOrCreateWalletAccount(this.wallet, await Assistito.getWalletIdAssistito({id: idAssistito}));
+        let listeInCoda = await AssistitiListe.find({assistito: idAssistito, stato: INSERITO_IN_CODA, chiuso: false});
+        if ((listeInCoda.length > 0 && (listeInCoda.find((l) => l.lista === idLista)) === undefined) || listeInCoda.length === 0) {
+          let assistitoLista = null;
+          try {
+            assistitoLista = await AssistitiListe.create({
+              assistito: idAssistito,
+              lista: idLista,
+              stato: INSERITO_IN_CODA,
+            }).fetch();
+            let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
+            res = await iota.makeTransactionWithText(this.wallet, assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), LISTE_IN_CODA, data.data);
+            if (!res.success)
+              await AssistitiListe.destroy({id: assistitoLista.id});
+            else {
+              let data2 = await CryptHelper.encryptAndSend(JSON.stringify(assistitoLista), null, lista.struttura.publicKey);
+              res2 = await iota.makeTransactionWithText(this.wallet, listaAccount, await iota.getFirstAddressOfAnAccount(listaAccount), MOVIMENTI_ASSISTITI_LISTA, data2.data);
+              if (!res2.success)
+                await AssistitiListe.destroy({id: assistitoLista.id});
+            }
+          } catch (e) {
+            if (assistitoLista)
+              await AssistitiListe.destroy({id: assistitoLista.id});
+          }
+          let res3 = {success: false};
+          let listaFromBlockchain = null;
+          if (res.success && res2.success) {
+            let listaTransaction = await iota.getLastTransactionOfAccountWithTag(listaAccount, ASSISTITI_IN_LISTA);
+            if (listaTransaction) {
+              let data = JSON.parse(iota.hexToString(listaTransaction.payload.essence.payload.data));
+              let clearData = await CryptHelper.receiveAndDecrypt(data, lista.struttura.privateKey);
+              data.clearData = JSON.parse(clearData);
+              // version and lista
+              data.clearData.version = data.clearData.version +1;
+              data.clearData.lista.push(assistitoLista);
+              listaFromBlockchain = data.clearData;
+            }
+            else
+              listaFromBlockchain = {
+                version: 1,
+                lista: [assistitoLista]
+              };
+            let data = await CryptHelper.encryptAndSend(JSON.stringify(listaFromBlockchain), listaFromBlockchain.version, lista.struttura.publicKey);
+            res3 = await iota.makeTransactionWithText(this.wallet, listaAccount, await iota.getFirstAddressOfAnAccount(listaAccount), ASSISTITI_IN_LISTA, data.data);
+          }
+          return res.success && res2.success && res3.success;
+        } else return null;
+      }
+    }
+
+  }
+
 }
 
 module.exports = ListManager;

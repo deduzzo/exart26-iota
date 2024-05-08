@@ -14,11 +14,14 @@ class TransactionDataType {
   static get STRUTTURE_LISTE_DATA() {
     return 'STRUTTURE_LISTE_DATA';
   }
-  static get LISTE_DATA() {
-    return 'LISTE_DATA';
+  static get LISTE_IN_CODA() {
+    return 'LISTE_IN_CODA';
   }
-  static get MOVIMENTI_LISTE_DATA() {
-    return 'MOVIMENTI_LISTE_DATA';
+  static get ASSISTITI_IN_LISTA() {
+    return 'ASSISTITI_IN_LISTA';
+  }
+  static get MOVIMENTI_ASSISTITI_LISTA() {
+    return 'MOVIMENTI_ASSISTITI_LISTA';
   }
 }
 

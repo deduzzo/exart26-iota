@@ -28,15 +28,28 @@ module.exports = {
     },
     dataNascita: {
       type: 'string',
+      columnType: 'date',
       required: false
     },
     email: {
       type: 'string',
       required: false
     },
+    telefono: {
+      type: 'string',
+      required: false
+    },
     indirizzo: {
       type: 'string',
       required: false
+    },
+    privateKey: {
+      type: 'string',
+      columnType: 'text',
+    },
+    publicKey: {
+      type: 'string',
+      columnType: 'text',
     },
     ultimaVersioneSuBlockchain: {
       type: 'number',
@@ -59,5 +72,13 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
+  // METODI
+  getWalletIdAssistito: async function (opts) {
+    let assistito = await Assistito.findOne({id: opts.id});
+    if (assistito) {
+      return assistito.codiceFiscale;
+    }
+    return null;
+  }
 };
 

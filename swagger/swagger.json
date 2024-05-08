@@ -149,7 +149,9 @@
           },
           "stato": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "default": 1,
+            "example": 1
           },
           "chiuso": {
             "type": "boolean",
@@ -206,14 +208,22 @@
           "email": {
             "type": "string"
           },
+          "telefono": {
+            "type": "string"
+          },
           "indirizzo": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "ultimaVersioneSuBlockchain": {
             "type": "integer",
             "format": "int64",
-            "default": 1,
-            "example": 1
+            "default": 0
           },
           "liste": {
             "description": "Array of **lista**'s or array of FK's when creating / updating / not populated",
@@ -266,8 +276,7 @@
           "ultimaVersioneSuBlockchain": {
             "type": "integer",
             "format": "int64",
-            "default": 1,
-            "example": 1
+            "default": 0
           },
           "struttura": {
             "description": "JSON dictionary representing the **struttura** instance or FK when creating / updating / not populated",
@@ -336,8 +345,7 @@
           "ultimaVersioneSuBlockchain": {
             "type": "integer",
             "format": "int64",
-            "default": 1,
-            "example": 1
+            "default": 0
           }
         }
       },
@@ -370,6 +378,11 @@
           "denominazione": {
             "type": "string"
           },
+          "attiva": {
+            "type": "boolean",
+            "default": true,
+            "example": true
+          },
           "indirizzo": {
             "type": "string"
           },
@@ -382,8 +395,7 @@
           "ultimaVersioneSuBlockchain": {
             "type": "integer",
             "format": "int64",
-            "default": 1,
-            "example": 1
+            "default": 0
           },
           "organizzazione": {
             "description": "JSON dictionary representing the **organizzazione** instance or FK when creating / updating / not populated",
@@ -392,6 +404,13 @@
                 "$ref": "#/components/schemas/organizzazione"
               }
             ]
+          },
+          "liste": {
+            "description": "Array of **lista**'s or array of FK's when creating / updating / not populated",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/lista"
+            }
           }
         }
       }

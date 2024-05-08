@@ -10,6 +10,8 @@
  */
 
 
+const {INSERITO_IN_CODA} = require("../api/enums/StatoLista");
+const CryptHelper = require("../api/utility/CryptHelper");
 module.exports.bootstrap = async function () {
   const CryptHelper = require('../api/utility/CryptHelper');
   const iota = require('../api/utility/iota');
@@ -17,6 +19,7 @@ module.exports.bootstrap = async function () {
   var path = require('path');
   const {STRUTTURE_DATA,DATI_SENSIBILI} = require('../api/enums/TransactionDataType');
   const ListManager = require('../api/utility/ListManager');
+  const {INSERITO_IN_CODA} = require('../api/enums/StatoLista');
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
   var HARD_CODED_DATA_VERSION = 0;
@@ -34,11 +37,11 @@ module.exports.bootstrap = async function () {
       walletPath: 'wallet-db'
     }).fetch();*/
 
-  let initFromZero = false;
+  let initFromZero = true;
   let walletData = null;
   let wallet = null;
   let mainAccount = null;
-  if (initFromZero) {
+  if (initFromZero === true) {
 
     // remove all from Organizzazione
     await Organizzazione.destroy({});
@@ -95,23 +98,42 @@ module.exports.bootstrap = async function () {
       struttura: struttura2.id,
     }).fetch();
 
-    let idWalletStruttura1 = await Struttura.getWalletIdStruttura({id: struttura1.id});
-    let idWalletStruttura2 = await Struttura.getWalletIdStruttura({id: struttura2.id});
-    let idWalleetLista1Struttura1 = await Lista.getWalletIdLista({id: lista1Struttura1.id});
-    let idWalleetLista2Struttura1 = await Lista.getWalletIdLista({id: lista2Struttura1.id});
-    let idWalleetLista1Struttura2 = await Lista.getWalletIdLista({id: lista1Struttura2.id});
+    let keyPairAss1 = await CryptHelper.RSAGenerateKeyPair();
+    let keyPairAss2 = await CryptHelper.RSAGenerateKeyPair();
+    let userS = await Assistito.createEach([
+      {
+        id: 1,
+        nome: 'Mario',
+        cognome: 'Rossi',
+        codiceFiscale: 'RSSMRA01A01H501A',
+        dataNascita: '2001-01-01',
+        email: 'prova@prova.it',
+        telefono: '3333333333',
+        indirizzo: 'Via prova 1',
+        publicKey: keyPairAss1.publicKey,
+        privateKey: keyPairAss1.privateKey,
+      },
+      {
+        id: 2,
+        nome: 'Luca',
+        cognome: 'Verdi',
+        codiceFiscale: 'VRDLCA01A01H501A',
+        dataNascita: '2001-01-01',
+        email: 'prova2@prova.it',
+        telefono: '3333333333',
+        indirizzo: 'Via prova 2',
+        publicKey: keyPairAss2.publicKey,
+        privateKey: keyPairAss2.privateKey,
+      }
+      ]).fetch();
+
+
 
     walletData = await iota.getOrInitWallet();
     wallet = walletData.wallet;
     mainAccount = walletData.mainAccount;
-    //let mainAccountBalance = await iota.getAccountBalance(mainAccount);
-    /*let accountStruttura1 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura1);
-    let accountStruttura2 = await iota.getOrCreateWalletAccount(wallet, idWalletStruttura2);
-    let accountLista1Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura1);
-    let accountLista2Struttura1 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista2Struttura1);
-    let accountLista1Struttura2 = await iota.getOrCreateWalletAccount(wallet, idWalleetLista1Struttura2);*/
 
-    let mainBalance = await iota.getAccountBalance(mainAccount);
+
     await iota.waitUntilBalanceIsGreaterThanZero(mainAccount);
     let allOrganizzazioni = await Organizzazione.find().populate('strutture');
     let dataToStore = [];
@@ -135,6 +157,7 @@ module.exports.bootstrap = async function () {
     mainAccount = walletData.mainAccount;
   }
   let manager = new ListManager(wallet);
+/*
   await manager.updateDatiOrganizzazioneToBlockchain(1);
   let data = await manager.getLastDatiOrganizzazioneFromBlockchain(1);
   await manager.updateDatiOrganizzazioneToBlockchain(2);
@@ -143,7 +166,24 @@ module.exports.bootstrap = async function () {
   let data3 = await manager.getLastDatiStrutturaFromBlockchain(1);
   await manager.updateDatiStrutturaToBlockchain(2);
   let data4 = await manager.getLastDatiStrutturaFromBlockchain(2);
-  console.log('ciao');
+*/
+
+
+  await manager.aggiungiAssistitoInLista(1,1);
+  await manager.aggiungiAssistitoInLista(2,2);
+  await manager.aggiungiAssistitoInLista(1,1);
+  await manager.aggiungiAssistitoInLista(1,2);
+/*  await AssistitiListe.create({
+    assistito: 2,
+    lista: 1,
+    stato: INSERITO_IN_CODA,
+  });
+
+  await AssistitiListe.create({
+    assistito: 1,
+    lista: 1,
+    stato: INSERITO_IN_CODA,
+  });*/
 
 
 // If the hard-coded data version has been incremented, or we're being forced

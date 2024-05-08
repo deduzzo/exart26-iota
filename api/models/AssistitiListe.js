@@ -6,7 +6,7 @@
  */
 
 
-const {IN_CODA} = require('../enums/StatoLista');
+const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
 module.exports = {
 
@@ -25,7 +25,7 @@ module.exports = {
     stato: {
       type: 'number',
       columnType: 'tinyint',
-      defaultsTo: IN_CODA
+      defaultsTo: INSERITO_IN_CODA
     },
     chiuso: {
       type: 'boolean',
