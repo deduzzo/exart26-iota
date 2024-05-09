@@ -853,7 +853,18 @@
         "tags": [
           "View verifica"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "initWallet",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "If true, the wallet will be initialized"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success"

@@ -1,6 +1,50 @@
+
 <div id="verifica" v-cloak>
 
- {{ isWalletInitialized }}
+    <% if (!isWalletInitialized) {
+    %>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Attenzione!</strong> Non hai ancora inizializzato il tuo wallet. <a
+                                href="/wallet/verifica?initWallet=true">Clicca qui</a> per inizializzarlo.
+                    </div>
+                </div>
+            </div>
+        </div>
+    <%
+    } else if (mnemonic) {
+    %>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="alert alert-success" role="alert">
+                        <strong>Complimenti!</strong> Il tuo wallet è stato inizializzato correttamente, <strong>Qu' sotto trovi la frase segreta, conservala con cura!</strong> Aggiungere inoltre dei fondi all'indirizzo: <br /><strong><%= mainAddress %></strong><br />
+                        Rete: <%= iotaNetwork %>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <h3>Frase segreta</h3>
+                    <div class="alert alert-info" role="alert">
+                        <strong><%= mnemonic %></strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <%
+    } else {
+    %>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <!-- wallet inizializzato correttamente -->
+                    <div class="alert alert-success" role="alert">
+                        Il tuo wallet è già stato inizializzato correttamente: <br />MainAddress: <strong><%= mainAddress %></strong><br />Balance: <strong><%= balance %></strong> </div>
+                </div>
+            </div>
+        </div>
+    <% } %>
 
 </div>
 <%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser() %>

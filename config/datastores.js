@@ -49,8 +49,10 @@ module.exports.datastores = {
     *                                                                          *
     ***************************************************************************/
 
-    adapter: 'sails-disk',
-    inMemoryOnly: true
+/*    adapter: 'sails-disk',
+    inMemoryOnly: true*/
+    adapter: 'sails-mysql',
+    url: 'mysql://root:root@localhost:3306/exart26_iota',
 
   },
 

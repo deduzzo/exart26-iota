@@ -3,8 +3,10 @@
 // await CryptHelper.RSAGenerateKeyPair()
 
 const {sep} = require('path');
+const {CoinType} = require("@iota/sdk");
 
 module.exports = {
+  COIN_TYPE: CoinType.Shimmer,
   MAIN_PRIVATE_KEY: 'YOUR_PRIVATE_KEY',
   MAIN_PUBLIC_KEY: 'YOUR_PUBLIC_KEY',
   IOTA_STRONGHOLD_PASSWORD: 'a-secure-password',

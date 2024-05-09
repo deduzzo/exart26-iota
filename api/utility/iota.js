@@ -9,10 +9,21 @@ const {
   IOTA_MAIN_ACCOUNT_ALIAS,
   TRANSACTION_VALUE,
   ACCOUNT_BASE_BALANCE,
-  TRANSACTION_ZERO_VALUE
+  TRANSACTION_ZERO_VALUE,
+  COIN_TYPE,
 } = require('../../config/private_iota_conf');
 
 let _wallet = null;
+
+const COIN_NAME_MAP = {
+  Shimmer: {token: 'SMR', base: 'glow'},
+  IOTA: {token: 'IOTA', base: 'glow'}
+};
+
+const _coinTypeNames = {
+  [CoinType.Shimmer]: 'Shimmer',
+  [CoinType.IOTA]: 'IOTA'
+};
 
 let _getWalletOptions = () => {
   return {
@@ -20,7 +31,7 @@ let _getWalletOptions = () => {
     clientOptions: {
       nodes: [IOTA_NODE_URL],
     },
-    coinType: CoinType.Shimmer,
+    coinType: COIN_TYPE,
     secretManager: {
       stronghold: {
         snapshotPath: IOTA_STRONGHOLD_SNAPSHOT_PATH,
@@ -58,7 +69,7 @@ let getFirstAddressOfAnAccount = async (account) => {
   return (await account.addresses())[0].address;
 };
 
-let getMainAccount = async (wallet) => {
+let getMainAccount = async () => {
   return await _getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
 };
 
@@ -95,7 +106,7 @@ let getOrCreateWalletAccount = async (wallet, accountAlias) => {
   return account;
 };
 
-let getOrInitWallet = async () => {
+let getOrInitWallet = async (waitForBalnce = true) => {
   let init = false;
   let mnemonic = '';
   let mainAccount = null;
@@ -109,7 +120,7 @@ let getOrInitWallet = async () => {
     init = true;
   }
   console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
-  await waitUntilBalanceIsGreaterThanZero(mainAccount);
+  if (waitForBalnce) await waitUntilBalanceIsGreaterThanZero(mainAccount);
   return {wallet: _wallet, init: init, mnemonic: mnemonic, mainAccount: mainAccount};
 
 };
@@ -174,6 +185,21 @@ let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
   return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
 };
 
+let _getCoinName = () => {
+  return COIN_NAME_MAP[_coinTypeNames[COIN_TYPE]];
+};
+
+let _formatBalance = (longInt) => {
+  // ritorna il valore con il punto nelle migliaia
+  return longInt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+let showBalanceFormatted = (balance) => {
+  let coinName = _getCoinName();
+  let mainValue = balance.baseCoin.available / BigInt(1000000);
+  return _formatBalance(balance.baseCoin.available) + ' ' + coinName.base + ' [' + _formatBalance(mainValue) + ' ' + coinName.token + ']';
+};
+
 /*let findTransactionObjects = async (ofAddress, tag) => {
   const client = new Client({
     nodes: [IOTA_NODE_URL]
@@ -214,6 +240,9 @@ module.exports = {
   getAllOutputs,
   waitUntilBalanceIsGreaterThanZero,
   isWalletInitialized,
+  getMainAccount,
+  showBalanceFormatted,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
+  COIN_NAME_MAP
 };
 
