@@ -1,3 +1,9 @@
+let iota = require('../utility/iota');
+
+const pageTitle = 'Home';
+let pageSubTitle = '';
+
+
 module.exports = {
 
 
@@ -12,7 +18,7 @@ module.exports = {
     success: {
       statusCode: 200,
       description: 'Requesting user is a guest, so show the public landing page.',
-      viewTemplatePath: 'pages/homepage'
+      viewTemplatePath: 'pages/dashboard'
     },
 
     redirect: {
@@ -22,14 +28,18 @@ module.exports = {
 
   },
 
-
   fn: async function () {
-
+    let walletStatus =  await iota.getStatusAndBalance();
     if (this.req.me) {
       throw {redirect:'/welcome'};
     }
+    pageSubTitle = 'addr: ' + walletStatus.address;
 
-    return {};
+    return {
+      pageTitle,
+      pageSubTitle,
+      walletStatus: walletStatus
+    };
 
   }
 

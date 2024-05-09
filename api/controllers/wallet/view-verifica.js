@@ -1,3 +1,6 @@
+const pageTitle = 'Wallet Info';
+const pageSubTitle = 'Verifica stato del wallet';
+
 let iota = require('../../utility/iota');
 const {IOTA_NODE_URL} = require('../../../config/private_iota_conf');
 
@@ -44,12 +47,14 @@ module.exports = {
       balance = await iota.getAccountBalance(mainAccount);
     }
     return {
+      pageTitle,
+      pageSubTitle,
       isWalletInitialized,
       initWallet,
       mainAddress,
       mnemonic,
       iotaNetwork: IOTA_NODE_URL,
-      balance: iota.showBalanceFormatted(balance)
+      balance: iota.showBalanceFormatted(balance.baseCoin.available)
     };
   }
 

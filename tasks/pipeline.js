@@ -34,9 +34,16 @@
 var cssFilesToInject = [
 
   // Bring in `.css` files for themes and style guides (e.g. Bootstrap, Foundation)
-  'dependencies/**/*.css',
+  //'dependencies/**/*.css',
+  'dependencies/fontawesome.css',
 
-  'dependencies/bootstrap/dist/css/**/*.css', // Bootstrap CSS
+  //'dependencies/bootstrap/dist/css/bootstrap.min.css', // Bootstrap CSS
+
+  'compiled/css/app.css',
+  'compiled/css/app-dark.css',
+  'compiled/css/iconly.css',
+
+
 
   // All of the rest of your custom `.css` files will be injected here,
   // in no particular order.  To customize the ordering, add additional
@@ -66,6 +73,12 @@ var jsFilesToInject = [
   // Load `sails.io` before everything else.
   'dependencies/sails.io.js',
 
+  'static/js/initTheme.js',
+  'static/js/components/dark.js',
+  'extensions/perfect-scrollbar/perfect-scrollbar.min.js',
+  'compiled/js/app.js',
+  'extensions/apexcharts/apexcharts.min.js',
+
   // Bring in `.js` files for any other client-side JavaScript dependencies.
   // (e.g. Lodash, Vue.js, jQuery, Bootstrap, Ember, Angular, etc.)
   // > Be sure to list dependencies that depend on each other in the right order!
@@ -73,7 +86,9 @@ var jsFilesToInject = [
   'dependencies/jquery.min.js',
   'dependencies/vue.js',
   'dependencies/vue-router.js',
-  'dependencies/**/*.js',
+  //'dependencies/**/*.js',
+  'dependencies/parasails.js',
+  'dependencies/cloud.js',
 
   // First amongst the app-level files, bring in cloud configuration
   'js/cloud.setup.js',
@@ -82,7 +97,7 @@ var jsFilesToInject = [
   'js/components/**/*.js',
   'js/utilities/**/*.js',
 
-  'dependencies/bootstrap/dist/js/bootstrap.js', // Bootstrap JS
+  'dependencies/bootstrap/dist/js/bootstrap.bundle.min.js', // Bootstrap JS
 
   // All of the rest of your custom client-side js files will be injected here,
   // in no particular order.  To customize the ordering, add additional items

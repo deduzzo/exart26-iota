@@ -29,7 +29,6 @@ module.exports.http = {
      *                                                                          *
      ***************************************************************************/
     swaggerUi: require('express').static('node_modules/swagger-ui-dist'),
-
     order: [
       'cookieParser',
       'session',
@@ -41,8 +40,6 @@ module.exports.http = {
       'favicon',
       'swaggerUi',
     ],
-
-
     /***************************************************************************
      *                                                                          *
      * The body parser that will handle incoming multipart HTTP requests.       *

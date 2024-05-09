@@ -11,7 +11,7 @@ module.exports = {
 
     success: {
       viewTemplatePath: 'pages/dashboard/welcome',
-      description: 'Display the welcome page for authenticated users.'
+
     },
 
   },

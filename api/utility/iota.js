@@ -25,6 +25,10 @@ const _coinTypeNames = {
   [CoinType.IOTA]: 'IOTA'
 };
 
+let _getCoinName = () => {
+  return COIN_NAME_MAP[_coinTypeNames[COIN_TYPE]];
+};
+
 let _getWalletOptions = () => {
   return {
     storagePath: IOTA_WALLET_DB_PATH,
@@ -42,8 +46,9 @@ let _getWalletOptions = () => {
 };
 
 let _getWallet = () => {
-  if (!_wallet)
+  if (!_wallet) {
     _wallet = new Wallet(_getWalletOptions());
+  }
   return _wallet;
 };
 
@@ -120,7 +125,9 @@ let getOrInitWallet = async (waitForBalnce = true) => {
     init = true;
   }
   console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
-  if (waitForBalnce) await waitUntilBalanceIsGreaterThanZero(mainAccount);
+  if (waitForBalnce) {
+    await waitUntilBalanceIsGreaterThanZero(mainAccount);
+  }
   return {wallet: _wallet, init: init, mnemonic: mnemonic, mainAccount: mainAccount};
 
 };
@@ -132,6 +139,33 @@ let isWalletInitialized = async () => {
   } catch (ex) {
     return false;
   }
+};
+
+
+let _formatBalance = (longInt) => {
+  // ritorna il valore con il punto nelle migliaia
+  return longInt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+let showBalanceFormatted = (balance) => {
+  let coinName = _getCoinName();
+
+  let mainValue = balance / BigInt(1000000);
+  return _formatBalance(balance) + ' ' + coinName.base + ' [' + _formatBalance(mainValue) + ' ' + coinName.token + ']';
+};
+
+
+let getStatusAndBalance = async () => {
+  if (!await isWalletInitialized())
+    return {status: 'WALLET non inizializzato', balance: BigInt(0) };
+  let mainAccount = await getMainAccount();
+  let mainAddress = await getFirstAddressOfAnAccount(mainAccount);
+  let balance = await getAccountBalance(mainAccount);
+  return {
+    status: 'WALLET OK',
+    balance: showBalanceFormatted(balance.baseCoin.available),
+    address: mainAddress
+  };
 };
 
 let makeTransactionWithText = async (wallet, account, destAddr, tag, dataObject, nota = '') => {
@@ -185,20 +219,6 @@ let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
   return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
 };
 
-let _getCoinName = () => {
-  return COIN_NAME_MAP[_coinTypeNames[COIN_TYPE]];
-};
-
-let _formatBalance = (longInt) => {
-  // ritorna il valore con il punto nelle migliaia
-  return longInt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
-
-let showBalanceFormatted = (balance) => {
-  let coinName = _getCoinName();
-  let mainValue = balance.baseCoin.available / BigInt(1000000);
-  return _formatBalance(balance.baseCoin.available) + ' ' + coinName.base + ' [' + _formatBalance(mainValue) + ' ' + coinName.token + ']';
-};
 
 /*let findTransactionObjects = async (ofAddress, tag) => {
   const client = new Client({
@@ -242,6 +262,7 @@ module.exports = {
   isWalletInitialized,
   getMainAccount,
   showBalanceFormatted,
+  getStatusAndBalance,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
   COIN_NAME_MAP
 };
