@@ -1,4 +1,4 @@
-const {CoinType, Utils, Wallet,Client} = require('@iota/sdk');
+const {CoinType, Utils, Wallet, Client} = require('@iota/sdk');
 
 const {
   IOTA_WALLET_DB_PATH,
@@ -11,6 +11,8 @@ const {
   ACCOUNT_BASE_BALANCE,
   TRANSACTION_ZERO_VALUE,
   COIN_TYPE,
+  MAIN_PRIVATE_KEY,
+  MAIN_PUBLIC_KEY
 } = require('../../config/private_iota_conf');
 
 let _wallet = null;
@@ -23,6 +25,10 @@ const COIN_NAME_MAP = {
 const _coinTypeNames = {
   [CoinType.Shimmer]: 'Shimmer',
   [CoinType.IOTA]: 'IOTA'
+};
+
+const GET_MAIN_KEYS = () => {
+  return {privateKey: MAIN_PRIVATE_KEY, publicKey: MAIN_PUBLIC_KEY};
 };
 
 let _getCoinName = () => {
@@ -45,7 +51,7 @@ let _getWalletOptions = () => {
   };
 };
 
-let _getWallet = () => {
+let getWallet = () => {
   if (!_wallet) {
     _wallet = new Wallet(_getWalletOptions());
   }
@@ -63,8 +69,8 @@ let hexToString = (hex) => {
 
 let _initWallet = async () => {
   const mnemonic = Utils.generateMnemonic();
-  await _getWallet().storeMnemonic(mnemonic);
-  await _getWallet().createAccount({
+  await getWallet().storeMnemonic(mnemonic);
+  await getWallet().createAccount({
     alias: IOTA_MAIN_ACCOUNT_ALIAS,
   });
   return mnemonic;
@@ -75,7 +81,7 @@ let getFirstAddressOfAnAccount = async (account) => {
 };
 
 let getMainAccount = async () => {
-  return await _getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
+  return await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
 };
 
 let getAccountBalance = async (account) => {
@@ -91,50 +97,57 @@ let waitUntilBalanceIsGreaterThanZero = async (account) => {
   }
 };
 
+let getWalletAccount = async (accountAlias) => {
+  return await getWallet().getAccount(accountAlias);
+}
+
 let getOrCreateWalletAccount = async (accountAlias) => {
   let account = null;
   try {
-    account = await _getWallet().getAccount(accountAlias);
+    account = await getWallet().getAccount(accountAlias.toString());
     // eslint-disable-next-line no-unused-vars
   } catch (ex) {
-    account = await _getWallet().createAccount({
+    account = await getWallet().createAccount({
       alias: accountAlias,
     });
-    if (accountAlias !== IOTA_MAIN_ACCOUNT_ALIAS) {
-      let mainAccount = await getMainAccount();
-      let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
-      await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
-      console.log('MAIN BALANCE: ' + mainAccountBalanceBefore.baseCoin.available);
-      await waitUntilBalanceIsGreaterThanZero(account);
-    }
+  }
+  let balance = await getAccountBalance(account);
+  if (balance.baseCoin.available < ACCOUNT_BASE_BALANCE && accountAlias !== IOTA_MAIN_ACCOUNT_ALIAS) {
+    let mainAccount = await getMainAccount();
+    let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
+    await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
+    console.log('MAIN BALANCE: ' + mainAccountBalanceBefore.baseCoin.available);
+    await waitUntilBalanceIsGreaterThanZero(account);
   }
   return account;
 };
 
-let getOrInitWallet = async (waitForBalnce = true) => {
+let getOrInitWallet = async (waitForBalance = true) => {
   let init = false;
   let mnemonic = '';
   let mainAccount = null;
   try {
-    mainAccount = await _getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
+    mainAccount = await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
   }
     // eslint-disable-next-line no-unused-vars
   catch (ex) {
-    mnemonic = await _initWallet(_wallet);
-    mainAccount = await getOrCreateWalletAccount(_wallet, IOTA_MAIN_ACCOUNT_ALIAS);
+    mnemonic = await _initWallet();
+    mainAccount = await getOrCreateWalletAccount(IOTA_MAIN_ACCOUNT_ALIAS);
     init = true;
   }
   console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
-  if (waitForBalnce) {
+  if (waitForBalance) {
     await waitUntilBalanceIsGreaterThanZero(mainAccount);
   }
-  return {wallet: _wallet, init: init, mnemonic: mnemonic, mainAccount: mainAccount};
+  if (init) {
+    return {init: init, mnemonic: mnemonic, mainAccount: mainAccount};
+  }
 
 };
 
 let isWalletInitialized = async () => {
   try {
-    await _getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
+    await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
     return true;
   } catch (ex) {
     return false;
@@ -156,8 +169,9 @@ let showBalanceFormatted = (balance) => {
 
 
 let getStatusAndBalance = async () => {
-  if (!await isWalletInitialized())
-    return {status: 'WALLET non inizializzato', balance: BigInt(0) };
+  if (!await isWalletInitialized()) {
+    return {status: 'WALLET non inizializzato', balance: BigInt(0)};
+  }
   let mainAccount = await getMainAccount();
   let mainAddress = await getFirstAddressOfAnAccount(mainAccount);
   let balance = await getAccountBalance(mainAccount);
@@ -172,7 +186,7 @@ let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = 
 
   let balance = await getAccountBalance(account);
   // To sign a transaction we need to unlock stronghold.
-  await _getWallet().setStrongholdPassword(IOTA_MAIN_ACCOUNT_ALIAS);
+  await getWallet().setStrongholdPassword(IOTA_STRONGHOLD_PASSWORD);
 
   const amount = TRANSACTION_VALUE;
 
@@ -191,8 +205,9 @@ let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = 
   let response;
   try {
     response = await account.send(amount, destAddr, transactionOptions);
+    let url = IOTA_EXPLORER_URL + '/block/' + response.blockId;
     console.log(`Block sent: ${IOTA_EXPLORER_URL}/block/${response.blockId}`);
-    return {success: true, blockId: response.blockId, error: null};
+    return {success: true, blockId: response.blockId, url: url, transactionId: response.transactionId, error: null};
   } catch (e) {
     console.error(e);
     return {success: false, error: e};
@@ -202,7 +217,7 @@ let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = 
 let getAllTransactionOfAccountWithTag = async (account, tag) => {
   await account.sync();
   let transactions = await account.transactions();
-  transactions = transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
+  transactions = transactions.filter(t => t.payload.essence.payload !== undefined && t.payload.essence.payload.tag === stringToHex(tag));
   // ordered by timestamp
   transactions = transactions.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
   return transactions;
@@ -210,7 +225,7 @@ let getAllTransactionOfAccountWithTag = async (account, tag) => {
 
 let getLastTransactionOfAccountWithTag = async (account, tag) => {
   let transactions = await getAllTransactionOfAccountWithTag(account, tag);
-  return transactions[0];
+  return transactions.length > 0 ? transactions[0] : null;
 };
 
 let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
@@ -219,10 +234,11 @@ let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
   return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
 };
 
-let getTransactionByAccountNameAndId = async (accountAlias,transactionId) => {
+let getTransactionByAccountNameAndId = async (accountAlias, transactionId) => {
   let account = await getOrCreateWalletAccount(accountAlias);
-  if (account)
+  if (account) {
     return await account.getTransaction(transactionId);
+  }
   return null;
 };
 
@@ -254,10 +270,12 @@ let getAllOutputs = async (account) => {
 
 
 module.exports = {
+  getWallet,
   stringToHex,
   hexToString,
   getOrInitWallet,
   getOrCreateWalletAccount,
+  getWalletAccount,
   getFirstAddressOfAnAccount,
   getAccountBalance,
   makeTransactionWithText,
@@ -272,6 +290,7 @@ module.exports = {
   getStatusAndBalance,
   getTransactionByAccountNameAndId,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
-  COIN_NAME_MAP
+  COIN_NAME_MAP,
+  GET_MAIN_KEYS
 };
 

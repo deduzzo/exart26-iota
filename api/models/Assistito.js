@@ -79,6 +79,9 @@ module.exports = {
       return assistito.codiceFiscale;
     }
     return null;
+  },
+  customToJSON: function() {
+    return _.omit(this, ['privateKey']);
   }
 };
 

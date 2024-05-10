@@ -3,6 +3,7 @@ const pageSubTitle = 'Verifica stato del wallet';
 
 let iota = require('../../utility/iota');
 const {IOTA_NODE_URL} = require('../../../config/private_iota_conf');
+const ListManager = require('../../utility/ListManager');
 
 module.exports = {
 
@@ -30,6 +31,8 @@ module.exports = {
 
 
   fn: async function ({initWallet}) {
+    let manager = new ListManager();
+    let privateKey = await manager.getLastDatiStrutturaFromBlockchain("1");
     let mnemonic = null;
     let mainAddress = null;
     let balance = null;
@@ -54,7 +57,7 @@ module.exports = {
       mainAddress,
       mnemonic,
       iotaNetwork: IOTA_NODE_URL,
-      balance: iota.showBalanceFormatted(balance ?balance.baseCoin.available : BigInt(0))
+      balance: iota.showBalanceFormatted(balance ? balance.baseCoin.available : BigInt(0))
     };
   }
 

@@ -518,13 +518,39 @@
     "/api/v1/add-organizzazione": {
       "post": {
         "summary": "Add organizzazione",
+        "description": "Aggiunge una nuova organizzazione al database",
         "tags": [
           "Add organizzazione"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "denominazione",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "The requested resource"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Organizzazione aggiunta con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Resource not found"
