@@ -54,7 +54,7 @@ module.exports = {
       mainAddress,
       mnemonic,
       iotaNetwork: IOTA_NODE_URL,
-      balance: iota.showBalanceFormatted(balance.baseCoin.available)
+      balance: iota.showBalanceFormatted(balance ?balance.baseCoin.available : BigInt(0))
     };
   }
 

@@ -31,6 +31,12 @@
       "name": "View verifica"
     },
     {
+      "name": "Get transaction by acountName and transactionId"
+    },
+    {
+      "name": "Add organizzazione"
+    },
+    {
       "name": "Get wallet info info"
     },
     {
@@ -422,6 +428,24 @@
         }
       }
     },
+    "/csrfToken": {
+      "get": {
+        "summary": "/csrfToken",
+        "tags": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/wallet/verifica": {
       "get": {
         "summary": "View verifica",
@@ -444,6 +468,63 @@
         "responses": {
           "200": {
             "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/get-transaction": {
+      "get": {
+        "summary": "Get transaction by acountName and transactionId",
+        "tags": [
+          "Get transaction by acountName and transactionId"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "transactionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/add-organizzazione": {
+      "post": {
+        "summary": "Add organizzazione",
+        "tags": [
+          "Add organizzazione"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
           },
           "404": {
             "description": "Resource not found"

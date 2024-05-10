@@ -15,7 +15,7 @@ const CryptHelper = require('../api/utility/CryptHelper');
 
 module.exports.bootstrap = async function () {
 
-  //let keys = await CryptHelper.RSAGenerateKeyPair();
+  let keys = await CryptHelper.RSAGenerateKeyPair();
 
 
   // This bootstrap version indicates what version of fake data we're dealing with here.

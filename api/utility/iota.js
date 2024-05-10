@@ -1,4 +1,4 @@
-const {CoinType, Utils, Wallet} = require('@iota/sdk');
+const {CoinType, Utils, Wallet,Client} = require('@iota/sdk');
 
 const {
   IOTA_WALLET_DB_PATH,
@@ -91,7 +91,7 @@ let waitUntilBalanceIsGreaterThanZero = async (account) => {
   }
 };
 
-let getOrCreateWalletAccount = async (wallet, accountAlias) => {
+let getOrCreateWalletAccount = async (accountAlias) => {
   let account = null;
   try {
     account = await _getWallet().getAccount(accountAlias);
@@ -101,7 +101,7 @@ let getOrCreateWalletAccount = async (wallet, accountAlias) => {
       alias: accountAlias,
     });
     if (accountAlias !== IOTA_MAIN_ACCOUNT_ALIAS) {
-      let mainAccount = await getMainAccount(wallet);
+      let mainAccount = await getMainAccount();
       let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
       await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
       console.log('MAIN BALANCE: ' + mainAccountBalanceBefore.baseCoin.available);
@@ -168,7 +168,7 @@ let getStatusAndBalance = async () => {
   };
 };
 
-let makeTransactionWithText = async (wallet, account, destAddr, tag, dataObject, nota = '') => {
+let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = '') => {
 
   let balance = await getAccountBalance(account);
   // To sign a transaction we need to unlock stronghold.
@@ -219,6 +219,13 @@ let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
   return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
 };
 
+let getTransactionByAccountNameAndId = async (accountAlias,transactionId) => {
+  let account = await getOrCreateWalletAccount(accountAlias);
+  if (account)
+    return await account.getTransaction(transactionId);
+  return null;
+};
+
 
 /*let findTransactionObjects = async (ofAddress, tag) => {
   const client = new Client({
@@ -263,6 +270,7 @@ module.exports = {
   getMainAccount,
   showBalanceFormatted,
   getStatusAndBalance,
+  getTransactionByAccountNameAndId,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
   COIN_NAME_MAP
 };

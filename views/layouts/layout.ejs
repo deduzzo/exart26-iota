@@ -169,7 +169,7 @@
         let data = JSON.parse(text);
         document.getElementById('walletStatus').innerHTML = data.status;
         document.getElementById('walletBalance').innerHTML = data.balance;
-        document.getElementById('subTitle').innerHTML = data.address;
+        document.getElementById('subTitle').innerHTML = data.address ?? ' ';
       })
       .catch(error => {
         console.error('Errore durante il recupero delle informazioni:', error);

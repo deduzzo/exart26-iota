@@ -68,13 +68,16 @@ module.exports.routes = {
   'POST  /api/v1/deliver-contact-form-message':          { action: 'deliver-contact-form-message' },
   'POST  /api/v1/observe-my-session':                 { action: 'observe-my-session', hasSocketFeatures: true },
 */
-  'GET /api/v1/wallet/get-info': { action: 'wallet/get-info' },
+  'GET /csrfToken':                   { action: 'security/grant-csrf-token' },
+  'GET /api/v1/wallet/get-info':      { action: 'wallet/get-info' },
+  'GET /api/v1/get-transaction':      { action: 'get-transaction' },
+  'POST /api/v1/add-organizzazione':  { action: 'add-organizzazione' },
 
 
 
 
   'get /swagger.json': (_, res) => {
-    const swaggerJson = require('../swagger/swagger.json')
+    const swaggerJson = require('../swagger/swagger.json');
     if (!swaggerJson) {
       res
         .status(404)
@@ -92,12 +95,17 @@ module.exports.routes = {
     var fs = require('fs');
     var filePath = path.resolve('node_modules/swagger-ui-dist/index.html');
     var apiurl = sails.config.custom.baseUrl + '/swagger.json';
+    // csrf
+    var csrfToken = '';
+    if (req.csrfToken) {
+      csrfToken = req.csrfToken();
+    }
     fs.readFile(filePath, 'utf8', function(err, data) {
       if (err) {
         return res.serverError(err);
       }
       data = data.replace(' src="./swagger-initializer.js" charset="UTF-8"> ',
-      '> window.onload = function() {' +
+      '> let csrfToken= "'+csrfToken +'"; window.onload = function() {' +
       'window.ui = SwaggerUIBundle({' +
       '  url: "'+ apiurl +'",' +
       '  dom_id: "#swagger-ui",' +
@@ -109,10 +117,13 @@ module.exports.routes = {
       '  plugins: [' +
       '    SwaggerUIBundle.plugins.DownloadUrl' +
       '  ],' +
-      '  layout: "StandaloneLayout"' +
-      '});' +
-    '};');
-
+        '  layout: "StandaloneLayout",' +
+        '  requestInterceptor: function(req) {' +
+        '    req.headers["X-CSRF-Token"] = csrfToken;' +
+        '    return req;' +
+        '  }' +
+        '});' +
+        '};');
 
     res.send(data);
     });
