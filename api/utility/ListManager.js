@@ -14,6 +14,11 @@ const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 class ListManager {
 
   async updateDBfromBlockchain() {
+    await AssistitiListe.destroy({});
+    await Assistito.destroy({});
+    await Lista.destroy({});
+    await Struttura.destroy({});
+    await Organizzazione.destroy({});
     let mainAccount = await iota.getMainAccount();
     let transazione = await iota.getLastTransactionOfAccountWithTag(mainAccount, MAIN_DATA);
     if (transazione) {
@@ -27,11 +32,6 @@ class ListManager {
   }
 
   async updateDBFromJsonData(data) {
-    await AssistitiListe.destroy({});
-    await Assistito.destroy({});
-    await Lista.destroy({});
-    await Struttura.destroy({});
-    await Organizzazione.destroy({});
     for (let organizzazione of data) {
       let org = await Organizzazione.create({
         id: organizzazione.id,
@@ -122,14 +122,15 @@ class ListManager {
         if (res.success) {
           await Struttura.updateOne({id: idStruttura}).set({ultimaVersioneSuBlockchain: strutturaCode.ultimaVersioneSuBlockchain});
         }
-        return res.success;
+        return res;
       }
     }
+    return {success: false};
   }
 
   async getLastDatiStrutturaFromBlockchain(idStruttura) {
     let walletId = await Struttura.getWalletIdStruttura({id: idStruttura});
-    let strAccount = await iota.getWalletAccount(walletId);
+    let strAccount = await iota.getOrCreateWalletAccount(walletId);
     if (strAccount) {
       let strutturaPrivateKey = await this.getLastPrivateKeyOfWalletId(walletId);
       let transazione = await iota.getLastTransactionOfAccountWithTag(strAccount, STRUTTURE_LISTE_DATA);

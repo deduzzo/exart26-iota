@@ -1,0 +1,110 @@
+<div id="organizzazioni" v-cloak>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('addOrganizzazioneForm');
+        form.onsubmit = function (event) {
+          event.preventDefault(); // Previene il submit normale del form
+
+          // Disabilita il pulsante di submit e mostra il loader
+          const submitButton = form.querySelector('button[type="submit"]');
+          submitButton.disabled = true;
+          document.getElementById('loadingText').style.display = 'inline-block';
+
+          // Prepara i dati del form per l'invio
+          const formData = new FormData(form);
+
+          // Effettua la richiesta AJAX
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRF-Token': form.querySelector('[name="_csrf"]').value
+            }
+          }).then(response => {
+            if (response.ok) {
+              // Ricarica la pagina se la richiesta ha avuto successo
+              window.location.reload();
+            } else {
+              console.error('Error:', response);
+              alert(response);
+            }
+          }).catch(error => {
+            console.error('Error:', error);
+            alert(error.error);
+          }).finally(() => {
+            // Ripristina l'interfaccia utente
+            submitButton.disabled = false;
+            document.getElementById('loadingText').style.display = 'none';
+          });
+        };
+      });
+    </script>
+
+
+    <div class="modal fade text-left" id="inlineForm" tabindex="-1" aria-labelledby="myModalLabel33" aria-hidden="true"
+         data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="myModalLabel33">Nuova Organizzazione</h4>
+                    <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                             class="feather feather-x">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <form id="addOrganizzazioneForm" action="/api/v1/add-organizzazione" method="POST">
+                    <input type="hidden" name="_csrf" value="<%- _csrf %>">
+                    <div class="modal-body">
+                        <label for="denominazione">Denominazione: </label>
+                        <div class="form-group">
+                            <input id="denominazione" name="denominazione" type="text" class="form-control">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary ms-1">
+                            <span class="d-none d-sm-block">Salva</span>
+                        </button>
+                        <!-- Elemento per il loader -->
+                        <span id="loadingText" class="ms-2" style="display:none;">Caricamento... <div
+                                    class="spinner-border spinner-border-sm" role="status"></div></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- card with no background -->
+    <div class="container">
+        <div style="padding: 20px">
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
+                    data-bs-target="#inlineForm">
+                Aggiungi nuova organizzazione
+            </button>
+        </div>
+    </div>
+    <div class="row">
+        <% if (!id) { %>
+            <% organizzazioni.forEach((organizzazione) => { %>
+                <div class="col-md-4">
+                    <%- include('../layouts/partials/card-organizzazione', {organizzazione}); %>
+                </div>
+            <% })} %>
+        <% if (id) { %>
+                <h4>Organizzazione #<%= id %></h4>
+            <!-- denominazione -->
+            <h5>Denominazione: <%= organizzazioni.denominazione %></h5>
+            Strutture:
+            <ul>
+                <% organizzazioni.strutture.forEach((struttura) => { %>
+                    <li><%= struttura.denominazione %></li>
+                <% }) %>
+            </ul>
+        <% } %>
+    </div>
+</div>
+<%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser() %>

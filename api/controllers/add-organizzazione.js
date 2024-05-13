@@ -36,7 +36,7 @@ module.exports = {
 
   exits: {
     success: {
-      description: 'Organizzazione aggiunta con successo.'
+      description: 'Organizzazione aggiunta con successo.',
     },
     invalid: {
       responseType: 'badRequest',
@@ -54,23 +54,35 @@ module.exports = {
         ultimaVersioneSuBlockchain: -1
       }).fetch();
       let manager = new ListManager();
-      let res = await manager.updateDatiOrganizzazioneToBlockchain(nuovaOrganizzazione.id);
+      let res1 = await manager.updateDatiOrganizzazioneToBlockchain(nuovaOrganizzazione.id);
       let res2 = await manager.updatePrivateKey(await Organizzazione.getWalletIdOrganizzazione({id: nuovaOrganizzazione.id}), keyPairOrg.privateKey);
       let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-      if (res.success && res2.success) {
+      if (res1.success && res2.success && res3.success) {
         nuovaOrganizzazione.ultimaVersioneSuBlockchain = nuovaOrganizzazione.ultimaVersioneSuBlockchain + 1;
         return exits.success(
           {
-            organizzazione: {...nuovaOrganizzazione,privateKey: keyPairOrg.privateKey},
+            organizzazione: {...nuovaOrganizzazione, privateKey: keyPairOrg.privateKey},
             transactions: {
-              ORGANIZZAZIONE_DATA: {...res},
+              ORGANIZZAZIONE_DATA: {...res1},
               PRIVATE_KEY: {...res2},
               MAIN_DATA: {...res3}
-            }
+            },
+            error: null
           });
+      } else {
+        return exits.invalid({
+          error: 'Errore durante la scrittura dei dati sulla blockchain.',
+          transactions: {
+            ORGANIZZAZIONE_DATA: {...res1},
+            PRIVATE_KEY: {...res2},
+            MAIN_DATA: {...res3}
+          }
+        });
       }
     } catch (err) {
-      return exits.invalid(err);
+      return exits.invalid({
+        error: err.error,
+      });
     }
   }
 };

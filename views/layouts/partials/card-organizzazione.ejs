@@ -1,0 +1,28 @@
+<div class="card-square">
+    <div class="card">
+        <div class="card-content">
+            <div class="card-body">
+                <div class="card-title">
+                    <h5><a href="/organizzazioni/<%- organizzazione.id %>"><%- organizzazione.denominazione %></a></h5>
+                </div>
+                <div class="card-subtitle">
+                    <p>id #<%- organizzazione.id %></p>
+                </div>
+            </div>
+            <div class="card-body">
+                <% if (organizzazione.strutture.length > 0) { %>
+                    <h6>Strutture:</h6>
+                    <ul>
+                        <% organizzazione.strutture.forEach((struttura) => { %>
+                            <li><a href="/strutture/<%- struttura.id %>"><%- struttura.denominazione %></a></li>
+                        <% }) %>
+                    </ul>
+                <% } %>
+                <!-- else show nessuna struttura -->
+                <% if (organizzazione.strutture.length === 0) { %>
+                    <h6>Nessuna struttura</h6>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>

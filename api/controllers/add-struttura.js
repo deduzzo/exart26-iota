@@ -47,14 +47,14 @@ module.exports = {
   },
 
 
-  fn: async function (inputs) {
+  fn: async function (inputs, exits) {
     let keyPairStr = await CryptHelper.RSAGenerateKeyPair();
     try {
       let organizzazione = await Organizzazione.findOne({id: inputs.organizzazione});
       if (!organizzazione) {
         return exits.invalid('Organizzazione non trovata.');
       }
-      let nuovaStruttura = await Organizzazione.create({
+      let nuovaStruttura = await Struttura.create({
         denominazione: inputs.denominazione,
         indirizzo: inputs.indirizzo,
         attiva: inputs.attiva,
@@ -64,23 +64,35 @@ module.exports = {
         organizzazione: inputs.organizzazione
       }).fetch();
       let manager = new ListManager();
-      let res = await manager.updateDatiStrutturaToBlockchain(nuovaStruttura.id);
+      let res1 = await manager.updateDatiStrutturaToBlockchain(nuovaStruttura.id);
       let res2 = await manager.updatePrivateKey(await Struttura.getWalletIdStruttura({id: nuovaStruttura.id}), keyPairStr.privateKey);
       let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-      if (res.success && res2.success) {
+      if (res1.success && res2.success && res3.success) {
         nuovaStruttura.ultimaVersioneSuBlockchain = nuovaStruttura.ultimaVersioneSuBlockchain + 1;
         return exits.success(
           {
-            organizzazione: {...ultimaVersioneSuBlockchain, privateKey: keyPairStr.privateKey},
+            organizzazione: {...nuovaStruttura, privateKey: keyPairStr.privateKey},
             transactions: {
-              ORGANIZZAZIONE_DATA: {...res},
+              STRUTTURA_DATA: {...res},
               PRIVATE_KEY: {...res2},
               MAIN_DATA: {...res3}
-            }
+            },
+          error: null
           });
+      } else {
+        return exits.invalid({
+          error: 'Errore durante la scrittura dei dati sulla blockchain.',
+          transactions: {
+            STRUTTURA_DATA: {...res1},
+            PRIVATE_KEY: {...res2},
+            MAIN_DATA: {...res3}
+          }
+        });
       }
     } catch (err) {
-      return exits.invalid(err);
+      return exits.invalid({
+        error: err.error,
+      });
     }
   }
 

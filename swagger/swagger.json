@@ -37,6 +37,12 @@
       "name": "Add organizzazione"
     },
     {
+      "name": "Add struttura"
+    },
+    {
+      "name": "Add lista"
+    },
+    {
       "name": "Aggiorna db da blockchain"
     },
     {
@@ -44,6 +50,12 @@
     },
     {
       "name": "View welcome page"
+    },
+    {
+      "name": "View strutture"
+    },
+    {
+      "name": "View organizzazioni"
     },
     {
       "name": "View homepage or redirect"
@@ -564,6 +576,98 @@
         }
       }
     },
+    "/api/v1/add-struttura": {
+      "post": {
+        "summary": "Add struttura",
+        "tags": [
+          "Add struttura"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "denominazione",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "indirizzo",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organizzazione",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attiva",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "example": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Struttura aggiunta con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/add-lista": {
+      "post": {
+        "summary": "Add lista",
+        "tags": [
+          "Add lista"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/api/v1/fetch-db-from-blockchain": {
       "get": {
         "summary": "Aggiorna db da blockchain",
@@ -574,7 +678,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "The requested resource"
+            "description": "All done."
           },
           "404": {
             "description": "Resource not found"
@@ -621,6 +725,68 @@
               "type": "string"
             },
             "description": "Route pattern variable `unused`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/strutture/{id}": {
+      "get": {
+        "summary": "View strutture",
+        "description": "Display \"Strutture\" page.",
+        "tags": [
+          "View strutture"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/organizzazioni/{id}": {
+      "get": {
+        "summary": "View organizzazioni",
+        "description": "Display \"Organizzazioni\" page.",
+        "tags": [
+          "View organizzazioni"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
           }
         ],
         "responses": {

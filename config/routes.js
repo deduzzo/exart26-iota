@@ -16,7 +16,8 @@ module.exports.routes = {
   'GET /':                   { action: 'view-homepage-or-redirect' },
   'GET /welcome/:unused?':   { action: 'dashboard/view-welcome' },
   'GET /dashboard':          { action: 'view-dashboard' },
-
+  'GET /strutture/:id?':     { action: 'view-strutture' },
+  'GET /organizzazioni/:id?':{ action: 'view-organizzazioni' },
 
   /* 'GET /faq':                { action:   'view-faq' },
     'GET /legal/terms':        { action:   'legal/view-terms' },
@@ -56,6 +57,7 @@ module.exports.routes = {
   //  ╩ ╩╩  ╩  ╚═╝╝╚╝═╩╝╩  ╚═╝╩╝╚╝ ╩ ╚═╝
   // Note that, in this app, these API endpoints may be accessed using the `Cloud.*()` methods
   // from the Parasails library, or by using those method names as the `action` in <ajax-form>.
+  //  sails run rebuild-cloud-sdk
 /*
   '/api/v1/account/logout':                           { action: 'account/logout' },
   'PUT   /api/v1/account/update-password':            { action: 'account/update-password' },
@@ -72,6 +74,8 @@ module.exports.routes = {
   'GET /api/v1/wallet/get-info':      { action: 'wallet/get-info' },
   'GET /api/v1/get-transaction':      { action: 'get-transaction' },
   'POST /api/v1/add-organizzazione':  { action: 'add-organizzazione' },
+  'POST /api/v1/add-struttura':       { action: 'add-struttura' },
+  'POST /api/v1/add-lista':           { action: 'add-lista' },
   'GET /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
 
 

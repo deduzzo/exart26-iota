@@ -97,19 +97,20 @@ let waitUntilBalanceIsGreaterThanZero = async (account) => {
   }
 };
 
-let getWalletAccount = async (accountAlias) => {
-  return await getWallet().getAccount(accountAlias);
-}
-
 let getOrCreateWalletAccount = async (accountAlias) => {
   let account = null;
+  let accounts = await getWallet().getAccounts();
   try {
-    account = await getWallet().getAccount(accountAlias.toString());
+    account = accounts.find(a => a.meta.alias === accountAlias);
+    if (!account) {
+      account = await getWallet().createAccount({
+        alias: accountAlias,
+      });
+    }
+    //account = await getWallet().getAccount(accountAlias.toString());
     // eslint-disable-next-line no-unused-vars
   } catch (ex) {
-    account = await getWallet().createAccount({
-      alias: accountAlias,
-    });
+    console.log(ex);
   }
   let balance = await getAccountBalance(account);
   if (balance.baseCoin.available < ACCOUNT_BASE_BALANCE && accountAlias !== IOTA_MAIN_ACCOUNT_ALIAS) {
@@ -275,7 +276,6 @@ module.exports = {
   hexToString,
   getOrInitWallet,
   getOrCreateWalletAccount,
-  getWalletAccount,
   getFirstAddressOfAnAccount,
   getAccountBalance,
   makeTransactionWithText,
