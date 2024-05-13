@@ -13,7 +13,7 @@
 Cloud.setup({
 
   /* eslint-disable */
-  methods: {"grantCsrfToken":{"verb":"GET","url":"/csrfToken"},"getInfo":{"verb":"GET","url":"/api/v1/wallet/get-info","args":[]},"getTransaction":{"verb":"GET","url":"/api/v1/get-transaction","args":["accountName","transactionId"]},"addOrganizzazione":{"verb":"POST","url":"/api/v1/add-organizzazione","args":["denominazione"]}}
+  methods: {"grantCsrfToken":{"verb":"GET","url":"/csrfToken"},"getInfo":{"verb":"GET","url":"/api/v1/wallet/get-info","args":[]},"getTransaction":{"verb":"GET","url":"/api/v1/get-transaction","args":["accountName","transactionId"]},"addOrganizzazione":{"verb":"POST","url":"/api/v1/add-organizzazione","args":["denominazione"]},"fetchDbFromBlockchain":{"verb":"GET","url":"/api/v1/fetch-db-from-blockchain","args":[]}}
   /* eslint-enable */
 
 });

@@ -56,12 +56,12 @@ module.exports = {
       let manager = new ListManager();
       let res = await manager.updateDatiOrganizzazioneToBlockchain(nuovaOrganizzazione.id);
       let res2 = await manager.updatePrivateKey(await Organizzazione.getWalletIdOrganizzazione({id: nuovaOrganizzazione.id}), keyPairOrg.privateKey);
-      let res3 = await manager.updateOrganizzazioniToBlockchain();
+      let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       if (res.success && res2.success) {
         nuovaOrganizzazione.ultimaVersioneSuBlockchain = nuovaOrganizzazione.ultimaVersioneSuBlockchain + 1;
         return exits.success(
           {
-            organizzazione: nuovaOrganizzazione,
+            organizzazione: {...nuovaOrganizzazione,privateKey: keyPairOrg.privateKey},
             transactions: {
               ORGANIZZAZIONE_DATA: {...res},
               PRIVATE_KEY: {...res2},

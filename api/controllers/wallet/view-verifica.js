@@ -31,8 +31,6 @@ module.exports = {
 
 
   fn: async function ({initWallet}) {
-    let manager = new ListManager();
-    let privateKey = await manager.getLastDatiStrutturaFromBlockchain("1");
     let mnemonic = null;
     let mainAddress = null;
     let balance = null;

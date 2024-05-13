@@ -37,6 +37,9 @@
       "name": "Add organizzazione"
     },
     {
+      "name": "Aggiorna db da blockchain"
+    },
+    {
       "name": "Get wallet info info"
     },
     {
@@ -551,6 +554,27 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/fetch-db-from-blockchain": {
+      "get": {
+        "summary": "Aggiorna db da blockchain",
+        "description": "Aggiorna il database locale con i dati presenti sulla blockchain.",
+        "tags": [
+          "Aggiorna db da blockchain"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
           },
           "404": {
             "description": "Resource not found"

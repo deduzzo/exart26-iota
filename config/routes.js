@@ -72,6 +72,7 @@ module.exports.routes = {
   'GET /api/v1/wallet/get-info':      { action: 'wallet/get-info' },
   'GET /api/v1/get-transaction':      { action: 'get-transaction' },
   'POST /api/v1/add-organizzazione':  { action: 'add-organizzazione' },
+  'GET /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
 
 
 

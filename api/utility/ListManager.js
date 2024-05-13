@@ -17,7 +17,39 @@ class ListManager {
     let mainAccount = await iota.getMainAccount();
     let transazione = await iota.getLastTransactionOfAccountWithTag(mainAccount, MAIN_DATA);
     if (transazione) {
+      let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
+      let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
+      data.clearData = JSON.parse(clearData);
+      await this.updateDBFromJsonData(data.clearData);
+      return {success: true, data: data.clearData};
+    }
+    return { success: false, data: []};
+  }
 
+  async updateDBFromJsonData(data) {
+    await AssistitiListe.destroy({});
+    await Assistito.destroy({});
+    await Lista.destroy({});
+    await Struttura.destroy({});
+    await Organizzazione.destroy({});
+    for (let organizzazione of data) {
+      let org = await Organizzazione.create({
+        id: organizzazione.id,
+        denominazione: organizzazione.denominazione,
+        publicKey: organizzazione.publicKey,
+        ultimaVersioneSuBlockchain: organizzazione.ultimaVersioneSuBlockchain
+      }).fetch();
+      for (let strutture of organizzazione.strutture) {
+        let str = await Struttura.create({
+          id: strutture.id,
+          denominazione: strutture.denominazione,
+          attiva: strutture.attiva,
+          indirizzo: strutture.indirizzo,
+          publicKey: strutture.publicKey,
+          ultimaVersioneSuBlockchain: strutture.ultimaVersioneSuBlockchain,
+          organizzazione: org.id
+        }).fetch();
+      }
     }
   }
 
@@ -116,14 +148,14 @@ class ListManager {
     let transazione = await iota.getLastTransactionOfAccountWithTag(mainAccount, MAIN_DATA);
     if (transazione) {
       let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
-      let clearData = await CryptHelper.receiveAndDecrypt(data.data, iota.GET_MAIN_KEYS().privateKey);
+      let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
       data.clearData = JSON.parse(clearData);
       return data;
     }
     return null;
   }
 
-  async updateOrganizzazioniToBlockchain() {
+  async updateOrganizzazioniStruttureListeToBlockchain() {
     let lastData = await this.getOrganizzazioniFromBlockchain();
     let mainAccount = await iota.getMainAccount();
     let organizzazioni = await Organizzazione.find().populate('strutture');
@@ -138,7 +170,7 @@ class ListManager {
       dataToStore.push(organizzazione);
     }
     let data2 = await CryptHelper.encryptAndSend(JSON.stringify(dataToStore), (lastData ? (lastData.messageVersion + 1) : 0), iota.GET_MAIN_KEYS().publicKey);
-    let res = await iota.makeTransactionWithText(mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, data2);
+    let res = await iota.makeTransactionWithText(mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, data2.data);
     return res;
   }
 
