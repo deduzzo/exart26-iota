@@ -10,6 +10,10 @@ module.exports = {
     id: {
       type: 'number',
       required: false
+    },
+    idOrganizzazione: {
+      type: 'number',
+      required: false
     }
   },
 
@@ -23,17 +27,23 @@ module.exports = {
   },
 
 
-  fn: async function ({id}) {
+  fn: async function ({id,idOrganizzazione}) {
     let strutture = null;
+    let organizzazione = null;
+    if (idOrganizzazione)
+      organizzazione = await Organizzazione.findOne({id: idOrganizzazione});
     if (id) {
-      strutture = await Strutture.findOne({id: id});
+      strutture = await Struttura.findOne({id: id,organizzazione:idOrganizzazione}).populate('liste');
     }
+    else if (idOrganizzazione)
+      strutture = await Struttura.find({organizzazione:idOrganizzazione}).populate('liste');
     else
-      strutture = await Strutture.find();
-    // Respond with view.
+      strutture = await Struttura.find().populate('liste');
     return {
-      pageTitle: 'Strutture',
-      strutture
+      pageTitle: 'Strutture ' + (organizzazione ? '  ' + organizzazione.denominazione : ''),
+      strutture,
+      id,
+      organizzazione
     };
 
   }

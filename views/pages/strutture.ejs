@@ -1,55 +1,185 @@
 <div id="strutture" v-cloak>
 
-    <div class="card">
-        <div class="card-header">
-            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#inlineForm">
-                Launch Modal
-            </button>
-        </div>
-        <div class="card-body">
-            <div class="modal fade text-left" id="inlineForm" tabindex="-1" aria-labelledby="myModalLabel33"
-                 style="display: none;" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h4 class="modal-title" id="myModalLabel33">Login Form </h4>
-                            <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                     stroke-linejoin="round" class="feather feather-x">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-                        <form action="#">
-                            <div class="modal-body">
-                                <label for="email">Email: </label>
-                                <div class="form-group">
-                                    <input id="email" type="text" placeholder="Email Address" class="form-control">
-                                </div>
-                                <label for="password">Password: </label>
-                                <div class="form-group">
-                                    <input id="password" type="password" placeholder="Password" class="form-control">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-light-secondary" data-bs-dismiss="modal">
-                                    <i class="bx bx-x d-block d-sm-none"></i>
-                                    <span class="d-none d-sm-block">Close</span>
-                                </button>
-                                <button type="button" class="btn btn-primary ms-1" data-bs-dismiss="modal">
-                                    <i class="bx bx-check d-block d-sm-none"></i>
-                                    <span class="d-none d-sm-block">login</span>
-                                </button>
-                            </div>
-                        </form>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        let form = document.getElementById('addStrutturaForm');
+        if (!form)
+          form = document.getElementById('addListaForm');
+        form.onsubmit = function (event) {
+          event.preventDefault(); // Previene il submit normale del form
+
+          // Disabilita il pulsante di submit e mostra il loader
+          const submitButton = form.querySelector('button[type="submit"]');
+          submitButton.disabled = true;
+          document.getElementById('loadingText').style.display = 'inline-block';
+
+          // Prepara i dati del form per l'invio
+          const formData = new FormData(form);
+
+          // Effettua la richiesta AJAX
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRF-Token': form.querySelector('[name="_csrf"]').value
+            }
+          }).then(response => {
+            if (response.ok) {
+              // Ricarica la pagina se la richiesta ha avuto successo
+              window.location.reload();
+            } else {
+              console.error('Error:', response);
+              alert(response);
+            }
+          }).catch(error => {
+            console.error('Error:', error);
+            alert(error.error);
+          }).finally(() => {
+            // Ripristina l'interfaccia utente
+            submitButton.disabled = false;
+            document.getElementById('loadingText').style.display = 'none';
+          });
+        };
+
+
+      });
+    </script>
+
+    <% if (organizzazione && !id) { %>
+        <div class="modal fade text-left" id="nuovaStruttura" tabindex="-1" aria-labelledby="myModalLabel33"
+             aria-hidden="true"
+             data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="modal-title" id="myModalLabel33">Nuova Struttura</h4>
+                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 class="feather feather-x">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
                     </div>
+                    <form id="addStrutturaForm" action="/api/v1/add-struttura" method="POST">
+                        <input type="hidden" name="_csrf" value="<%- _csrf; %>">
+                        <input type="hidden" name="organizzazione" value="<%= organizzazione.id; %>">
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="denominazione">Denominazione: </label>
+                                        <input id="denominazione" name="denominazione" type="text" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="indirizzo">Indirizzo: </label>
+                                        <input id="indirizzo" name="indirizzo" type="text" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary ms-1">
+                                <span class="d-none d-sm-block">Salva</span>
+                            </button>
+                            <!-- Elemento per il loader -->
+                            <span id="loadingText" class="ms-2" style="display:none;">Caricamento... <div
+                                        class="spinner-border spinner-border-sm" role="status"></div></span>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
+    <% } %>
+    <% if (id) { %>
+        <div class="modal fade text-left" id="nuovaLista" tabindex="-1" aria-labelledby="myModalLabel33"
+             aria-hidden="true"
+             data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="modal-title" id="myModalLabel33">Nuova Lista</h4>
+                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                 class="feather feather-x">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <form id="addListaForm" action="/api/v1/add-lista" method="POST">
+                        <input type="hidden" name="_csrf" value="<%- _csrf; %>">
+                        <input type="hidden" name="struttura" value="<%= strutture.id; %>">
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="denominazione">Denominazione Lista: </label>
+                                        <input id="denominazione" name="denominazione" type="text" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary ms-1">
+                                <span class="d-none d-sm-block">Salva</span>
+                            </button>
+                            <!-- Elemento per il loader -->
+                            <span id="loadingText" class="ms-2" style="display:none;">Caricamento... <div
+                                        class="spinner-border spinner-border-sm" role="status"></div></span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <% } %>
+    <!-- card with no background -->
+    <div class="container">
+        <% if (organizzazione && !id) { %>
+            <div style="padding: 20px">
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
+                        data-bs-target="#nuovaStruttura">
+                    Aggiungi nuova struttura
+                </button>
+            </div>
+        <% } %>
+        <% if (id) { %>
+            <div style="padding: 20px">
+                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
+                        data-bs-target="#nuovaLista">
+                    Aggiungi nuova Lista
+                </button>
+            </div>
+        <% } %>
     </div>
-
-    <%- struttura %>
+    <div class="row">
+        <% if (!id) { %>
+            <% strutture.forEach((struttura) => { %>
+                <div class="col-md-4">
+                    <%- include('../layouts/partials/card-struttura', {struttura}); %>
+                </div>
+        <% });} %>
+        <% if (id) { %>
+            <h4>Struttura #<%= id; %></h4>
+            <!-- denominazione -->
+            <h5>Denominazione: <%= strutture.denominazione; %></h5>
+            <ul style="margin-left: 30px">
+                <% if (strutture.liste && strutture.liste.length > 0) { %>
+                    <% strutture.liste.forEach((lista) => { %>
+                        <li><%= lista.denominazione; %></li>
+                    <% }); %>
+                <% } %>
+                <% if (!strutture.liste || strutture.liste.length === 0) { %>
+                    <h6>Nessuna Lista presente</h6>
+                <% } %>
+            </ul>
+        <% } %>
+    </div>
 </div>
-<%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser() %>
+<%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser(); %>

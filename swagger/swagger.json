@@ -43,6 +43,9 @@
       "name": "Add lista"
     },
     {
+      "name": "Add assistito"
+    },
+    {
       "name": "Aggiorna db da blockchain"
     },
     {
@@ -52,10 +55,13 @@
       "name": "View welcome page"
     },
     {
-      "name": "View strutture"
+      "name": "View organizzazioni"
     },
     {
-      "name": "View organizzazioni"
+      "name": "View assistiti"
+    },
+    {
+      "name": "View strutture"
     },
     {
       "name": "View homepage or redirect"
@@ -371,6 +377,37 @@
             }
           }
         }
+      },
+      "view": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/view-without-required-constraint"
+          }
+        ]
+      },
+      "view-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **View**",
+        "properties": {
+          "createdAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
+          },
+          "assistiti": {
+            "type": "string"
+          }
+        }
       }
     },
     "parameters": {
@@ -651,13 +688,142 @@
     "/api/v1/add-lista": {
       "post": {
         "summary": "Add lista",
+        "description": "Aggiunge una nuova lista al database",
         "tags": [
           "Add lista"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "denominazione",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "struttura",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "The requested resource"
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Lista aggiunta con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/add-assistito": {
+      "post": {
+        "summary": "Add assistito",
+        "tags": [
+          "Add assistito"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cognome",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codiceFiscale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dataNascita",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Formato: YYYY-MM-DD"
+          },
+          {
+            "in": "query",
+            "name": "email",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "telefono",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "indirizzo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Assistito aggiunta con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi o l'assistito è già presente."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Resource not found"
@@ -669,7 +835,7 @@
       }
     },
     "/api/v1/fetch-db-from-blockchain": {
-      "get": {
+      "post": {
         "summary": "Aggiorna db da blockchain",
         "description": "Aggiorna il database locale con i dati presenti sulla blockchain.",
         "tags": [
@@ -740,12 +906,12 @@
         }
       }
     },
-    "/strutture/{id}": {
+    "/organizzazioni/{id}": {
       "get": {
-        "summary": "View strutture",
-        "description": "Display \"Strutture\" page.",
+        "summary": "View organizzazioni",
+        "description": "Display \"Organizzazioni\" page.",
         "tags": [
-          "View strutture"
+          "View organizzazioni"
         ],
         "parameters": [
           {
@@ -771,17 +937,57 @@
         }
       }
     },
-    "/organizzazioni/{id}": {
+    "/assistiti/{id}": {
       "get": {
-        "summary": "View organizzazioni",
-        "description": "Display \"Organizzazioni\" page.",
+        "summary": "View assistiti",
+        "description": "Display \"Assistiti\" page.",
         "tags": [
-          "View organizzazioni"
+          "View assistiti"
         ],
         "parameters": [
           {
             "in": "path",
             "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/strutture/{idOrganizzazione}/{id}": {
+      "get": {
+        "summary": "View strutture",
+        "description": "Display \"Strutture\" page.",
+        "tags": [
+          "View strutture"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "in": "path",
+            "name": "idOrganizzazione",
             "required": false,
             "schema": {
               "type": "number",

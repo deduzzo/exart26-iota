@@ -16,13 +16,10 @@ module.exports.routes = {
   'GET /':                   { action: 'view-homepage-or-redirect' },
   'GET /welcome/:unused?':   { action: 'dashboard/view-welcome' },
   'GET /dashboard':          { action: 'view-dashboard' },
-  'GET /strutture/:id?':     { action: 'view-strutture' },
+  'GET /strutture/:idOrganizzazione?/:id?':     { action: 'view-strutture' },
   'GET /organizzazioni/:id?':{ action: 'view-organizzazioni' },
+  'GET /assistiti/:id?':     { action: 'view-assistiti' },
 
-  /* 'GET /faq':                { action:   'view-faq' },
-    'GET /legal/terms':        { action:   'legal/view-terms' },
-    'GET /legal/privacy':      { action:   'legal/view-privacy' },
-    'GET /contact':            { action:   'view-contact' },*/
 
 /*  'GET /signup':             { action: 'entrance/view-signup' },
   'GET /email/confirm':      { action: 'entrance/confirm-email' },
@@ -70,13 +67,14 @@ module.exports.routes = {
   'POST  /api/v1/deliver-contact-form-message':          { action: 'deliver-contact-form-message' },
   'POST  /api/v1/observe-my-session':                 { action: 'observe-my-session', hasSocketFeatures: true },
 */
-  'GET /csrfToken':                   { action: 'security/grant-csrf-token' },
-  'GET /api/v1/wallet/get-info':      { action: 'wallet/get-info' },
-  'GET /api/v1/get-transaction':      { action: 'get-transaction' },
-  'POST /api/v1/add-organizzazione':  { action: 'add-organizzazione' },
-  'POST /api/v1/add-struttura':       { action: 'add-struttura' },
-  'POST /api/v1/add-lista':           { action: 'add-lista' },
-  'GET /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
+  'GET /csrfToken':                       { action: 'security/grant-csrf-token' },
+  'GET /api/v1/wallet/get-info':          { action: 'wallet/get-info' },
+  'GET /api/v1/get-transaction':          { action: 'get-transaction' },
+  'POST /api/v1/add-organizzazione':      { action: 'add-organizzazione' },
+  'POST /api/v1/add-struttura':           { action: 'add-struttura' },
+  'POST /api/v1/add-lista':               { action: 'add-lista' },
+  'POST /api/v1/add-assistito':           { action: 'add-assistito' },
+  'POST /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
 
 
 

@@ -73,7 +73,7 @@ module.exports = {
           {
             organizzazione: {...nuovaStruttura, privateKey: keyPairStr.privateKey},
             transactions: {
-              STRUTTURA_DATA: {...res},
+              STRUTTURA_DATA: {...res1},
               PRIVATE_KEY: {...res2},
               MAIN_DATA: {...res3}
             },

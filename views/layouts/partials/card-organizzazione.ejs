@@ -3,7 +3,7 @@
         <div class="card-content">
             <div class="card-body">
                 <div class="card-title">
-                    <h5><a href="/organizzazioni/<%- organizzazione.id %>"><%- organizzazione.denominazione %></a></h5>
+                    <h5><a href="/strutture/<%- organizzazione.id %>"><%- organizzazione.denominazione %></a></h5>
                 </div>
                 <div class="card-subtitle">
                     <p>id #<%- organizzazione.id %></p>
@@ -14,7 +14,7 @@
                     <h6>Strutture:</h6>
                     <ul>
                         <% organizzazione.strutture.forEach((struttura) => { %>
-                            <li><a href="/strutture/<%- struttura.id %>"><%- struttura.denominazione %></a></li>
+                            <li><a href="/strutture/<%- organizzazione.id + "/" + struttura.id %>"><%- struttura.denominazione %></a></li>
                         <% }) %>
                     </ul>
                 <% } %>

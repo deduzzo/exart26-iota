@@ -3,6 +3,8 @@ const CryptHelper = require('./CryptHelper');
 const {
   STRUTTURE_LISTE_DATA,
   ORGANIZZAZIONE_DATA,
+  ASSISTITI_DATA,
+  BALANCE_DISTRIBUTION,
   MOVIMENTI_ASSISTITI_LISTA,
   LISTE_IN_CODA,
   ASSISTITI_IN_LISTA,
@@ -49,6 +51,16 @@ class ListManager {
           ultimaVersioneSuBlockchain: strutture.ultimaVersioneSuBlockchain,
           organizzazione: org.id
         }).fetch();
+        for (let lista of strutture.liste) {
+          let lst = await Lista.create({
+            id: lista.id,
+            denominazione: lista.denominazione,
+            aperta: lista.aperta,
+            struttura: str.id,
+            publicKey: lista.publicKey,
+            ultimaVersioneSuBlockchain: lista.ultimaVersioneSuBlockchain
+          }).fetch();
+        }
       }
     }
   }
@@ -175,6 +187,39 @@ class ListManager {
     return res;
   }
 
+  async getAssistitoFromId(id) {
+    let assistitoAccount = Assistiti.getWalletIdAssistito({id: id});
+    let assistito = await Assistito.findOne({codiceFiscale: id});
+    if (assistito) {
+      let assistitoPrivateKey = await this.getLastPrivateKeyOfWalletId(assistitoAccount);
+      let transazione = await iota.getLastTransactionOfAccountWithTag(assistitoAccount, ASSISTITI_DATA);
+      if (transazione) {
+        let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
+        let clearData = await CryptHelper.receiveAndDecrypt(data, assistitoPrivateKey.clearData.privateKey);
+        data.clearData = JSON.parse(clearData);
+        return data;
+      }
+    }
+    return null;
+  }
+
+  async updateDatiAssistitoToBlockchain(id) {
+    if (id) {
+      let assistitoAccount = await iota.getOrCreateWalletAccount(await Assistito.getWalletIdAssistito({id: id}));
+      let assistito = await Assistito.findOne({id: id})
+        .select(['id', 'nome', 'cognome', 'codiceFiscale', 'dataNascita', 'email', 'telefono', 'indirizzo', 'publicKey', 'ultimaVersioneSuBlockchain']);
+      if (assistito) {
+        assistito.ultimaVersioneSuBlockchain = assistito.ultimaVersioneSuBlockchain + 1;
+        let data = await CryptHelper.encryptAndSend(JSON.stringify(assistito), assistito.ultimaVersioneSuBlockchain, assistito.publicKey);
+        let res = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), ASSISTITI_DATA, data.data);
+        if (res.success) {
+          await Assistito.updateOne({id: id}).set({ultimaVersioneSuBlockchain: assistito.ultimaVersioneSuBlockchain});
+        }
+        return res;
+      }
+    }
+    return {success: false};
+  }
 
   async aggiungiAssistitoInListaToBlockchain(idAssistito, idLista) {
     if (idAssistito && idLista) {

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const ENVELOPE_VERSION = "V1";
 
 class CryptHelper {
+
   static generateIv() {
     return crypto.randomBytes(16);
   }

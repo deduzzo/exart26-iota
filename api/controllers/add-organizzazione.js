@@ -2,15 +2,6 @@ let iota = require('../utility/iota');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
 
-const {
-  STRUTTURE_LISTE_DATA,
-  ORGANIZZAZIONE_DATA,
-  MOVIMENTI_ASSISTITI_LISTA,
-  LISTE_IN_CODA,
-  ASSISTITI_IN_LISTA,
-  MAIN_DATA,
-  PRIVATE_KEY
-} = require('../enums/TransactionDataType');
 
 module.exports = {
   friendlyName: 'Add organizzazione',
@@ -18,16 +9,6 @@ module.exports = {
   description: 'Aggiunge una nuova organizzazione al database',
 
   inputs: {
-    // model of organizzazione
-    /*    organizzazione: {
-          type: 'json',
-          required: true,
-          custom: function (value) {
-            let campiObbligatori = ['denominazione'];
-            //return _.isObject(value) && has all required fields
-            return _.isObject(value) && _.every(campiObbligatori, (campo) => _.has(value, campo));
-          }
-        }*/
     denominazione: {
       type: 'string',
       required: true
@@ -65,7 +46,7 @@ module.exports = {
             transactions: {
               ORGANIZZAZIONE_DATA: {...res1},
               PRIVATE_KEY: {...res2},
-              MAIN_DATA: {...res3}
+              MAIN_DATA: {...res3},
             },
             error: null
           });

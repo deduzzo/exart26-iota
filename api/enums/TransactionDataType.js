@@ -2,14 +2,14 @@ class TransactionDataType {
   static get MAIN_DATA() {
     return 'MAIN_DATA';
   }
-  static get BALANCE_DISTRIBUTE() {
-    return 'BALANCE_DISTRIBUTE';
+  static get BALANCE_DISTRIBUTION() {
+    return 'BALANCE_DISTRIBUTION';
   }
   static get ORGANIZZAZIONE_DATA() {
     return 'ORGANIZZAZIONE_DATA';
   }
-  static get DATI_SENSIBILI() {
-    return 'DATI_SENSIBILI';
+  static get ASSISTITI_DATA() {
+    return 'ASSISTITI_DATA';
   }
   static get PRIVATE_KEY() {
     return 'PRIVATE_KEY';
