@@ -49,6 +49,9 @@
       "name": "Aggiorna db da blockchain"
     },
     {
+      "name": "Add assistito in lista"
+    },
+    {
       "name": "Get wallet info info"
     },
     {
@@ -845,6 +848,62 @@
         "responses": {
           "200": {
             "description": "All done."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/add-assistito-in-lista": {
+      "post": {
+        "summary": "Add assistito in lista",
+        "description": "Aggiunge un assistito in una lista.",
+        "tags": [
+          "Add assistito in lista"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "idAssistito",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "in": "query",
+            "name": "idLista",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Assistito aggiunto in lista con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Resource not found"

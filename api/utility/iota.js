@@ -12,10 +12,12 @@ const {
   TRANSACTION_ZERO_VALUE,
   COIN_TYPE,
   MAIN_PRIVATE_KEY,
-  MAIN_PUBLIC_KEY
+  MAIN_PUBLIC_KEY,
 } = require('../../config/private_iota_conf');
 
 let _wallet = null;
+
+const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
 
 const COIN_NAME_MAP = {
   Shimmer: {token: 'SMR', base: 'glow'},
@@ -291,6 +293,7 @@ module.exports = {
   getTransactionByAccountNameAndId,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
   COIN_NAME_MAP,
-  GET_MAIN_KEYS
+  GET_MAIN_KEYS,
+  ASSISTITO_ACCOUNT_PREFIX
 };
 

@@ -1,3 +1,4 @@
+const ListManager = require('../utility/ListManager');
 module.exports = {
 
 
@@ -23,6 +24,8 @@ module.exports = {
 
 
   fn: async function ({id}) {
+    let manager = new ListManager();
+
     let assistiti = null;
     if (id) {
       assistiti = await Assistito.findOne({id: id}).populate('liste');

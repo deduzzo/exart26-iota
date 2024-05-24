@@ -30,7 +30,29 @@ class ListManager {
       await this.updateDBFromJsonData(data.clearData);
       return {success: true, data: data.clearData};
     }
-    return { success: false, data: []};
+    return {success: false, data: []};
+  }
+
+  async updateListeAssistitiFromBlockchain(idLista) {
+    let liste = null;
+    if (idLista) {
+      liste = await Lista.find({id: idLista});
+    } else {
+      liste = await Lista.find();
+    }
+    if (liste && liste.length > 0) {
+      for (let lista of liste) {
+        let listaAccount = await iota.getOrCreateWalletAccount(await Lista.getWalletIdLista({id: lista.id}));
+        let transazione = await iota.getLastTransactionOfAccountWithTag(listaAccount, ASSISTITI_IN_LISTA);
+        let privateKeyStruttura = await this.getLastPrivateKeyOfWalletId(await Struttura.getWalletIdStruttura({id: lista.struttura}));
+        if (transazione) {
+          let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
+          let clearData = await CryptHelper.receiveAndDecrypt(data, privateKeyStruttura.clearData.privateKey);
+          data.clearData = JSON.parse(clearData);
+          await this.updateDBFromJsonListeAssistiti(data.clearData);
+        }
+      }
+    }
   }
 
   async updateDBFromJsonData(data) {
@@ -226,7 +248,7 @@ class ListManager {
       let lista = await Lista.findOne({id: idLista}).populate('struttura');
       let assistito = await Assistito.findOne({id: idAssistito});
       if (lista && assistito) {
-        let res = {success: false};
+        let res1 = {success: false};
         let res2 = {success: false};
         let listaAccount = await iota.getOrCreateWalletAccount(await Lista.getWalletIdLista({id: idLista}));
         let assistitoAccount = await iota.getOrCreateWalletAccount(await Assistito.getWalletIdAssistito({id: idAssistito}));
@@ -240,8 +262,8 @@ class ListManager {
               stato: INSERITO_IN_CODA,
             }).fetch();
             let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
-            res = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), LISTE_IN_CODA, data.data);
-            if (!res.success) {
+            res1 = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), LISTE_IN_CODA, data.data);
+            if (!res1.success) {
               await AssistitiListe.destroy({id: assistitoLista.id});
             } else {
               let data2 = await CryptHelper.encryptAndSend(JSON.stringify(assistitoLista), null, lista.struttura.publicKey);
@@ -257,7 +279,7 @@ class ListManager {
           }
           let res3 = {success: false};
           let listaFromBlockchain = null;
-          if (res.success && res2.success) {
+          if (res1.success && res2.success) {
             let listaTransaction = await iota.getLastTransactionOfAccountWithTag(listaAccount, ASSISTITI_IN_LISTA);
             if (listaTransaction) {
               let data = JSON.parse(iota.hexToString(listaTransaction.payload.essence.payload.data));
@@ -276,7 +298,7 @@ class ListManager {
             let data = await CryptHelper.encryptAndSend(JSON.stringify(listaFromBlockchain), listaFromBlockchain.version, lista.struttura.publicKey);
             res3 = await iota.makeTransactionWithText(listaAccount, await iota.getFirstAddressOfAnAccount(listaAccount), ASSISTITI_IN_LISTA, data.data);
           }
-          return res.success && res2.success && res3.success;
+          return {res1, res2, res3};
         } else {
           return null;
         }
@@ -285,6 +307,20 @@ class ListManager {
 
   }
 
+  async updateDBFromJsonListeAssistiti(assistitiListe) {
+    for (let lista of assistitiListe) {
+      let assititoLista = await AssistitiListe.findOne({id: lista.id});
+      if (!assititoLista) {
+        await AssistitiListe.create({
+          id: lista.id,
+          assistito: lista.assistito,
+          lista: lista.lista,
+          stato: lista.stato,
+          chiuso: lista.chiuso
+        });
+      }
+    }
+  }
 }
 
 module.exports = ListManager;

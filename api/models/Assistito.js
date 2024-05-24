@@ -5,6 +5,8 @@
  * @docs        :: https://sailsjs.com/docs/concepts/models-and-orm/models
  */
 
+const iota = require('../utility/iota');
+
 module.exports = {
 
   attributes: {
@@ -76,7 +78,7 @@ module.exports = {
   getWalletIdAssistito: async function (opts) {
     let assistito = await Assistito.findOne({id: opts.id});
     if (assistito) {
-      return assistito.codiceFiscale;
+      return iota.ASSISTITO_ACCOUNT_PREFIX + assistito.id;
     }
     return null;
   },

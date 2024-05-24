@@ -21,6 +21,7 @@ module.exports.routes = {
   'GET /assistiti/:id?':     { action: 'view-assistiti' },
 
 
+
 /*  'GET /signup':             { action: 'entrance/view-signup' },
   'GET /email/confirm':      { action: 'entrance/confirm-email' },
   'GET /email/confirmed':    { action: 'entrance/view-confirmed-email' },
@@ -75,6 +76,8 @@ module.exports.routes = {
   'POST /api/v1/add-lista':               { action: 'add-lista' },
   'POST /api/v1/add-assistito':           { action: 'add-assistito' },
   'POST /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
+  'POST /api/v1/add-assistito-in-lista':  { action: 'add-assistito-in-lista' },
+
 
 
 

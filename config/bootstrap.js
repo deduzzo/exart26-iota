@@ -11,15 +11,17 @@
 
 
 const path = require('path');
-const CryptHelper = require('../api/utility/CryptHelper');
+const iota = require('../api/utility/iota');
 const ListManager = require('../api/utility/ListManager');
 module.exports.bootstrap = async function () {
 
   //let keys = await CryptHelper.RSAGenerateKeyPair();
   // console.log(keys);
 
-  const manager = new ListManager();
-  await manager.updateDBfromBlockchain();
+  if (await iota.isWalletInitialized()) {
+    const manager = new ListManager();
+    await manager.updateDBfromBlockchain();
+  }
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
   var HARD_CODED_DATA_VERSION = 0;
