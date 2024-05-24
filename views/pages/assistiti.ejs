@@ -132,18 +132,20 @@
     </div>
     <div class="row">
         <% if (!id) { %>
-            <% assistiti.forEach((assistito) => { %>
+            <% assistitiIds.forEach((idAssistito) => { %>
                 <div class="col-md-4">
-                    <%- include('../layouts/partials/card-assistito', {assistito}); %>
+                    <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
                 </div>
-        <% });} %>
-        <% if (id) { %>
-            <h4>Organizzazione #<%= id; %></h4>
-            <!-- denominazione -->
-            <h5>Denominazione: <%= assistiti.codiceFiscale; %></h5>
-            Liste:
-
+            <% }); %>
         <% } %>
+        <% if (id) { %>
+            <% assistitiIds.forEach((idAssistito) => { %>
+                <div class="col-md-4">
+                    <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
+                </div>
+            <% }); %>
+        <% } %>
+
     </div>
 </div>
 <%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser(); %>

@@ -99,6 +99,12 @@ let waitUntilBalanceIsGreaterThanZero = async (account) => {
   }
 };
 
+let getAllWalletAccountsMatching = async (predicate) => {
+  let accounts = await getWallet().getAccounts();
+  accounts = accounts.filter(a => a.meta.alias.includes(predicate));
+  return accounts;
+};
+
 let getOrCreateWalletAccount = async (accountAlias) => {
   let account = null;
   let accounts = await getWallet().getAccounts();
@@ -291,6 +297,7 @@ module.exports = {
   showBalanceFormatted,
   getStatusAndBalance,
   getTransactionByAccountNameAndId,
+  getAllWalletAccountsMatching,
   MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
   COIN_NAME_MAP,
   GET_MAIN_KEYS,

@@ -162,6 +162,22 @@ class ListManager {
     return {success: false};
   }
 
+  async getLastDatiAssistitoFromBlockchain(idAssistito) {
+    let walletId = iota.ASSISTITO_ACCOUNT_PREFIX + idAssistito;
+    let assistitoAccount = await iota.getOrCreateWalletAccount(walletId);
+    if (assistitoAccount) {
+      let assistitoPrivateKey = await this.getLastPrivateKeyOfWalletId(walletId);
+      let transazione = await iota.getLastTransactionOfAccountWithTag(assistitoAccount, ASSISTITI_DATA);
+      if (transazione) {
+        let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
+        let clearData = await CryptHelper.receiveAndDecrypt(data, assistitoPrivateKey.clearData.privateKey);
+        data.clearData = JSON.parse(clearData);
+        return data;
+      }
+    }
+    return null;
+  }
+
   async getLastDatiStrutturaFromBlockchain(idStruttura) {
     let walletId = await Struttura.getWalletIdStruttura({id: idStruttura});
     let strAccount = await iota.getOrCreateWalletAccount(walletId);
@@ -209,22 +225,6 @@ class ListManager {
     return res;
   }
 
-  async getAssistitoFromId(id) {
-    let assistitoAccount = Assistiti.getWalletIdAssistito({id: id});
-    let assistito = await Assistito.findOne({codiceFiscale: id});
-    if (assistito) {
-      let assistitoPrivateKey = await this.getLastPrivateKeyOfWalletId(assistitoAccount);
-      let transazione = await iota.getLastTransactionOfAccountWithTag(assistitoAccount, ASSISTITI_DATA);
-      if (transazione) {
-        let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
-        let clearData = await CryptHelper.receiveAndDecrypt(data, assistitoPrivateKey.clearData.privateKey);
-        data.clearData = JSON.parse(clearData);
-        return data;
-      }
-    }
-    return null;
-  }
-
   async updateDatiAssistitoToBlockchain(id) {
     if (id) {
       let assistitoAccount = await iota.getOrCreateWalletAccount(await Assistito.getWalletIdAssistito({id: id}));
@@ -241,6 +241,17 @@ class ListManager {
       }
     }
     return {success: false};
+  }
+
+
+  async getAllIdAssistitiFromBlockchain() {
+    let assistiti = await iota.getAllWalletAccountsMatching(iota.ASSISTITO_ACCOUNT_PREFIX);
+
+    let allAssistitiId = [];
+    for (let assistito of assistiti) {
+      allAssistitiId.push(assistito.meta.alias.substring(iota.ASSISTITO_ACCOUNT_PREFIX.length));
+    }
+    return allAssistitiId;
   }
 
   async aggiungiAssistitoInListaToBlockchain(idAssistito, idLista) {

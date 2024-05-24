@@ -26,19 +26,25 @@ module.exports = {
   fn: async function ({id}) {
     let manager = new ListManager();
 
-    let assistiti = null;
+    let assistitiIds  = await manager.getAllIdAssistitiFromBlockchain();
+    let allAssistiti = await Assistito.find({});
     if (id) {
-      assistiti = await Assistito.findOne({id: id}).populate('liste');
+      if (!allAssistiti.find(a => a.id === id)) {
+        let assistito = await manager.getLastDatiAssistitoFromBlockchain(id);
+        allAssistiti.push({...assistito.clearData});
+      }
     }
-    else
-      assistiti = await Assistito.find().populate('liste');
-
+    let allAssistitiMap = allAssistiti.reduce((map, obj) => {
+      map[obj.id] = obj;
+      return map;
+    }, {});
 
 
     // Respond with view.
     return {
       pageTitle: 'Assistiti',
-      assistiti,
+      assistitiIds,
+      allAssistitiMap,
       id
     };
 

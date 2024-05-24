@@ -1,28 +1,17 @@
 <div class="card-square">
-
     <div class="card">
         <div class="card-content">
             <div class="card-body">
                 <div class="card-title">
-                    <h5><a href="/assistiti/<%- assistito.id %>"><%- assistito.codiceFiscale %></a></h5>
+                    <h5><a href="/assistiti/<%- id %>"><%- "Assistito #" + id %></a></h5>
                 </div>
                 <div class="card-subtitle">
-                    <p>id #<%- assistito.id %></p>
+                    <p>id #<%- id %></p>
+                    <b>codice fiscale:  <%- dati?.codiceFiscale ?? "-" %></b>
                 </div>
             </div>
             <div class="card-body">
-                <% if (assistito.liste.length > 0) { %>
-                    <h6>Liste:</h6>
-                    <ul>
-                        <% assistito.liste.forEach((lista) => { %>
-                            <li><a href="/liste/<%- lista.id %>"><%- lista.denominazione %></a></li>
-                        <% }) %>
-                    </ul>
-                <% } %>
-                <!-- else show nessuna lista -->
-                <% if (assistito.liste.length === 0) { %>
-                    <h6>Nessuna lista</h6>
-                <% } %>
+
             </div>
         </div>
     </div>
