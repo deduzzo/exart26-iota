@@ -27,6 +27,11 @@ module.exports = {
       columnType: 'tinyint',
       defaultsTo: INSERITO_IN_CODA
     },
+    dataOraIngresso: {
+      type: 'ref',
+      columnType: 'datetime',
+      defaultsTo: new Date()
+    },
     chiuso: {
       type: 'boolean',
       defaultsTo: false

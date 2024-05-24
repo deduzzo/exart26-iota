@@ -120,6 +120,12 @@
             "default": 1,
             "example": 1
           },
+          "dataOraIngresso": {
+            "type": "string",
+            "format": "date-time",
+            "default": "2024-05-24T16:29:20.327Z",
+            "example": "2024-05-24T16:29:20.327Z"
+          },
           "chiuso": {
             "type": "boolean",
             "default": false
