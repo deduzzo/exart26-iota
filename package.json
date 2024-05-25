@@ -42,6 +42,6 @@
   "author": "deduzzo",
   "license": "",
   "engines": {
-    "node": "^21.5"
+    "node": ">=17"
   }
 }
