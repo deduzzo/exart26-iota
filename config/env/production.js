@@ -151,7 +151,7 @@ module.exports = {
     ***************************************************************************/
     cors: {
        allowOrigins: [
-         'https://exart26-iota.app.robertodedomenico.it/assistiti',
+         'https://exart26-iota.app.robertodedomenico.it',
        ]
     },
 
