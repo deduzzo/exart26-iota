@@ -149,11 +149,12 @@ module.exports = {
     * > Be sure to use the right protocol!  ("http://" vs. "https://")         *
     *                                                                          *
     ***************************************************************************/
-/*    cors: {
+    cors: {
        allowOrigins: [
          'https://exart26-iota.app.robertodedomenico.it',
        ]
-    },*/
+    },
+    csrf: true,
 
   },
 
