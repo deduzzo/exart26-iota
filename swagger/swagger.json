@@ -121,10 +121,14 @@
             "example": 1
           },
           "dataOraIngresso": {
-            "type": "string",
-            "format": "date-time",
-            "default": "2024-05-24T16:29:20.327Z",
-            "example": "2024-05-24T16:29:20.327Z"
+            "type": "number",
+            "format": "double",
+            "default": 1716654411831,
+            "example": 1716654411831
+          },
+          "dataOraUscita": {
+            "type": "number",
+            "format": "double"
           },
           "chiuso": {
             "type": "boolean",
@@ -176,7 +180,8 @@
             "uniqueItems": true
           },
           "dataNascita": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "email": {
             "type": "string"
@@ -751,6 +756,98 @@
     },
     "/api/v1/add-assistito": {
       "post": {
+        "summary": "Add assistito",
+        "tags": [
+          "Add assistito"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cognome",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codiceFiscale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dataNascita",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Formato: YYYY-MM-DD"
+          },
+          {
+            "in": "query",
+            "name": "email",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "telefono",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "indirizzo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Assistito aggiunta con successo."
+                    },
+                    {
+                      "type": "string",
+                      "description": "I dati forniti non sono validi o l'assistito è già presente."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "get": {
         "summary": "Add assistito",
         "tags": [
           "Add assistito"

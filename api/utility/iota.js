@@ -16,6 +16,7 @@ const {
 } = require('../../config/private_iota_conf');
 
 let _wallet = null;
+let _socketId = null;
 
 const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
 
@@ -60,6 +61,10 @@ let getWallet = () => {
   return _wallet;
 };
 
+let setSocketId = (socketId) => {
+  _socketId = socketId;
+};
+
 let stringToHex = (text) => {
   return '0x' + Buffer.from(text).toString('hex');
 };
@@ -93,7 +98,7 @@ let getAccountBalance = async (account) => {
 let waitUntilBalanceIsGreaterThanZero = async (account) => {
   let balance = await getAccountBalance(account);
   while (balance.baseCoin.available === TRANSACTION_ZERO_VALUE) {
-    console.log('Waiting for balance to be greater than zero');
+    await sails.helpers.consoleSocket('attendo...', _socketId);
     await new Promise(resolve => setTimeout(resolve, 5000));
     balance = await getAccountBalance(account);
   }
@@ -125,7 +130,8 @@ let getOrCreateWalletAccount = async (accountAlias) => {
     let mainAccount = await getMainAccount();
     let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
     await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
-    console.log('MAIN BALANCE: ' + mainAccountBalanceBefore.baseCoin.available);
+    await sails.helpers.consoleSocket('Fondi account MAIN: ' + mainAccountBalanceBefore.baseCoin.available,_socketId);
+    await sails.helpers.consoleSocket('Attesa trasferimento fondi per nuovo account ' + accountAlias, _socketId);
     await waitUntilBalanceIsGreaterThanZero(account);
   }
   return account;
@@ -145,6 +151,7 @@ let getOrInitWallet = async (waitForBalance = true) => {
     init = true;
   }
   console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
+  await sails.helpers.consoleSocket('Attendo che arrivino fondi...', _socketId);
   if (waitForBalance) {
     await waitUntilBalanceIsGreaterThanZero(mainAccount);
   }
@@ -279,6 +286,7 @@ let getAllOutputs = async (account) => {
 
 
 module.exports = {
+  setSocketId,
   getWallet,
   stringToHex,
   hexToString,

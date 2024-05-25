@@ -31,7 +31,8 @@ module.exports = {
     dataNascita: {
       type: 'string',
       columnType: 'date',
-      required: false
+      required: false,
+      allowNull: true
     },
     email: {
       type: 'string',

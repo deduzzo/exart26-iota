@@ -75,6 +75,7 @@ module.exports.routes = {
   'POST /api/v1/add-struttura':           { action: 'add-struttura' },
   'POST /api/v1/add-lista':               { action: 'add-lista' },
   'POST /api/v1/add-assistito':           { action: 'add-assistito' },
+  'GET /api/v1/add-assistito':           { action: 'add-assistito' }, // per websocket
   'POST /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
   'POST /api/v1/add-assistito-in-lista':  { action: 'add-assistito-in-lista' },
 

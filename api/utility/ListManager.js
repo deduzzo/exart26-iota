@@ -15,6 +15,12 @@ const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
 class ListManager {
 
+  constructor(socketId = null) {
+    this._socketId = socketId;
+    if (socketId)
+      iota.setSocketId(socketId);
+  }
+
   async updateDBfromBlockchain() {
     await AssistitiListe.destroy({});
     await Assistito.destroy({});

@@ -6,8 +6,14 @@
                     <h5><a href="/assistiti/<%- id %>"><%- "Assistito #" + id %></a></h5>
                 </div>
                 <div class="card-subtitle">
+                    <% if (dati) { %>
                     <p>id #<%- id %></p>
                     <b>codice fiscale:  <%- dati?.codiceFiscale ?? "-" %></b>
+                    <% } %>
+                    <% if (!dati) { %>
+                        <!-- button to go to url /assistiti/<%- id %>/edit -->
+                        <a href="/assistiti/<%- id %>" class="btn btn-primary">Carica dati da Blockchain</a>
+                    <% } %>
                 </div>
             </div>
             <div class="card-body">

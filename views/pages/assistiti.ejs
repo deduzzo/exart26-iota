@@ -1,50 +1,70 @@
+<style>
+  #messageBox p {
+    margin: 0;
+    padding: 0;
+  }
+
+  .modal-enlarged {
+    width: 60% !important;
+    max-width: none !important; /* Override the default Bootstrap max-width */
+  }
+</style>
 <div id="assistiti" v-cloak>
-
     <script>
-      document.addEventListener('DOMContentLoaded', function () {
-        const form = document.getElementById('addAssistitoForm');
-        form.onsubmit = function (event) {
-          event.preventDefault(); // Previene il submit normale del form
+      console.log("start");
 
-          // Disabilita il pulsante di submit e mostra il loader
-          const submitButton = form.querySelector('button[type="submit"]');
+      function scrollToBottom() {
+        const messageBox = document.getElementById('messageBox');
+        messageBox.scrollTop = messageBox.scrollHeight;
+      }
+
+      $(document).ready(function () {
+        $('#salvaBtn').click(function (event) {
+          event.preventDefault(); // Previene l'invio del form
+
+          const submitButton = document.getElementById('salvaBtn');
           submitButton.disabled = true;
           document.getElementById('loadingText').style.display = 'inline-block';
+          const data = {
+            _csrf: $('input[name="_csrf"]').val(),
+            nome: $('#nome').val(),
+            cognome: $('#cognome').val(),
+            codiceFiscale: $('#codiceFiscale').val(),
+            dataNascita: $('#dataNascita').val(),
+            email: $('#email').val(),
+            telefono: $('#telefono').val(),
+            indirizzo: $('#indirizzo').val()
+          };
 
-          // Prepara i dati del form per l'invio
-          const formData = new FormData(form);
-
-          // Effettua la richiesta AJAX
-          fetch(form.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-              'X-CSRF-Token': form.querySelector('[name="_csrf"]').value
+          io.socket.post('/api/v1/add-assistito', data, function (response) {
+            if(response.message) {
+              $('#messageBox').append('<p>' + response.message + '</p>');
+              scrollToBottom();
             }
-          }).then(response => {
-            if (response.ok) {
-              // Ricarica la pagina se la richiesta ha avuto successo
-              window.location.reload();
-            } else {
-              console.error('Error:', response);
-              alert(response);
-            }
-          }).catch(error => {
-            console.error('Error:', error);
-            alert(error.error);
-          }).finally(() => {
-            // Ripristina l'interfaccia utente
-            submitButton.disabled = false;
-            document.getElementById('loadingText').style.display = 'none';
           });
-        };
+
+          io.socket.on('message', function (event) {
+            $('#messageBox').append('<p>' + event.message + '</p>');
+            scrollToBottom();
+          });
+
+          io.socket.on('processCompleted', function (event) {
+            document.getElementById('loadingText').style.display = 'none';
+            submitButton.disabled = false;
+            if (event.success) {
+              submitButton.innerText = 'Chiudi';
+              submitButton.addEventListener('click', function() {
+                location.reload();
+              });
+            }
+          });
+        });
       });
     </script>
 
-
     <div class="modal fade text-left" id="inlineForm" tabindex="-1" aria-labelledby="myModalLabel33" aria-hidden="true"
          data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-enlarged" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h4 class="modal-title" id="myModalLabel33">Nuovo Assistito</h4>
@@ -57,14 +77,14 @@
                         </svg>
                     </button>
                 </div>
-                <form id="addAssistitoForm" action="/api/v1/add-assistito" method="POST">
+                <form>
                     <input type="hidden" name="_csrf" value="<%- _csrf; %>">
                     <div class="modal-body">
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="codiceFiscale">Cognome: </label>
-                                    <input id="codiceFiscale" name="cognome" type="text" class="form-control">
+                                    <label for="cognome">Cognome: </label>
+                                    <input id="cognome" name="cognome" type="text" class="form-control">
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -107,15 +127,18 @@
                                     <input id="indirizzo" name="indirizzo" type="text" class="form-control">
                                 </div>
                             </div>
+                            <div class="col-md-12" id="messageBox"
+                                 style="border: 1px solid #ccc; padding: 10px; margin-top: 20px; height: 200px; overflow-y: scroll;"><p>Log attività</p>
+                            </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary ms-1">
-                            <span class="d-none d-sm-block">Salva</span>
-                        </button>
-                        <!-- Elemento per il loader -->
-                        <span id="loadingText" class="ms-2" style="display:none;">Caricamento... <div
-                                    class="spinner-border spinner-border-sm" role="status"></div></span>
+                        <div class="modal-footer">
+                            <button id="salvaBtn" class="btn btn-primary ms-1">
+                                <span class="d-none d-sm-block">Salva</span>
+                            </button>
+                            <!-- Elemento per il loader -->
+                            <span id="loadingText" class="ms-2" style="display:none;">Operazione in corso..<div
+                                        class="spinner-border spinner-border-sm" role="status"></div></span>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -131,21 +154,12 @@
         </div>
     </div>
     <div class="row">
-        <% if (!id) { %>
-            <% assistitiIds.forEach((idAssistito) => { %>
-                <div class="col-md-4">
-                    <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
-                </div>
-            <% }); %>
-        <% } %>
-        <% if (id) { %>
-            <% assistitiIds.forEach((idAssistito) => { %>
-                <div class="col-md-4">
-                    <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
-                </div>
-            <% }); %>
-        <% } %>
-
+        <% assistitiIds.forEach((idAssistito) => { %>
+            <div class="col-md-4">
+                <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
+            </div>
+        <% }); %>
     </div>
 </div>
+
 <%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser(); %>

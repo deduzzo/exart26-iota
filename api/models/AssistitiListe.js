@@ -28,9 +28,12 @@ module.exports = {
       defaultsTo: INSERITO_IN_CODA
     },
     dataOraIngresso: {
-      type: 'ref',
-      columnType: 'datetime',
-      defaultsTo: new Date()
+      type: 'number',
+      defaultsTo: Date.now()
+    },
+    dataOraUscita: {
+      type: 'number',
+      required: false,
     },
     chiuso: {
       type: 'boolean',
