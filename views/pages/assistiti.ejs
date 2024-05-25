@@ -37,18 +37,26 @@
           };
 
           io.socket.post('/api/v1/add-assistito', data, function (response) {
-            if(response.message) {
+            // if error response
+            if (response.code) {
+              console.log(response);
+              $('#messageBox').append('ERRORE: ' + response.code + ' - ' + response.problems);
+              document.getElementById('loadingText').style.display = 'none';
+              submitButton.disabled = false;
+            } else if(response.message) {
               $('#messageBox').append('<p>' + response.message + '</p>');
               scrollToBottom();
             }
           });
 
           io.socket.on('message', function (event) {
+            console.log(event);
             $('#messageBox').append('<p>' + event.message + '</p>');
             scrollToBottom();
           });
 
           io.socket.on('processCompleted', function (event) {
+            console.log("no")
             document.getElementById('loadingText').style.display = 'none';
             submitButton.disabled = false;
             if (event.success) {
