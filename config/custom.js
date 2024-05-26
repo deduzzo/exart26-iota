@@ -24,7 +24,7 @@ module.exports.custom = {
   * > but it can also be used for user-uploaded images, webhooks, etc.      *
   *                                                                         *
   **************************************************************************/
-  baseUrl: 'https://exart26-iota.app.robertodedomenico.it',
+  baseUrl: 'http://localhost:1337',
 
   /**************************************************************************
   *                                                                         *
