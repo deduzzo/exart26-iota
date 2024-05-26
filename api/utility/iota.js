@@ -223,7 +223,7 @@ let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = 
   try {
     response = await account.send(amount, destAddr, transactionOptions);
     let url = IOTA_EXPLORER_URL + '/block/' + response.blockId;
-    console.log(`Block sent: ${IOTA_EXPLORER_URL}/block/${response.blockId}`);
+    sails.helpers.consoleSocket(`Block sent: ${IOTA_EXPLORER_URL}/block/${response.blockId}`);
     return {success: true, blockId: response.blockId, url: url, transactionId: response.transactionId, error: null};
   } catch (e) {
     console.error(e);
