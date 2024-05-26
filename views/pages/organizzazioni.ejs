@@ -27,11 +27,11 @@
               window.location.reload();
             } else {
               console.error('Error:', response);
-              alert(response);
+              alert(JSON.stringify(response));
             }
           }).catch(error => {
             console.error('Error:', error);
-            alert(error.error);
+            alert(JSON.stringify(error));
           }).finally(() => {
             // Ripristina l'interfaccia utente
             submitButton.disabled = false;

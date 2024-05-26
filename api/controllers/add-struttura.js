@@ -55,6 +55,7 @@ module.exports = {
         return exits.invalid('Organizzazione non trovata.');
       }
       let nuovaStruttura = await Struttura.create({
+        id: await Struttura.nextId(),
         denominazione: inputs.denominazione,
         indirizzo: inputs.indirizzo,
         attiva: inputs.attiva,

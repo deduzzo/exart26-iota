@@ -75,6 +75,7 @@ module.exports = {
         let assistito = null;
         try {
           assistito = await Assistito.create({
+            id: await Assistito.nextId(),
             nome: inputs.nome,
             cognome: inputs.cognome,
             codiceFiscale: inputs.codiceFiscale.toUpperCase().trim(),

@@ -29,6 +29,7 @@ module.exports = {
     let keyPairOrg = await CryptHelper.RSAGenerateKeyPair();
     try {
       let nuovaOrganizzazione = await Organizzazione.create({
+        id: await Organizzazione.nextId(),
         denominazione: inputs.denominazione,
         publicKey: keyPairOrg.publicKey,
         privateKey: keyPairOrg.privateKey,
@@ -51,6 +52,13 @@ module.exports = {
             error: null
           });
       } else {
+        // console to sails all the invalid res
+        if (!res1.success)
+          sails.log.error(res1);
+        if (!res2.success)
+          sails.log.error(res2);
+        if (!res3.success)
+          sails.log.error(res3);
         return exits.invalid({
           error: 'Errore durante la scrittura dei dati sulla blockchain.',
           transactions: {
@@ -61,6 +69,8 @@ module.exports = {
         });
       }
     } catch (err) {
+      //log error to sails console
+      sails.log.error(err);
       return exits.invalid({
         error: err.error,
       });
