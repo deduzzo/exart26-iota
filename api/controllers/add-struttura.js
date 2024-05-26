@@ -92,7 +92,7 @@ module.exports = {
       }
     } catch (err) {
       return exits.invalid({
-        error: err.error,
+        error: JSON.stringify(err),
       });
     }
   }
