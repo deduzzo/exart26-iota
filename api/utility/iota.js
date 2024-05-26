@@ -16,7 +16,7 @@ const {
 } = require('../../config/private_iota_conf');
 
 let _wallet = null;
-let _socketId = null;
+let _socketId = undefined;
 
 const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
 
@@ -62,6 +62,7 @@ let getWallet = () => {
 };
 
 let setSocketId = (socketId) => {
+  if (socketId !== null)
   _socketId = socketId;
 };
 

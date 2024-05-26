@@ -123,8 +123,8 @@
           "dataOraIngresso": {
             "type": "number",
             "format": "double",
-            "default": 1716684299364,
-            "example": 1716684299364
+            "default": 1716687120584,
+            "example": 1716687120584
           },
           "dataOraUscita": {
             "type": "number",
