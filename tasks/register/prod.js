@@ -14,13 +14,13 @@
 module.exports = function(grunt) {
   grunt.registerTask('prod', [
     'polyfill:prod', //« Remove this to skip transpilation in production (not recommended)
-    'compileAssets',
+    //'compileAssets',
     'babel',         //« Remove this to skip transpilation in production (not recommended)
-    'concat',
+    //'concat',
     //'uglify',
-    'cssmin',
-    'sails-linker:prodJs',
-    'sails-linker:prodStyles',
+    //'cssmin',
+    //'sails-linker:prodJs',
+    //'sails-linker:prodStyles',
   ]);
 };
 
