@@ -254,7 +254,7 @@ module.exports = {
     *                                                                          *
     ***************************************************************************/
      onlyAllowOrigins: [
-       'https://exart26-iota.app.robertodedomenico.it',
+       'https://exart26-iota.app.robertodedomenico.it/api/v1',
     //   'https://staging.example.com',
      ],
 
