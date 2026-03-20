@@ -18,6 +18,7 @@
     "sails-hook-sockets": "^2.0.0",
     "sails-hook-swagger-generator": "^3.3.0",
     "sails-mysql": "^3.0.1",
+    "express-rate-limit": "^7.1.0",
     "swagger-ui-dist": "^5.17.2"
   },
   "devDependencies": {

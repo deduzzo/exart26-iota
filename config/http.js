@@ -9,6 +9,8 @@
  * https://sailsjs.com/config/http
  */
 
+var rateLimit = require('express-rate-limit');
+
 module.exports.http = {
 
   /****************************************************************************
@@ -29,9 +31,23 @@ module.exports.http = {
      *                                                                          *
      ***************************************************************************/
     swaggerUi: require('express').static('node_modules/swagger-ui-dist'),
+
+    apiRateLimit: rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minuti
+      max: 100, // massimo 100 richieste per IP per finestra
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Troppe richieste da questo IP, riprova tra 15 minuti.' },
+      skip: function (req) {
+        // Applica solo alle rotte API
+        return !req.path.startsWith('/api/');
+      },
+    }),
+
     order: [
       'cookieParser',
       'session',
+      'apiRateLimit',
       'bodyParser',
       'compress',
       'poweredBy',
