@@ -1,28 +1,24 @@
-<div class="card-square">
-    <div class="card">
-        <div class="card-content">
-            <div class="card-body">
-                <div class="card-title">
-                    <h5><a href="/strutture/<%- organizzazione.id %>"><%- organizzazione.denominazione %></a></h5>
-                </div>
-                <div class="card-subtitle">
-                    <p>id #<%- organizzazione.id %></p>
-                </div>
-            </div>
-            <div class="card-body">
-                <% if (organizzazione.strutture.length > 0) { %>
-                    <h6>Strutture:</h6>
-                    <ul>
-                        <% organizzazione.strutture.forEach((struttura) => { %>
-                            <li><a href="/strutture/<%- organizzazione.id + "/" + struttura.id %>"><%- struttura.denominazione %></a></li>
-                        <% }) %>
-                    </ul>
-                <% } %>
-                <!-- else show nessuna struttura -->
-                <% if (organizzazione.strutture.length === 0) { %>
-                    <h6>Nessuna struttura</h6>
-                <% } %>
-            </div>
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <h5 class="card-title mb-0">
+                <a href="/strutture/<%- organizzazione.id %>"><%- organizzazione.denominazione %></a>
+            </h5>
+            <span class="badge bg-light-primary">#<%- organizzazione.id %></span>
         </div>
+        <% if (organizzazione.strutture && organizzazione.strutture.length > 0) { %>
+            <p class="text-muted mb-2"><%= organizzazione.strutture.length %> struttur<%= organizzazione.strutture.length === 1 ? 'a' : 'e' %></p>
+            <ul class="list-group list-group-flush">
+                <% organizzazione.strutture.forEach((struttura) => { %>
+                    <li class="list-group-item px-0 py-1">
+                        <a href="/strutture/<%- organizzazione.id + '/' + struttura.id %>">
+                            <i class="bi bi-building me-1"></i> <%- struttura.denominazione %>
+                        </a>
+                    </li>
+                <% }) %>
+            </ul>
+        <% } else { %>
+            <p class="text-muted mb-0">Nessuna struttura associata</p>
+        <% } %>
     </div>
 </div>
