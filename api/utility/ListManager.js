@@ -307,7 +307,6 @@ class ListManager {
           let assistitoLista = null;
           try {
             assistitoLista = await AssistitiListe.create({
-              id: await AssistitiListe.nextId(),
               assistito: idAssistito,
               lista: idLista,
               stato: INSERITO_IN_CODA,

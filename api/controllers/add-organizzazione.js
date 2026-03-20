@@ -31,7 +31,6 @@ module.exports = {
     let keyPairOrg = await CryptHelper.RSAGenerateKeyPair();
     try {
       let nuovaOrganizzazione = await Organizzazione.create({
-        id: await Organizzazione.nextId(),
         denominazione: inputs.denominazione,
         publicKey: keyPairOrg.publicKey,
         privateKey: keyPairOrg.privateKey,

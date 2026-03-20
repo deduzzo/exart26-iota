@@ -48,12 +48,6 @@ module.exports = {
     //  ╠═╣╚═╗╚═╗║ ║║  ║╠═╣ ║ ║║ ║║║║╚═╗
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
-  },
-  nextId: async function() {
-    let max = await AssistitiListe.find({select: ['id'], sort: 'id DESC', limit: 1});
-    if (max.length === 0)
-      return 1;
-    return max[0].id +1;
   }
 
 };

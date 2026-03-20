@@ -38,7 +38,6 @@ module.exports = {
     let keyPairList = await CryptHelper.RSAGenerateKeyPair();
     try {
       let nuovaLista = await Lista.create({
-        id: await Lista.nextId(),
         denominazione: inputs.denominazione,
         publicKey: keyPairList.publicKey,
         privateKey: keyPairList.privateKey,

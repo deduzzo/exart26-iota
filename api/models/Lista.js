@@ -52,12 +52,6 @@ module.exports = {
       return lista.struttura.organizzazione + '_' + lista.struttura.id + '_' + lista.id;
     }
     return null;
-  },
-  nextId: async function() {
-    let max = await Lista.find({select: ['id'], sort: 'id DESC', limit: 1});
-    if (max.length === 0)
-      return 1;
-    return max[0].id +1;
   }
 
 };

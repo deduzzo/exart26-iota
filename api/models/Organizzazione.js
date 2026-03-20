@@ -49,12 +49,6 @@ module.exports = {
   },
   customToJSON: function() {
     return _.omit(this, ['privateKey']);
-  },
-  nextId: async function() {
-    let max = await Organizzazione.find({select: ['id'], sort: 'id DESC', limit: 1});
-    if (max.length === 0)
-      return 1;
-    return max[0].id +1;
   }
 
 };
