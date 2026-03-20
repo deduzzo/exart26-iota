@@ -1,238 +1,203 @@
 <div class="page-content">
     <section class="row">
-        <div class="col-12 col-lg-9">
+        <div class="col-12">
             <div class="row">
+                <!-- Organizzazioni -->
                 <div class="col-6 col-lg-3 col-md-6">
                     <div class="card">
                         <div class="card-body px-4 py-4-5">
                             <div class="row">
-                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start ">
+                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start">
                                     <div class="stats-icon purple mb-2">
-                                        <i class="iconly-boldShow"></i>
+                                        <i class="iconly-boldCategory"></i>
                                     </div>
                                 </div>
                                 <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
-                                    <h6 class="text-muted font-semibold">Profile Views</h6>
-                                    <h6 class="font-extrabold mb-0">112.000</h6>
+                                    <h6 class="text-muted font-semibold">Organizzazioni</h6>
+                                    <h6 class="font-extrabold mb-0"><%= stats.organizzazioni %></h6>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <!-- Strutture -->
                 <div class="col-6 col-lg-3 col-md-6">
                     <div class="card">
                         <div class="card-body px-4 py-4-5">
                             <div class="row">
-                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start ">
+                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start">
                                     <div class="stats-icon blue mb-2">
+                                        <i class="iconly-boldHome"></i>
+                                    </div>
+                                </div>
+                                <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
+                                    <h6 class="text-muted font-semibold">Strutture</h6>
+                                    <h6 class="font-extrabold mb-0"><%= stats.strutture %></h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Liste Attesa -->
+                <div class="col-6 col-lg-3 col-md-6">
+                    <div class="card">
+                        <div class="card-body px-4 py-4-5">
+                            <div class="row">
+                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start">
+                                    <div class="stats-icon green mb-2">
+                                        <i class="iconly-boldDocument"></i>
+                                    </div>
+                                </div>
+                                <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
+                                    <h6 class="text-muted font-semibold">Liste d'Attesa</h6>
+                                    <h6 class="font-extrabold mb-0"><%= stats.liste %> <small class="text-muted">(<%= stats.listeAperte %> aperte)</small></h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Assistiti -->
+                <div class="col-6 col-lg-3 col-md-6">
+                    <div class="card">
+                        <div class="card-body px-4 py-4-5">
+                            <div class="row">
+                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start">
+                                    <div class="stats-icon red mb-2">
                                         <i class="iconly-boldProfile"></i>
                                     </div>
                                 </div>
                                 <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
-                                    <h6 class="text-muted font-semibold">Followers</h6>
-                                    <h6 class="font-extrabold mb-0">183.000</h6>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 col-lg-3 col-md-6">
-                    <div class="card">
-                        <div class="card-body px-4 py-4-5">
-                            <div class="row">
-                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start ">
-                                    <div class="stats-icon green mb-2">
-                                        <i class="iconly-boldAdd-User"></i>
-                                    </div>
-                                </div>
-                                <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
-                                    <h6 class="text-muted font-semibold">Following</h6>
-                                    <h6 class="font-extrabold mb-0">80.000</h6>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 col-lg-3 col-md-6">
-                    <div class="card">
-                        <div class="card-body px-4 py-4-5">
-                            <div class="row">
-                                <div class="col-md-4 col-lg-12 col-xl-12 col-xxl-5 d-flex justify-content-start ">
-                                    <div class="stats-icon red mb-2">
-                                        <i class="iconly-boldBookmark"></i>
-                                    </div>
-                                </div>
-                                <div class="col-md-8 col-lg-12 col-xl-12 col-xxl-7">
-                                    <h6 class="text-muted font-semibold">Saved Post</h6>
-                                    <h6 class="font-extrabold mb-0">112</h6>
+                                    <h6 class="text-muted font-semibold">Assistiti</h6>
+                                    <h6 class="font-extrabold mb-0"><%= stats.assistiti %> <small class="text-muted">(<%= stats.assistitiInCoda %> in coda)</small></h6>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h4>Profile Visit</h4>
-                        </div>
-                        <div class="card-body">
-                            <div id="chart-profile-visit"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row">
+                <!-- Stato Wallet -->
                 <div class="col-12 col-xl-4">
                     <div class="card">
                         <div class="card-header">
-                            <h4>Profile Visit</h4>
+                            <h4>Stato Blockchain</h4>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-7">
-                                    <div class="d-flex align-items-center">
-                                        <svg class="bi text-primary" width="32" height="32" fill="blue"
-                                             style="width:10px">
-                                            <use
-                                                    xlink:href="./images/bootstrap-icons.svg#circle-fill" />
-                                        </svg>
-                                        <h5 class="mb-0 ms-3">Europe</h5>
-                                    </div>
+                            <% if (walletInitialized) { %>
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge bg-success rounded-pill me-2">Attivo</span>
+                                    <span>Wallet IOTA inizializzato</span>
                                 </div>
-                                <div class="col-5">
-                                    <h5 class="mb-0 text-end">862</h5>
+                            <% } else { %>
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge bg-danger rounded-pill me-2">Non attivo</span>
+                                    <span>Wallet non inizializzato</span>
                                 </div>
-                                <div class="col-12">
-                                    <div id="chart-europe"></div>
-                                </div>
+                                <a href="/wallet/verifica" class="btn btn-outline-primary btn-sm">Inizializza Wallet</a>
+                            <% } %>
+                            <hr>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Organizzazioni su blockchain</span>
+                                <span class="font-bold"><%= stats.organizzazioni %></span>
                             </div>
-                            <div class="row">
-                                <div class="col-7">
-                                    <div class="d-flex align-items-center">
-                                        <svg class="bi text-success" width="32" height="32" fill="blue"
-                                             style="width:10px">
-                                            <use
-                                                    xlink:href="./images/bootstrap-icons.svg#circle-fill" />
-                                        </svg>
-                                        <h5 class="mb-0 ms-3">America</h5>
-                                    </div>
-                                </div>
-                                <div class="col-5">
-                                    <h5 class="mb-0 text-end">375</h5>
-                                </div>
-                                <div class="col-12">
-                                    <div id="chart-america"></div>
-                                </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Strutture su blockchain</span>
+                                <span class="font-bold"><%= stats.strutture %></span>
                             </div>
-                            <div class="row">
-                                <div class="col-7">
-                                    <div class="d-flex align-items-center">
-                                        <svg class="bi text-success" width="32" height="32" fill="blue"
-                                             style="width:10px">
-                                            <use
-                                                    xlink:href="./images/bootstrap-icons.svg#circle-fill" />
-                                        </svg>
-                                        <h5 class="mb-0 ms-3">India</h5>
-                                    </div>
-                                </div>
-                                <div class="col-5">
-                                    <h5 class="mb-0 text-end">625</h5>
-                                </div>
-                                <div class="col-12">
-                                    <div id="chart-india"></div>
-                                </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Liste su blockchain</span>
+                                <span class="font-bold"><%= stats.liste %></span>
                             </div>
-                            <div class="row">
-                                <div class="col-7">
-                                    <div class="d-flex align-items-center">
-                                        <svg class="bi text-danger" width="32" height="32" fill="blue"
-                                             style="width:10px">
-                                            <use
-                                                    xlink:href="./images/bootstrap-icons.svg#circle-fill" />
-                                        </svg>
-                                        <h5 class="mb-0 ms-3">Indonesia</h5>
-                                    </div>
-                                </div>
-                                <div class="col-5">
-                                    <h5 class="mb-0 text-end">1025</h5>
-                                </div>
-                                <div class="col-12">
-                                    <div id="chart-indonesia"></div>
-                                </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Assistiti su blockchain</span>
+                                <span class="font-bold"><%= stats.assistiti %></span>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Azioni rapide -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Azioni Rapide</h4>
+                        </div>
+                        <div class="card-body d-grid gap-2">
+                            <a href="/organizzazioni" class="btn btn-outline-primary btn-sm">
+                                <i class="iconly-boldCategory"></i> Gestisci Organizzazioni
+                            </a>
+                            <a href="/assistiti" class="btn btn-outline-primary btn-sm">
+                                <i class="iconly-boldProfile"></i> Gestisci Assistiti
+                            </a>
+                            <a href="/wallet/verifica" class="btn btn-outline-primary btn-sm">
+                                <i class="iconly-boldWallet"></i> Verifica Wallet
+                            </a>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Ultime Operazioni -->
                 <div class="col-12 col-xl-8">
                     <div class="card">
                         <div class="card-header">
-                            <h4>Latest Comments</h4>
+                            <h4>Ultime Operazioni</h4>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-hover table-lg">
                                     <thead>
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Comment</th>
+                                        <th>Assistito</th>
+                                        <th>Lista</th>
+                                        <th>Stato</th>
+                                        <th>Data</th>
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    <tr>
-                                        <td class="col-3">
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar avatar-md">
-                                                    <img src="./compiled/jpg/5.jpg">
-                                                </div>
-                                                <p class="font-bold ms-3 mb-0">Si Cantik</p>
-                                            </div>
-                                        </td>
-                                        <td class="col-auto">
-                                            <p class=" mb-0">Congratulations on your graduation!</p>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="col-3">
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar avatar-md">
-                                                    <img src="./images/2.jpg">
-                                                </div>
-                                                <p class="font-bold ms-3 mb-0">Si Ganteng</p>
-                                            </div>
-                                        </td>
-                                        <td class="col-auto">
-                                            <p class=" mb-0">Wow amazing design! Can you make another tutorial for
-                                                this design?</p>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="col-3">
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar avatar-md">
-                                                    <img src="./images/8.jpg">
-                                                </div>
-                                                <p class="font-bold ms-3 mb-0">Singh Eknoor</p>
-                                            </div>
-                                        </td>
-                                        <td class="col-auto">
-                                            <p class=" mb-0">What a stunning design! You are so talented and creative!</p>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="col-3">
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar avatar-md">
-                                                    <img src="./images/3.jpg">
-                                                </div>
-                                                <p class="font-bold ms-3 mb-0">Rani Jhadav</p>
-                                            </div>
-                                        </td>
-                                        <td class="col-auto">
-                                            <p class=" mb-0">I love your design! It’s so beautiful and unique! How did you learn to do this?</p>
-                                        </td>
-                                    </tr>
+                                    <% if (ultimeOperazioni.length === 0) { %>
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted">Nessuna operazione registrata</td>
+                                        </tr>
+                                    <% } %>
+                                    <% ultimeOperazioni.forEach(function(op) { %>
+                                        <tr>
+                                            <td>
+                                                <% if (op.assistito) { %>
+                                                    <%= op.assistito.cognome %> <%= op.assistito.nome %>
+                                                <% } else { %>
+                                                    <span class="text-muted">ID: <%= op.assistito %></span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (op.lista && op.lista.denominazione) { %>
+                                                    <%= op.lista.denominazione %>
+                                                <% } else { %>
+                                                    <span class="text-muted">-</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (op.stato === 1) { %>
+                                                    <span class="badge bg-info">In coda</span>
+                                                <% } else if (op.stato === 2) { %>
+                                                    <span class="badge bg-warning">In assistenza</span>
+                                                <% } else if (op.stato === 3) { %>
+                                                    <span class="badge bg-success">Completato</span>
+                                                <% } else if (op.stato === 4) { %>
+                                                    <span class="badge bg-secondary">Cambio lista</span>
+                                                <% } else if (op.stato === 5) { %>
+                                                    <span class="badge bg-danger">Rinuncia</span>
+                                                <% } else if (op.stato === 6) { %>
+                                                    <span class="badge bg-dark">Annullato</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (op.dataOraIngresso) { %>
+                                                    <%= new Date(op.dataOraIngresso).toLocaleDateString('it-IT') %>
+                                                <% } else { %>
+                                                    <%= new Date(op.createdAt).toLocaleDateString('it-IT') %>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
                                     </tbody>
                                 </table>
                             </div>
@@ -241,69 +206,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-lg-3">
-            <div class="card">
-                <div class="card-body py-4 px-4">
-                    <div class="d-flex align-items-center">
-                        <div class="avatar avatar-xl">
-                            <img src="./images/1.jpg" alt="Face 1">
-                        </div>
-                        <div class="ms-3 name">
-                            <h5 class="font-bold">John Duck</h5>
-                            <h6 class="text-muted mb-0">@johnducky</h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <h4>Recent Messages</h4>
-                </div>
-                <div class="card-content pb-4">
-                    <div class="recent-message d-flex px-4 py-3">
-                        <div class="avatar avatar-lg">
-                            <img src="./images/4.jpg">
-                        </div>
-                        <div class="name ms-4">
-                            <h5 class="mb-1">Hank Schrader</h5>
-                            <h6 class="text-muted mb-0">@johnducky</h6>
-                        </div>
-                    </div>
-                    <div class="recent-message d-flex px-4 py-3">
-                        <div class="avatar avatar-lg">
-                            <img src="./images/5.jpg">
-                        </div>
-                        <div class="name ms-4">
-                            <h5 class="mb-1">Dean Winchester</h5>
-                            <h6 class="text-muted mb-0">@imdean</h6>
-                        </div>
-                    </div>
-                    <div class="recent-message d-flex px-4 py-3">
-                        <div class="avatar avatar-lg">
-                            <img src="./images/1.jpg">
-                        </div>
-                        <div class="name ms-4">
-                            <h5 class="mb-1">John Dodol</h5>
-                            <h6 class="text-muted mb-0">@dodoljohn</h6>
-                        </div>
-                    </div>
-                    <div class="px-4">
-                        <button class='btn btn-block btn-xl btn-outline-primary font-bold mt-3'>Start Conversation</button>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <h4>Visitors Profile</h4>
-                </div>
-                <div class="card-body">
-                    <div id="chart-visitors-profile"></div>
-                </div>
-            </div>
-        </div>
     </section>
 </div>
-<!-- include a acript at the end of the file   'static/js/pages/dashboard.js', -->
-<script src="static/js/pages/dashboard.js"></script>
 
 <%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser() %>
