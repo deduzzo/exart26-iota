@@ -22,18 +22,13 @@ class ListManager {
   }
 
   async updateDBfromBlockchain() {
-    await AssistitiListe.destroy({});
-    await Assistito.destroy({});
-    await Lista.destroy({});
-    await Struttura.destroy({});
-    await Organizzazione.destroy({});
     let mainAccount = await iota.getMainAccount();
     let transazione = await iota.getLastTransactionOfAccountWithTag(mainAccount, MAIN_DATA);
     if (transazione) {
       let data = JSON.parse(iota.hexToString(transazione.payload.essence.payload.data));
       let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
       data.clearData = JSON.parse(clearData);
-      await this.updateDBFromJsonData(data.clearData);
+      await this.syncDBFromJsonData(data.clearData);
       return {success: true, data: data.clearData};
     }
     return {success: false, data: []};
@@ -62,32 +57,70 @@ class ListManager {
   }
 
   async updateDBFromJsonData(data) {
+    await this.syncDBFromJsonData(data);
+  }
+
+  async syncDBFromJsonData(data) {
     for (let organizzazione of data) {
-      let org = await Organizzazione.create({
-        id: organizzazione.id,
-        denominazione: organizzazione.denominazione,
-        publicKey: organizzazione.publicKey,
-        ultimaVersioneSuBlockchain: organizzazione.ultimaVersioneSuBlockchain
-      }).fetch();
+      let org = await Organizzazione.findOne({id: organizzazione.id});
+      if (org) {
+        await Organizzazione.updateOne({id: organizzazione.id}).set({
+          denominazione: organizzazione.denominazione,
+          publicKey: organizzazione.publicKey,
+          ultimaVersioneSuBlockchain: organizzazione.ultimaVersioneSuBlockchain
+        });
+      } else {
+        await Organizzazione.create({
+          id: organizzazione.id,
+          denominazione: organizzazione.denominazione,
+          publicKey: organizzazione.publicKey,
+          ultimaVersioneSuBlockchain: organizzazione.ultimaVersioneSuBlockchain
+        });
+      }
+
       for (let strutture of organizzazione.strutture) {
-        let str = await Struttura.create({
-          id: strutture.id,
-          denominazione: strutture.denominazione,
-          attiva: strutture.attiva,
-          indirizzo: strutture.indirizzo,
-          publicKey: strutture.publicKey,
-          ultimaVersioneSuBlockchain: strutture.ultimaVersioneSuBlockchain,
-          organizzazione: org.id
-        }).fetch();
+        let str = await Struttura.findOne({id: strutture.id});
+        if (str) {
+          await Struttura.updateOne({id: strutture.id}).set({
+            denominazione: strutture.denominazione,
+            attiva: strutture.attiva,
+            indirizzo: strutture.indirizzo,
+            publicKey: strutture.publicKey,
+            ultimaVersioneSuBlockchain: strutture.ultimaVersioneSuBlockchain,
+            organizzazione: organizzazione.id
+          });
+        } else {
+          await Struttura.create({
+            id: strutture.id,
+            denominazione: strutture.denominazione,
+            attiva: strutture.attiva,
+            indirizzo: strutture.indirizzo,
+            publicKey: strutture.publicKey,
+            ultimaVersioneSuBlockchain: strutture.ultimaVersioneSuBlockchain,
+            organizzazione: organizzazione.id
+          });
+        }
+
         for (let lista of strutture.liste) {
-          let lst = await Lista.create({
-            id: lista.id,
-            denominazione: lista.denominazione,
-            aperta: lista.aperta,
-            struttura: str.id,
-            publicKey: lista.publicKey,
-            ultimaVersioneSuBlockchain: lista.ultimaVersioneSuBlockchain
-          }).fetch();
+          let lst = await Lista.findOne({id: lista.id});
+          if (lst) {
+            await Lista.updateOne({id: lista.id}).set({
+              denominazione: lista.denominazione,
+              aperta: lista.aperta,
+              publicKey: lista.publicKey,
+              ultimaVersioneSuBlockchain: lista.ultimaVersioneSuBlockchain,
+              struttura: strutture.id
+            });
+          } else {
+            await Lista.create({
+              id: lista.id,
+              denominazione: lista.denominazione,
+              aperta: lista.aperta,
+              struttura: strutture.id,
+              publicKey: lista.publicKey,
+              ultimaVersioneSuBlockchain: lista.ultimaVersioneSuBlockchain
+            });
+          }
         }
       }
     }
@@ -329,7 +362,14 @@ class ListManager {
   async updateDBFromJsonListeAssistiti(assistitiListe) {
     for (let lista of assistitiListe) {
       let assititoLista = await AssistitiListe.findOne({id: lista.id});
-      if (!assititoLista) {
+      if (assititoLista) {
+        await AssistitiListe.updateOne({id: lista.id}).set({
+          assistito: lista.assistito,
+          lista: lista.lista,
+          stato: lista.stato,
+          chiuso: lista.chiuso
+        });
+      } else {
         await AssistitiListe.create({
           id: lista.id,
           assistito: lista.assistito,
