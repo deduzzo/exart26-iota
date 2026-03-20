@@ -19,8 +19,12 @@ module.exports.bootstrap = async function () {
   // console.log(keys);
 
   if (await iota.isWalletInitialized()) {
-    const manager = new ListManager();
-    await manager.updateDBfromBlockchain();
+    try {
+      const manager = new ListManager();
+      await manager.updateDBfromBlockchain();
+    } catch (err) {
+      sails.log.warn('Blockchain sync failed during bootstrap, the app will continue without synced data. Error: ' + err.message);
+    }
   }
 
   // This bootstrap version indicates what version of fake data we're dealing with here.
