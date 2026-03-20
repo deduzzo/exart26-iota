@@ -6,6 +6,14 @@
         form.onsubmit = function (event) {
           event.preventDefault(); // Previene il submit normale del form
 
+          // Validazione
+          const denominazione = form.querySelector('#denominazione');
+          if (!denominazione.value.trim()) {
+            denominazione.classList.add('is-invalid');
+            return;
+          }
+          denominazione.classList.remove('is-invalid');
+
           // Disabilita il pulsante di submit e mostra il loader
           const submitButton = form.querySelector('button[type="submit"]');
           submitButton.disabled = true;
@@ -41,70 +49,148 @@
       });
     </script>
 
-
-    <div class="modal fade text-left" id="inlineForm" tabindex="-1" aria-labelledby="myModalLabel33" aria-hidden="true"
+    <!-- Modal Nuova Organizzazione -->
+    <div class="modal fade" id="inlineForm" tabindex="-1" aria-labelledby="modalNuovaOrg" aria-hidden="true"
          data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h4 class="modal-title" id="myModalLabel33">Nuova Organizzazione</h4>
-                    <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                             class="feather feather-x">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+                <div class="modal-header bg-primary bg-opacity-10">
+                    <h5 class="modal-title" id="modalNuovaOrg">
+                        <i class="bi bi-plus-circle me-2"></i>Nuova Organizzazione
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
                 </div>
                 <form id="addOrganizzazioneForm" action="/api/v1/add-organizzazione" method="POST">
                     <input type="hidden" name="_csrf" value="<%- _csrf %>">
                     <div class="modal-body">
-                        <label for="denominazione">Denominazione: </label>
-                        <div class="form-group">
-                            <input id="denominazione" name="denominazione" type="text" class="form-control">
+                        <div class="mb-3">
+                            <label for="denominazione" class="form-label fw-semibold">Denominazione</label>
+                            <input id="denominazione" name="denominazione" type="text" class="form-control"
+                                   placeholder="Inserisci il nome dell'organizzazione" required>
+                            <div class="invalid-feedback">La denominazione è obbligatoria.</div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary ms-1">
-                            <span class="d-none d-sm-block">Salva</span>
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salva
                         </button>
-                        <!-- Elemento per il loader -->
-                        <span id="loadingText" class="ms-2" style="display:none;">Caricamento... <div
-                                    class="spinner-border spinner-border-sm" role="status"></div></span>
+                        <span id="loadingText" class="ms-2" style="display:none;">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Registrazione su blockchain...
+                        </span>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- card with no background -->
-    <div class="container">
-        <div style="padding: 20px">
-            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
-                    data-bs-target="#inlineForm">
-                Aggiungi nuova organizzazione
-            </button>
-        </div>
-    </div>
-    <div class="row">
-        <% if (!id) { %>
-            <% organizzazioni.forEach((organizzazione) => { %>
-                <div class="col-md-4">
-                    <%- include('../layouts/partials/card-organizzazione', {organizzazione}); %>
+    <div class="page-content">
+        <section class="section">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                    <% if (!id) { %>
+                        <li class="breadcrumb-item active" aria-current="page">Organizzazioni</li>
+                    <% } else { %>
+                        <li class="breadcrumb-item"><a href="/organizzazioni">Organizzazioni</a></li>
+                        <li class="breadcrumb-item active" aria-current="page"><%= organizzazioni.denominazione %></li>
+                    <% } %>
+                </ol>
+            </nav>
+
+            <% if (!id) { %>
+                <!-- Header con azione -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h3 class="mb-1">Organizzazioni</h3>
+                        <p class="text-muted mb-0">Gestisci le organizzazioni sanitarie registrate sulla blockchain</p>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inlineForm">
+                        <i class="bi bi-plus-lg me-1"></i>Nuova Organizzazione
+                    </button>
                 </div>
-            <% })} %>
-        <% if (id) { %>
-                <h4>Organizzazione #<%= id %></h4>
-            <!-- denominazione -->
-            <h5>Denominazione: <%= organizzazioni.denominazione %></h5>
-            Strutture:
-            <ul>
-                <% organizzazioni.strutture.forEach((struttura) => { %>
-                    <li><%= struttura.denominazione %></li>
-                <% }) %>
-            </ul>
-        <% } %>
+
+                <% if (organizzazioni.length === 0) { %>
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-building" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <h5 class="mt-3 text-muted">Nessuna organizzazione presente</h5>
+                            <p class="text-muted">Inizia aggiungendo la prima organizzazione sanitaria.</p>
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#inlineForm">
+                                <i class="bi bi-plus-lg me-1"></i>Aggiungi Organizzazione
+                            </button>
+                        </div>
+                    </div>
+                <% } else { %>
+                    <div class="row">
+                        <% organizzazioni.forEach((organizzazione) => { %>
+                            <div class="col-12 col-md-6 col-lg-4 mb-3">
+                                <%- include('../layouts/partials/card-organizzazione', {organizzazione}); %>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            <% } %>
+
+            <% if (id) { %>
+                <!-- Dettaglio singola organizzazione -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="bi bi-building me-2"></i><%= organizzazioni.denominazione %>
+                        </h4>
+                        <span class="badge bg-primary">#<%= id %></span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-muted mb-3">
+                            <i class="bi bi-hospital me-1"></i>Strutture associate
+                            <span class="badge bg-light-secondary ms-1"><%= organizzazioni.strutture.length %></span>
+                        </h6>
+
+                        <% if (organizzazioni.strutture.length > 0) { %>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Denominazione</th>
+                                            <th class="text-end">Azioni</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% organizzazioni.strutture.forEach((struttura) => { %>
+                                            <tr>
+                                                <td>
+                                                    <i class="bi bi-hospital me-2 text-primary"></i>
+                                                    <a href="/strutture/<%= id %>/<%= struttura.id %>"><%= struttura.denominazione %></a>
+                                                </td>
+                                                <td class="text-end">
+                                                    <a href="/strutture/<%= id %>/<%= struttura.id %>" class="btn btn-outline-primary btn-sm">
+                                                        <i class="bi bi-eye me-1"></i>Dettaglio
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <% } else { %>
+                            <div class="alert alert-info d-flex align-items-center">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Nessuna struttura associata a questa organizzazione.
+                            </div>
+                        <% } %>
+
+                        <div class="mt-3">
+                            <a href="/strutture/<%= id %>" class="btn btn-primary">
+                                <i class="bi bi-plus-lg me-1"></i>Gestisci Strutture
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <% } %>
+        </section>
     </div>
 </div>
 <%- /* Expose server-rendered data as window.SAILS_LOCALS :: */ exposeLocalsToBrowser() %>
