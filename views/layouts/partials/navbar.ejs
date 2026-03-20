@@ -1,18 +1,23 @@
 <%
 let menu = [
-    {name: 'Home', href: '/', icon: 'bi bi-grid-fill'},
-    {name: 'Organizzazioni', href: '/organizzazioni', icon: 'bi bi-building'},
-    {name: 'Strutture', href: '/strutture', icon: 'bi bi-grid-fill'},
-    {name: 'Assistiti', href: '/assistiti', icon: 'bi bi-person-circle'},
-    {name: 'Wallet Info', href: '/wallet/verifica', icon: 'bi bi-collection-fill'}
+    {name: 'Dashboard', href: '/dashboard', icon: 'bi bi-speedometer2', group: 'Principale'},
+    {name: 'Organizzazioni', href: '/organizzazioni', icon: 'bi bi-building', group: 'Gestione'},
+    {name: 'Strutture', href: '/strutture', icon: 'bi bi-hospital', group: 'Gestione'},
+    {name: 'Assistiti', href: '/assistiti', icon: 'bi bi-people-fill', group: 'Gestione'},
+    {name: 'Wallet Info', href: '/wallet/verifica', icon: 'bi bi-wallet2', group: 'Blockchain'},
 ];
+
+let currentGroup = '';
 %>
 
 <div class="sidebar-menu">
     <ul class="menu">
-        <li class="sidebar-title">Menu</li>
         <% menu.forEach(function (item) { %>
-            <li class='sidebar-item <%= ((typeof pageTitle !== 'undefined') && (pageTitle.includes(item.name))) ? "active" : "" %>'>
+            <% if (item.group !== currentGroup) { %>
+                <% currentGroup = item.group; %>
+                <li class="sidebar-title"><%= item.group %></li>
+            <% } %>
+            <li class='sidebar-item <%= ((typeof pageTitle !== "undefined") && (pageTitle.includes(item.name))) ? "active" : "" %>'>
                 <a href='<%= item.href %>' class='sidebar-link'>
                     <i class='<%= item.icon %>'></i>
                     <span>

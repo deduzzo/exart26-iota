@@ -1,12 +1,15 @@
 <style>
   #messageBox p {
     margin: 0;
-    padding: 0;
+    padding: 2px 0;
+    font-size: 0.875rem;
   }
-
+  #messageBox p:first-child {
+    font-weight: 600;
+  }
   .modal-enlarged {
     width: 60% !important;
-    max-width: none !important; /* Override the default Bootstrap max-width */
+    max-width: none !important;
   }
 </style>
 <div id="assistiti" v-cloak>
@@ -32,14 +35,34 @@
           submitButton.disabled = false;
           if (event.success) {
             submitButton.innerText = 'Chiudi';
+            submitButton.className = 'btn btn-success';
             submitButton.onclick = function() {
               location.reload();
             };
           }
         });
 
+        // Validazione form
+        const formFields = ['cognome', 'nome', 'codiceFiscale'];
+        formFields.forEach(function(fieldId) {
+          document.getElementById(fieldId).addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+          });
+        });
+
         $('#salvaBtn').click(function (event) {
           event.preventDefault();
+
+          // Validazione campi obbligatori
+          let isValid = true;
+          formFields.forEach(function(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+              field.classList.add('is-invalid');
+              isValid = false;
+            }
+          });
+          if (!isValid) return;
 
           const submitButton = document.getElementById('salvaBtn');
           submitButton.disabled = true;
@@ -58,7 +81,7 @@
           io.socket.post('/api/v1/add-assistito', data, function (response) {
             if (response.code) {
               console.log(response);
-              $('#messageBox').append('<p>ERRORE: ' + response.code + ' - ' + response.problems + '</p>');
+              $('#messageBox').append('<p class="text-danger">ERRORE: ' + response.code + ' - ' + response.problems + '</p>');
               document.getElementById('loadingText').style.display = 'none';
               submitButton.disabled = false;
             } else if(response.message) {
@@ -70,103 +93,141 @@
       });
     </script>
 
-    <div class="modal fade text-left" id="inlineForm" tabindex="-1" aria-labelledby="myModalLabel33" aria-hidden="true"
+    <!-- Modal Nuovo Assistito -->
+    <div class="modal fade" id="inlineForm" tabindex="-1" aria-labelledby="modalNuovoAssistito" aria-hidden="true"
          data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-enlarged" role="document">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-enlarged">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h4 class="modal-title" id="myModalLabel33">Nuovo Assistito</h4>
-                    <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                             class="feather feather-x">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+                <div class="modal-header bg-primary bg-opacity-10">
+                    <h5 class="modal-title" id="modalNuovoAssistito">
+                        <i class="bi bi-person-plus me-2"></i>Nuovo Assistito
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
                 </div>
                 <form>
                     <input type="hidden" name="_csrf" value="<%- _csrf; %>">
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="cognome">Cognome: </label>
-                                    <input id="cognome" name="cognome" type="text" class="form-control">
-                                </div>
+                        <div class="row g-3">
+                            <!-- Dati anagrafici -->
+                            <div class="col-12">
+                                <h6 class="text-muted border-bottom pb-2 mb-0">
+                                    <i class="bi bi-person-vcard me-1"></i>Dati Anagrafici
+                                </h6>
                             </div>
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="nome">Nome: </label>
-                                    <input id="nome" name="nome" type="text" class="form-control">
-                                </div>
+                                <label for="cognome" class="form-label fw-semibold">Cognome <span class="text-danger">*</span></label>
+                                <input id="cognome" name="cognome" type="text" class="form-control" placeholder="Cognome" required>
+                                <div class="invalid-feedback">Il cognome è obbligatorio.</div>
                             </div>
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="codiceFiscale">Codice Fiscale: </label>
-                                    <input id="codiceFiscale" name="codiceFiscale" type="text" class="form-control">
-                                </div>
+                                <label for="nome" class="form-label fw-semibold">Nome <span class="text-danger">*</span></label>
+                                <input id="nome" name="nome" type="text" class="form-control" placeholder="Nome" required>
+                                <div class="invalid-feedback">Il nome è obbligatorio.</div>
                             </div>
-                            <!-- dataNascita with format dd/mm/yyyy -->
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="dataNascita">Data di nascita: </label>
-                                    <input id="dataNascita" name="dataNascita" type="date" class="form-control">
-                                </div>
+                                <label for="codiceFiscale" class="form-label fw-semibold">Codice Fiscale <span class="text-danger">*</span></label>
+                                <input id="codiceFiscale" name="codiceFiscale" type="text" class="form-control"
+                                       placeholder="RSSMRA80A01H501U" maxlength="16" style="text-transform: uppercase;" required>
+                                <div class="invalid-feedback">Il codice fiscale è obbligatorio.</div>
                             </div>
-                            <!-- email -->
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="email">Email: </label>
-                                    <input id="email" name="email" type="email" class="form-control">
-                                </div>
+                                <label for="dataNascita" class="form-label fw-semibold">Data di Nascita</label>
+                                <input id="dataNascita" name="dataNascita" type="date" class="form-control">
                             </div>
-                            <!-- telefono -->
+
+                            <!-- Contatti -->
+                            <div class="col-12 mt-4">
+                                <h6 class="text-muted border-bottom pb-2 mb-0">
+                                    <i class="bi bi-telephone me-1"></i>Contatti
+                                </h6>
+                            </div>
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="telefono">Telefono: </label>
-                                    <input id="telefono" name="telefono" type="text" class="form-control">
-                                </div>
+                                <label for="email" class="form-label fw-semibold">Email</label>
+                                <input id="email" name="email" type="email" class="form-control" placeholder="email@esempio.it">
                             </div>
-                            <!-- indirizzo -->
                             <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="indirizzo">Indirizzo: </label>
-                                    <input id="indirizzo" name="indirizzo" type="text" class="form-control">
-                                </div>
+                                <label for="telefono" class="form-label fw-semibold">Telefono</label>
+                                <input id="telefono" name="telefono" type="text" class="form-control" placeholder="+39 ...">
                             </div>
-                            <div class="col-md-12" id="messageBox"
-                                 style="border: 1px solid #ccc; padding: 10px; margin-top: 20px; height: 200px; overflow-y: scroll;"><p>Log attività</p>
+                            <div class="col-md-4">
+                                <label for="indirizzo" class="form-label fw-semibold">Indirizzo</label>
+                                <input id="indirizzo" name="indirizzo" type="text" class="form-control" placeholder="Via, città">
+                            </div>
+
+                            <!-- Log operazioni blockchain -->
+                            <div class="col-12 mt-4">
+                                <h6 class="text-muted border-bottom pb-2 mb-2">
+                                    <i class="bi bi-journal-text me-1"></i>Log Operazioni
+                                </h6>
+                                <div id="messageBox" class="border rounded p-3 bg-light"
+                                     style="height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                                    <p class="text-muted">In attesa di operazioni...</p>
+                                </div>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button id="salvaBtn" class="btn btn-primary ms-1">
-                                <span class="d-none d-sm-block">Salva</span>
-                            </button>
-                            <!-- Elemento per il loader -->
-                            <span id="loadingText" class="ms-2" style="display:none;">Operazione in corso..<div
-                                        class="spinner-border spinner-border-sm" role="status"></div></span>
-                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annulla</button>
+                        <button id="salvaBtn" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salva
+                        </button>
+                        <span id="loadingText" class="ms-2" style="display:none;">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Registrazione su blockchain...
+                        </span>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="container">
-        <div style="padding: 20px">
-            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal"
-                    data-bs-target="#inlineForm">
-                Aggiungi nuovo assistito
-            </button>
-        </div>
-    </div>
-    <div class="row">
-        <% assistitiIds.forEach((idAssistito) => { %>
-            <div class="col-md-4">
-                <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[idAssistito]}); %>
+    <div class="page-content">
+        <section class="section">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Assistiti</li>
+                </ol>
+            </nav>
+
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="mb-1">Assistiti</h3>
+                    <p class="text-muted mb-0">Pazienti registrati nel sistema con identità verificata su blockchain</p>
+                </div>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inlineForm">
+                    <i class="bi bi-person-plus me-1"></i>Nuovo Assistito
+                </button>
             </div>
-        <% }); %>
+
+            <% if (assistitiIds.length === 0) { %>
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-people" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <h5 class="mt-3 text-muted">Nessun assistito registrato</h5>
+                        <p class="text-muted">Registra il primo assistito per iniziare a gestire le liste d'attesa.</p>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#inlineForm">
+                            <i class="bi bi-person-plus me-1"></i>Aggiungi Assistito
+                        </button>
+                    </div>
+                </div>
+            <% } else { %>
+                <!-- Contatore -->
+                <div class="alert alert-light d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle me-2 text-primary"></i>
+                    <strong><%= assistitiIds.length %></strong>&nbsp;assistit<%= assistitiIds.length === 1 ? 'o' : 'i' %> registrat<%= assistitiIds.length === 1 ? 'o' : 'i' %> sulla blockchain
+                </div>
+                <div class="row">
+                    <% assistitiIds.forEach((idAssistito) => { %>
+                        <div class="col-12 col-md-6 col-lg-4 mb-3">
+                            <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[idAssistito]}); %>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </section>
     </div>
 </div>
 
