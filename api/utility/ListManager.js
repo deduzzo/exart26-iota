@@ -223,7 +223,7 @@ class ListManager {
         let liste = await Lista.find({struttura: struttura.id});
         struttura.liste = liste;
       }
-      delete organizzazioni.privateKey;
+      delete organizzazione.privateKey;
       dataToStore.push(organizzazione);
     }
     let data2 = await CryptHelper.encryptAndSend(JSON.stringify(dataToStore), (lastData ? (lastData.messageVersion + 1) : 0), iota.GET_MAIN_KEYS().publicKey);
@@ -278,6 +278,7 @@ class ListManager {
               assistito: idAssistito,
               lista: idLista,
               stato: INSERITO_IN_CODA,
+              dataOraIngresso: Date.now(),
             }).fetch();
             let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
             res1 = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), LISTE_IN_CODA, data.data);

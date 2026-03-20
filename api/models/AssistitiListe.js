@@ -29,7 +29,6 @@ module.exports = {
     },
     dataOraIngresso: {
       type: 'number',
-      defaultsTo: Date.now()
     },
     dataOraUscita: {
       type: 'number',

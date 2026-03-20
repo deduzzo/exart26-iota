@@ -19,8 +19,27 @@
       }
 
       $(document).ready(function () {
+        // Registra i listener socket UNA sola volta, fuori dal click handler
+        io.socket.on('message', function (event) {
+          console.log(event);
+          $('#messageBox').append('<p>' + event.message + '</p>');
+          scrollToBottom();
+        });
+
+        io.socket.on('processCompleted', function (event) {
+          const submitButton = document.getElementById('salvaBtn');
+          document.getElementById('loadingText').style.display = 'none';
+          submitButton.disabled = false;
+          if (event.success) {
+            submitButton.innerText = 'Chiudi';
+            submitButton.onclick = function() {
+              location.reload();
+            };
+          }
+        });
+
         $('#salvaBtn').click(function (event) {
-          event.preventDefault(); // Previene l'invio del form
+          event.preventDefault();
 
           const submitButton = document.getElementById('salvaBtn');
           submitButton.disabled = true;
@@ -37,33 +56,14 @@
           };
 
           io.socket.post('/api/v1/add-assistito', data, function (response) {
-            // if error response
             if (response.code) {
               console.log(response);
-              $('#messageBox').append('ERRORE: ' + response.code + ' - ' + response.problems);
+              $('#messageBox').append('<p>ERRORE: ' + response.code + ' - ' + response.problems + '</p>');
               document.getElementById('loadingText').style.display = 'none';
               submitButton.disabled = false;
             } else if(response.message) {
               $('#messageBox').append('<p>' + response.message + '</p>');
               scrollToBottom();
-            }
-          });
-
-          io.socket.on('message', function (event) {
-            console.log(event);
-            $('#messageBox').append('<p>' + event.message + '</p>');
-            scrollToBottom();
-          });
-
-          io.socket.on('processCompleted', function (event) {
-            console.log("no")
-            document.getElementById('loadingText').style.display = 'none';
-            submitButton.disabled = false;
-            if (event.success) {
-              submitButton.innerText = 'Chiudi';
-              submitButton.addEventListener('click', function() {
-                location.reload();
-              });
             }
           });
         });
@@ -164,7 +164,7 @@
     <div class="row">
         <% assistitiIds.forEach((idAssistito) => { %>
             <div class="col-md-4">
-                <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[id]}); %>
+                <%- include('../layouts/partials/card-assistito', {id: idAssistito, dati:allAssistitiMap[idAssistito]}); %>
             </div>
         <% }); %>
     </div>
