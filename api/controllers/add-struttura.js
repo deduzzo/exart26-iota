@@ -18,11 +18,14 @@ module.exports = {
   inputs: {
     denominazione: {
       type: 'string',
-      required: true
+      required: true,
+      minLength: 2,
+      maxLength: 255,
     },
     indirizzo: {
       type: 'string',
-      required: true
+      required: true,
+      minLength: 2,
     },
     organizzazione: {
       type: 'number',

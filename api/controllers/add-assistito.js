@@ -16,7 +16,9 @@ module.exports = {
     },
     codiceFiscale: {
       type: 'string',
-      required: true
+      required: true,
+      regex: /^[A-Za-z]{6}[0-9]{2}[A-Za-z][0-9]{2}[A-Za-z][0-9]{3}[A-Za-z]$/,
+      description: 'Codice Fiscale italiano (16 caratteri)'
     },
     dataNascita: {
       type: 'string',
@@ -26,7 +28,8 @@ module.exports = {
     },
     email: {
       type: 'string',
-      required: false
+      required: false,
+      isEmail: true,
     },
     telefono: {
       type: 'string',

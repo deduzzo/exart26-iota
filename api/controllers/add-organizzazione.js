@@ -11,7 +11,9 @@ module.exports = {
   inputs: {
     denominazione: {
       type: 'string',
-      required: true
+      required: true,
+      minLength: 2,
+      maxLength: 255,
     },
   },
 

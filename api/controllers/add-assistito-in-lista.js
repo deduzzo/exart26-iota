@@ -33,19 +33,33 @@ module.exports = {
 
 
   fn: async function (inputs, exits) {
+    let assistito = await Assistito.findOne({id: inputs.idAssistito});
+    if (!assistito) {
+      return exits.invalid({error: 'Assistito non trovato.'});
+    }
+    let lista = await Lista.findOne({id: inputs.idLista});
+    if (!lista) {
+      return exits.invalid({error: 'Lista non trovata.'});
+    }
+    if (!lista.aperta) {
+      return exits.invalid({error: 'La lista non è aperta.'});
+    }
+
     let manager = new ListManager();
-    let {res1,res2,res3} = await manager.aggiungiAssistitoInListaToBlockchain(inputs.idAssistito, inputs.idLista);
+    let result = await manager.aggiungiAssistitoInListaToBlockchain(inputs.idAssistito, inputs.idLista);
+    if (!result) {
+      return exits.invalid({error: 'Assistito già presente in questa lista.'});
+    }
+    let {res1, res2, res3} = result;
     if (res1.success && res2.success && res3.success) {
-      return exits.success(
-        {
-          transactions: {
-            LISTE_IN_CODA: {...res1},
-            MOVIMENTI_ASSISTITI_LISTA: {...res2},
-            ASSISTITI_IN_LISTA: {...res3}
-          },
-          error: null
-        }
-      );
+      return exits.success({
+        transactions: {
+          LISTE_IN_CODA: {...res1},
+          MOVIMENTI_ASSISTITI_LISTA: {...res2},
+          ASSISTITI_IN_LISTA: {...res3}
+        },
+        error: null
+      });
     } else {
       return exits.invalid({
         error: 'Errore durante la scrittura dei dati sulla blockchain.',
