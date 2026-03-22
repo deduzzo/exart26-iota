@@ -1,5 +1,6 @@
 const iota = require('./iota');
 const CryptHelper = require('./CryptHelper');
+const ArweaveHelper = require('./ArweaveHelper');
 const {
   STRUTTURE_LISTE_DATA,
   ORGANIZZAZIONE_DATA,
@@ -21,6 +22,43 @@ class ListManager {
       iota.setSocketId(socketId);
   }
 
+  /**
+   * Backup non-bloccante su Arweave. Se fallisce, logga warning ma non blocca.
+   */
+  _backupToArweave(dataType, encryptedData, entityId = null, version = null) {
+    if (!ArweaveHelper.isEnabled()) return;
+    ArweaveHelper.uploadData(dataType, encryptedData, entityId, version)
+      .then(res => {
+        if (res.success) {
+          sails.log.info(`Arweave backup OK [${dataType}${entityId ? '#' + entityId : ''}] txId: ${res.txId}`);
+        } else {
+          sails.log.warn(`Arweave backup FAILED [${dataType}]: ${res.error}`);
+        }
+      })
+      .catch(err => sails.log.warn('Arweave backup error:', err.message));
+  }
+
+  /**
+   * Tenta di recuperare dati da Arweave come fallback quando IOTA non ha il dato.
+   */
+  async _fallbackFromArweave(dataType, entityId = null, privateKey = null) {
+    if (!ArweaveHelper.isEnabled()) return null;
+    try {
+      let result = await ArweaveHelper.downloadByTag(dataType, entityId);
+      if (result && result.data) {
+        sails.log.info(`Arweave fallback OK [${dataType}${entityId ? '#' + entityId : ''}]`);
+        if (privateKey) {
+          let clearData = await CryptHelper.receiveAndDecrypt(result.data, privateKey);
+          result.data.clearData = JSON.parse(clearData);
+        }
+        return result.data;
+      }
+    } catch (e) {
+      sails.log.warn('Arweave fallback error:', e.message);
+    }
+    return null;
+  }
+
   async updateDBfromBlockchain() {
     let mainAccount = await iota.getMainAccount();
     let transazione = await iota.getLastTransactionOfAccountWithTag(mainAccount, MAIN_DATA);
@@ -29,7 +67,13 @@ class ListManager {
       let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
       data.clearData = JSON.parse(clearData);
       await this.syncDBFromJsonData(data.clearData);
-      return {success: true, data: data.clearData};
+      return {success: true, data: data.clearData, source: 'iota'};
+    }
+    // Fallback: cerca su Arweave
+    let arweaveData = await this._fallbackFromArweave(MAIN_DATA, null, iota.GET_MAIN_KEYS().privateKey);
+    if (arweaveData && arweaveData.clearData) {
+      await this.syncDBFromJsonData(arweaveData.clearData);
+      return {success: true, data: arweaveData.clearData, source: 'arweave'};
     }
     return {success: false, data: []};
   }
@@ -131,7 +175,11 @@ class ListManager {
     let lastPrivateKey = await this.getLastPrivateKeyOfWalletId(walletId);
     let lastVersion = lastPrivateKey ? (lastPrivateKey.messageVersion + 1) : 0;
     let data = await CryptHelper.encryptAndSend(JSON.stringify({privateKey: privateKey}), lastVersion, iota.GET_MAIN_KEYS().publicKey);
-    return await iota.makeTransactionWithText(account, await iota.getFirstAddressOfAnAccount(account), PRIVATE_KEY, data.data);
+    let res = await iota.makeTransactionWithText(account, await iota.getFirstAddressOfAnAccount(account), PRIVATE_KEY, data.data);
+    if (res.success) {
+      this._backupToArweave(PRIVATE_KEY, data.data, walletId, lastVersion);
+    }
+    return res;
   }
 
   async getLastPrivateKeyOfWalletId(walletId) {
@@ -143,7 +191,8 @@ class ListManager {
       data.clearData = JSON.parse(clearData);
       return data;
     }
-    return null;
+    // Fallback Arweave
+    return await this._fallbackFromArweave(PRIVATE_KEY, walletId, iota.GET_MAIN_KEYS().privateKey);
   }
 
   async updateDatiOrganizzazioneToBlockchain(idOrganizzazione) {
@@ -157,6 +206,7 @@ class ListManager {
         let res = await iota.makeTransactionWithText(orgAccount, await iota.getFirstAddressOfAnAccount(orgAccount), ORGANIZZAZIONE_DATA, data.data);
         if (res.success) {
           await Organizzazione.updateOne({id: idOrganizzazione}).set({ultimaVersioneSuBlockchain: organizzazioneStrutture.ultimaVersioneSuBlockchain});
+          this._backupToArweave(ORGANIZZAZIONE_DATA, data.data, idOrganizzazione, organizzazioneStrutture.ultimaVersioneSuBlockchain);
         }
         return res;
       }
@@ -194,6 +244,7 @@ class ListManager {
         let res = await iota.makeTransactionWithText(strutturaAccount, await iota.getFirstAddressOfAnAccount(strutturaAccount), STRUTTURE_LISTE_DATA, data.data);
         if (res.success) {
           await Struttura.updateOne({id: idStruttura}).set({ultimaVersioneSuBlockchain: strutturaCode.ultimaVersioneSuBlockchain});
+          this._backupToArweave(STRUTTURE_LISTE_DATA, data.data, idStruttura, strutturaCode.ultimaVersioneSuBlockchain);
         }
         return res;
       }
@@ -259,8 +310,12 @@ class ListManager {
       delete organizzazione.privateKey;
       dataToStore.push(organizzazione);
     }
-    let data2 = await CryptHelper.encryptAndSend(JSON.stringify(dataToStore), (lastData ? (lastData.messageVersion + 1) : 0), iota.GET_MAIN_KEYS().publicKey);
+    let newVersion = lastData ? (lastData.messageVersion + 1) : 0;
+    let data2 = await CryptHelper.encryptAndSend(JSON.stringify(dataToStore), newVersion, iota.GET_MAIN_KEYS().publicKey);
     let res = await iota.makeTransactionWithText(mainAccount, await iota.getFirstAddressOfAnAccount(mainAccount), MAIN_DATA, data2.data);
+    if (res.success) {
+      this._backupToArweave(MAIN_DATA, data2.data, null, newVersion);
+    }
     return res;
   }
 
@@ -275,6 +330,7 @@ class ListManager {
         let res = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), ASSISTITI_DATA, data.data);
         if (res.success) {
           await Assistito.updateOne({id: id}).set({ultimaVersioneSuBlockchain: assistito.ultimaVersioneSuBlockchain});
+          this._backupToArweave(ASSISTITI_DATA, data.data, id, assistito.ultimaVersioneSuBlockchain);
         }
         return res;
       }
@@ -314,11 +370,17 @@ class ListManager {
             }).fetch();
             let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
             res1 = await iota.makeTransactionWithText(assistitoAccount, await iota.getFirstAddressOfAnAccount(assistitoAccount), LISTE_IN_CODA, data.data);
+            if (res1.success) {
+              this._backupToArweave(LISTE_IN_CODA, data.data, idAssistito);
+            }
             if (!res1.success) {
               await AssistitiListe.destroy({id: assistitoLista.id});
             } else {
               let data2 = await CryptHelper.encryptAndSend(JSON.stringify(assistitoLista), null, lista.struttura.publicKey);
               res2 = await iota.makeTransactionWithText(listaAccount, await iota.getFirstAddressOfAnAccount(listaAccount), MOVIMENTI_ASSISTITI_LISTA, data2.data);
+              if (res2.success) {
+                this._backupToArweave(MOVIMENTI_ASSISTITI_LISTA, data2.data, idLista);
+              }
               if (!res2.success) {
                 await AssistitiListe.destroy({id: assistitoLista.id});
               }
@@ -348,6 +410,9 @@ class ListManager {
             }
             let data = await CryptHelper.encryptAndSend(JSON.stringify(listaFromBlockchain), listaFromBlockchain.version, lista.struttura.publicKey);
             res3 = await iota.makeTransactionWithText(listaAccount, await iota.getFirstAddressOfAnAccount(listaAccount), ASSISTITI_IN_LISTA, data.data);
+            if (res3.success) {
+              this._backupToArweave(ASSISTITI_IN_LISTA, data.data, idLista, listaFromBlockchain.version);
+            }
           }
           return {res1, res2, res3};
         } else {

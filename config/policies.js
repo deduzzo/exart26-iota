@@ -26,4 +26,5 @@ module.exports.policies = {
   'add-assistito': 'is-logged-in',
   'add-assistito-in-lista': 'is-logged-in',
   'fetch-db-from-blockchain': ['is-logged-in', 'is-super-admin'],
+  'recover-from-arweave': ['is-logged-in', 'is-super-admin'],
 };

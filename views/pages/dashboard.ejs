@@ -116,6 +116,33 @@
                         </div>
                     </div>
 
+                    <!-- Stato Arweave -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Backup Arweave</h4>
+                        </div>
+                        <div class="card-body">
+                            <% if (arweaveStatus.enabled) { %>
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-success rounded-pill me-2">Attivo</span>
+                                    <span>Backup permanente abilitato</span>
+                                </div>
+                                <% if (arweaveStatus.balance) { %>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Saldo wallet</span>
+                                        <span class="font-bold"><%= arweaveStatus.balance.ar %> AR</span>
+                                    </div>
+                                <% } %>
+                            <% } else { %>
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-secondary rounded-pill me-2">Non configurato</span>
+                                    <span>Backup Arweave disabilitato</span>
+                                </div>
+                                <small class="text-muted">Configurare <code>config/private_arweave_conf.js</code> per abilitare.</small>
+                            <% } %>
+                        </div>
+                    </div>
+
                     <!-- Azioni rapide -->
                     <div class="card">
                         <div class="card-header">

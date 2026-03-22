@@ -19,7 +19,8 @@
     "sails-hook-swagger-generator": "^3.3.0",
     "sails-mysql": "^3.0.1",
     "express-rate-limit": "^7.1.0",
-    "swagger-ui-dist": "^5.17.2"
+    "swagger-ui-dist": "^5.17.2",
+    "arweave": "^1.15.5"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

@@ -1,4 +1,5 @@
 const iota = require('../utility/iota');
+const ArweaveHelper = require('../utility/ArweaveHelper');
 
 const pageTitle = 'Dashboard';
 const pageSubTitle = 'Panoramica del sistema';
@@ -25,6 +26,15 @@ module.exports = {
 
     let walletInitialized = await iota.isWalletInitialized();
 
+    let arweaveStatus = {enabled: ArweaveHelper.isEnabled(), balance: null};
+    if (arweaveStatus.enabled) {
+      try {
+        arweaveStatus.balance = await ArweaveHelper.getBalance();
+      } catch (e) {
+        arweaveStatus.balance = null;
+      }
+    }
+
     // Ultime 10 operazioni (assistiti inseriti in lista)
     let ultimeOperazioni = await AssistitiListe.find({
       sort: 'createdAt DESC',
@@ -43,6 +53,7 @@ module.exports = {
         assistitiInCoda: assistitiInCoda,
       },
       walletInitialized,
+      arweaveStatus,
       ultimeOperazioni,
     };
   }
