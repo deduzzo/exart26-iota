@@ -55,25 +55,53 @@ class SyncCache {
   }
 
   /**
+   * Segna un modello come modificato per l'export incrementale.
+   * Chiama scheduleSave() automaticamente.
+   */
+  static markDirty(modelName) {
+    SyncCache._dirtyModels.add(modelName);
+    SyncCache.scheduleSave();
+  }
+
+  /**
    * Esporta lo stato corrente del DB in-memory come cache.
+   * Esporta solo i modelli marcati come dirty (incrementale).
    */
   static async exportFromDB() {
-    const organizzazioni = await Organizzazione.find();
-    const strutture = await Struttura.find();
-    const liste = await Lista.find();
-    const assistiti = await Assistito.find();
-    const assistitiListe = await AssistitiListe.find();
+    let existing = {};
+    try {
+      const raw = fs.readFileSync(CACHE_PATH, 'utf8');
+      existing = JSON.parse(raw);
+    } catch (e) { /* file non esiste, partire da zero */ }
 
-    const data = {
-      organizzazioni: organizzazioni.map(o => ({ ...o, privateKey: undefined })),
-      strutture: strutture.map(s => ({ ...s, privateKey: undefined })),
-      liste: liste.map(l => ({ ...l, privateKey: undefined })),
-      assistiti: assistiti.map(a => ({ ...a, privateKey: undefined })),
-      assistitiListe,
+    // Snapshot atomico + clear immediato per evitare race condition
+    // Se nuovi markDirty() arrivano durante le find() async, finiscono nel prossimo ciclo
+    const dirty = new Set(SyncCache._dirtyModels);
+    SyncCache._dirtyModels.clear();
+    if (dirty.size === 0) return existing;
+
+    const modelMap = {
+      organizzazioni: 'Organizzazione',
+      strutture: 'Struttura',
+      liste: 'Lista',
+      assistiti: 'Assistito',
+      assistitiListe: 'AssistitiListe',
     };
 
-    this.save(data);
-    return data;
+    for (const [key, model] of Object.entries(modelMap)) {
+      if (dirty.has(model)) {
+        const records = await sails.models[model.toLowerCase()].find();
+        // Nota: sails-disk ignora .select()/.omit() — il delete post-query è l'unico modo
+        existing[key] = records.map(r => {
+          const o = { ...r };
+          delete o.privateKey;
+          return o;
+        });
+      }
+    }
+
+    this.save(existing);
+    return existing;
   }
 
   /**
@@ -132,6 +160,7 @@ class SyncCache {
 }
 
 SyncCache._timer = null;
+SyncCache._dirtyModels = new Set();
 SyncCache.scheduleSave = function() {
   if (SyncCache._timer) return;
   SyncCache._timer = setTimeout(async () => {
