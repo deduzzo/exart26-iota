@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Organizzazioni from './pages/Organizzazioni';
 import Strutture from './pages/Strutture';
+import Assistiti from './pages/Assistiti';
 
 // Placeholder pages
 const Placeholder = ({ title }) => (
@@ -20,7 +21,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="organizzazioni" element={<Organizzazioni />} />
           <Route path="strutture" element={<Strutture />} />
-          <Route path="assistiti" element={<Placeholder title="Assistiti" />} />
+          <Route path="assistiti" element={<Assistiti />} />
           <Route path="wallet" element={<Placeholder title="Wallet" />} />
         </Route>
       </Routes>
