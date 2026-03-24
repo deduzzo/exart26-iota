@@ -177,7 +177,7 @@ class ListManager {
             await this._upsertOrganizzazione(clearData);
             imported.organizzazioni++;
           } else if (entity.type === 'STR') {
-            await this._upsertStruttura(clearData);
+            await this._upsertStruttura(clearData, entity.entityId);
             imported.strutture++;
           } else if (entity.type === 'ASS') {
             await this._upsertAssistito(clearData);
@@ -212,15 +212,20 @@ class ListManager {
     }
   }
 
-  async _upsertStruttura(data) {
+  async _upsertStruttura(data, entityId = null) {
     const existing = await Struttura.findOne({ id: data.id });
+    // Ricava organizzazione dal payload o dall'entityId (formato: orgId_strId)
+    let orgId = data.organizzazione;
+    if (!orgId && entityId && entityId.includes('_')) {
+      orgId = parseInt(entityId.split('_')[0]);
+    }
     const record = {
       denominazione: data.denominazione,
       attiva: data.attiva,
       indirizzo: data.indirizzo,
       publicKey: data.publicKey,
       ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
-      organizzazione: data.organizzazione,
+      organizzazione: orgId || null,
     };
     if (existing) {
       await Struttura.updateOne({ id: data.id }).set(record);
@@ -430,7 +435,7 @@ class ListManager {
           {
             select: ['id', 'denominazione', 'aperta', 'ultimaVersioneSuBlockchain', 'struttura']
           })
-        .select(['id', 'denominazione', 'attiva', 'indirizzo', 'publicKey', 'ultimaVersioneSuBlockchain']);
+        .select(['id', 'denominazione', 'attiva', 'indirizzo', 'publicKey', 'ultimaVersioneSuBlockchain', 'organizzazione']);
       if (strutturaCode) {
         strutturaCode.ultimaVersioneSuBlockchain = strutturaCode.ultimaVersioneSuBlockchain + 1;
         let data = await CryptHelper.encryptAndSend(JSON.stringify(strutturaCode), strutturaCode.ultimaVersioneSuBlockchain, strutturaCode.publicKey);
