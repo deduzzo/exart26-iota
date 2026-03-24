@@ -52,8 +52,14 @@ export default function Liste() {
     if (!selectedLista) { setDettaglio(null); return; }
     setDettaglioLoading(true);
     getListeDettaglio(selectedLista.id)
-      .then(setDettaglio)
-      .catch(() => setDettaglio(null))
+      .then((data) => {
+        console.log('Liste dettaglio loaded:', data?.lista?.denominazione, 'coda:', data?.totaleInCoda);
+        setDettaglio(data);
+      })
+      .catch((err) => {
+        console.error('Liste dettaglio error:', err);
+        setDettaglio(null);
+      })
       .finally(() => setDettaglioLoading(false));
   }, [selectedLista]);
 
@@ -150,7 +156,9 @@ export default function Liste() {
           <p className="text-slate-400">Nessuna lista. Crea prima una struttura con le sue liste.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="flex gap-6">
+        {/* Colonna sinistra: card liste (scrollabile) */}
+        <div className="w-80 shrink-0 max-h-[calc(100vh-200px)] overflow-y-auto space-y-3 pr-2">
           {listeFlat.map((lista, i) => (
             <motion.div
               key={`${lista.id}`}
@@ -206,11 +214,11 @@ export default function Liste() {
             </motion.div>
           ))}
         </div>
-      )}
 
-      {/* Detail panel */}
+        {/* Colonna destra: dettaglio lista (sticky) */}
+        <div className="flex-1 min-w-0 sticky top-6 self-start max-h-[calc(100vh-200px)] overflow-y-auto">
       <AnimatePresence>
-        {selectedLista && (
+        {selectedLista ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -348,8 +356,18 @@ export default function Liste() {
               </div>
             )}
           </motion.div>
+        ) : (
+          <div className="glass-static rounded-2xl p-12 text-center h-64 flex items-center justify-center">
+            <div>
+              <FileText size={48} className="mx-auto text-slate-700 mb-3" />
+              <p className="text-slate-500">Seleziona una lista per vedere i dettagli</p>
+            </div>
+          </div>
         )}
       </AnimatePresence>
+        </div>
+        </div>
+      )}
 
       {/* Add assistito modal */}
       <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Aggiungi Assistito alla Lista">
