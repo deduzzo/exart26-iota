@@ -27,4 +27,10 @@ module.exports.policies = {
   'add-assistito-in-lista': 'is-logged-in',
   'fetch-db-from-blockchain': ['is-logged-in', 'is-super-admin'],
   'recover-from-arweave': ['is-logged-in', 'is-super-admin'],
+
+  // API JSON per frontend React
+  'api-dashboard': 'is-logged-in',
+  'api-organizzazioni': 'is-logged-in',
+  'api-strutture': 'is-logged-in',
+  'api-assistiti': 'is-logged-in',
 };
