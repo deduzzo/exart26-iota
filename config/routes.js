@@ -59,6 +59,7 @@ module.exports.routes = {
   'GET /api/v1/organizzazioni/:id?':      { action: 'api-organizzazioni' },
   'GET /api/v1/strutture':                { action: 'api-strutture' },
   'GET /api/v1/assistiti/:id?':           { action: 'api-assistiti' },
+  'GET /api/v1/graph-data':               { action: 'api-graph-data' },
 
 
 
