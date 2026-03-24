@@ -191,37 +191,66 @@ async function main() {
     await sleep(300);
   }
 
-  // === FASE 5: Inserimento in liste ===
+  // === FASE 5+6: Ciclo continuo ingresso/uscita (tasso negativo: entrano piu di quanti escono) ===
   if (listaIds.length > 0 && assIds.length > 0) {
-    log('➡️', `\nFASE 5: Inserimento assistiti nelle liste...`);
-    for (const assId of assIds) {
-      const lista = pick(listaIds);
-      try {
-        await postJSON('/api/v1/add-assistito-in-lista', { idAssistito: assId, idLista: lista });
-        log('➡️', `  Ass #${assId} -> Lista #${lista}`);
-      } catch (e) { log('⚠️', `  Ass #${assId}: ${e.message.substring(0,50)}`); }
-      await sleep(200);
-    }
-  }
+    // Ogni assistito entra in 1-3 liste
+    log('🔄', `\nFASE 5: Ciclo ingresso/uscita (tasso di crescita ~70% ingressi, ~30% uscite)...`);
 
-  // === FASE 6: Simulazione uscite ===
-  log('🔄', `\nFASE 6: Simulazione uscite (chiamate)...`);
-  // Prendiamo i primi 5 dalle liste per "chiamarli"
-  for (const listaId of listaIds.slice(0, 5)) {
-    try {
-      const det = await fetchJSON(`/api/v1/liste-dettaglio?idLista=${listaId}`);
-      if (det.coda && det.coda.length > 0) {
-        const primo = det.coda[0];
-        const stati = [2, 3]; // in assistenza o completato
-        await postJSON('/api/v1/rimuovi-assistito-da-lista', {
-          idAssistitoListe: primo.id,
-          stato: pick(stati),
-        });
-        const nome = primo.assistito ? `${primo.assistito.cognome} ${primo.assistito.nome}` : `#${primo.id}`;
-        log('🔄', `  ${nome} chiamato dalla lista #${listaId}`);
+    let totIngressi = 0, totUscite = 0;
+    const BATCH = 10; // ogni batch: ingressi + qualche uscita
+    const NUM_CICLI = Math.ceil(NUM_ASS / BATCH);
+
+    for (let ciclo = 0; ciclo < NUM_CICLI; ciclo++) {
+      if (assIds.length === 0 || listaIds.length === 0) break;
+
+      // -- INGRESSI: 7-10 assistiti entrano in liste --
+      const numIngressi = Math.min(BATCH, assIds.length - totIngressi);
+      const startIdx = ciclo * BATCH;
+      for (let i = 0; i < numIngressi; i++) {
+        const assIdx = startIdx + i;
+        if (assIdx >= assIds.length) break;
+        const assId = assIds[assIdx];
+        // Ogni assistito entra in 1-2 liste
+        const numListe = Math.floor(Math.random() * 2) + 1;
+        for (let l = 0; l < numListe; l++) {
+          const listaId = pick(listaIds);
+          try {
+            await postJSON('/api/v1/add-assistito-in-lista', { idAssistito: assId, idLista: listaId });
+            totIngressi++;
+            log('➡️', `  IN  Ass #${assId} → Lista #${listaId} (tot ingressi: ${totIngressi})`);
+          } catch (e) { /* duplicato o errore, skip */ }
+          await sleep(150);
+        }
       }
-    } catch (e) { log('⚠️', `  Uscita lista #${listaId}: ${e.message.substring(0,50)}`); }
-    await sleep(500);
+
+      // -- USCITE: ~30% del batch (3 uscite ogni 10 ingressi) --
+      const numUscite = Math.max(1, Math.floor(numIngressi * 0.3));
+      for (let u = 0; u < numUscite; u++) {
+        // Scegli una lista random e chiama il primo in coda
+        const listaId = pick(listaIds);
+        try {
+          const det = await fetchJSON(`/api/v1/liste-dettaglio?idLista=${listaId}`);
+          if (det.coda && det.coda.length > 0) {
+            const primo = det.coda[0];
+            const stati = [2, 3, 3, 5]; // 25% in assistenza, 50% completato, 25% rinuncia
+            await postJSON('/api/v1/rimuovi-assistito-da-lista', {
+              idAssistitoListe: primo.id,
+              stato: pick(stati),
+            });
+            totUscite++;
+            const nome = primo.assistito ? `${primo.assistito.cognome} ${primo.assistito.nome}` : `?`;
+            log('⬅️', `  OUT ${nome} da Lista #${listaId} (tot uscite: ${totUscite})`);
+          }
+        } catch (e) { /* nessuno in coda */ }
+        await sleep(200);
+      }
+
+      // Riepilogo ciclo
+      const tasso = totIngressi > 0 ? Math.round((1 - totUscite / totIngressi) * 100) : 0;
+      log('📊', `  Ciclo ${ciclo+1}/${NUM_CICLI}: ${totIngressi} ingressi, ${totUscite} uscite, coda netta +${totIngressi - totUscite} (tasso crescita: ${tasso}%)`);
+    }
+
+    log('📊', `\nRiepilogo flusso: ${totIngressi} ingressi totali, ${totUscite} uscite totali, coda netta: +${totIngressi - totUscite}`);
   }
 
   // === RIEPILOGO ===
