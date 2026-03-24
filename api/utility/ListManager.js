@@ -1,6 +1,8 @@
+const crypto = require('crypto');
 const iota = require('./iota');
 const CryptHelper = require('./CryptHelper');
 const ArweaveHelper = require('./ArweaveHelper');
+const db = require('./db');
 const {
   STRUTTURE_LISTE_DATA,
   ORGANIZZAZIONE_DATA,
@@ -12,6 +14,39 @@ const {
   PRIVATE_KEY
 } = require('../enums/TransactionDataType');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
+
+// --- Inlined static model helpers (decoupled from Waterline) ---
+
+function getWalletIdOrganizzazione(id) {
+  return id.toString();
+}
+
+function getWalletIdStruttura(id) {
+  const struttura = db.Struttura.findOne({ id });
+  if (struttura) {
+    return struttura.organizzazione + '_' + struttura.id;
+  }
+  return null;
+}
+
+function getWalletIdLista(id) {
+  const lista = db.Lista.findOne({ id });
+  if (lista) {
+    const struttura = db.Struttura.findOne({ id: lista.struttura });
+    if (struttura) {
+      return struttura.organizzazione + '_' + struttura.id + '_' + lista.id;
+    }
+  }
+  return null;
+}
+
+function generateAnonId(codiceFiscale) {
+  return crypto.createHash('sha256')
+    .update(codiceFiscale.toUpperCase().trim())
+    .digest('hex')
+    .substring(0, 8)
+    .toUpperCase();
+}
 
 class ListManager {
 
@@ -180,13 +215,13 @@ class ListManager {
           }
 
           if (entity.type === 'ORG') {
-            await this._upsertOrganizzazione(clearData);
+            this._upsertOrganizzazione(clearData);
             imported.organizzazioni++;
           } else if (entity.type === 'STR') {
-            await this._upsertStruttura(clearData, entity.entityId);
+            this._upsertStruttura(clearData, entity.entityId);
             imported.strutture++;
           } else if (entity.type === 'ASS') {
-            await this._upsertAssistito(clearData);
+            this._upsertAssistito(clearData);
             imported.assistiti++;
           }
           reportProgress(`Importazione ${processed}/${total}...`, total, processed);
@@ -205,22 +240,22 @@ class ListManager {
 
   // --- Upsert helpers per ricostruzione DB ---
 
-  async _upsertOrganizzazione(data) {
-    const existing = await Organizzazione.findOne({ id: data.id });
+  _upsertOrganizzazione(data) {
+    const existing = db.Organizzazione.findOne({ id: data.id });
     const record = {
       denominazione: data.denominazione,
       publicKey: data.publicKey,
       ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
     };
     if (existing) {
-      await Organizzazione.updateOne({ id: data.id }).set(record);
+      db.Organizzazione.updateOne({ id: data.id }).set(record);
     } else {
-      await Organizzazione.create({ id: data.id, ...record });
+      db.Organizzazione.create({ id: data.id, ...record });
     }
   }
 
-  async _upsertStruttura(data, entityId = null) {
-    const existing = await Struttura.findOne({ id: data.id });
+  _upsertStruttura(data, entityId = null) {
+    const existing = db.Struttura.findOne({ id: data.id });
     // Ricava organizzazione dal payload o dall'entityId (formato: orgId_strId)
     let orgId = data.organizzazione;
     if (!orgId && entityId && entityId.includes('_')) {
@@ -235,20 +270,20 @@ class ListManager {
       organizzazione: orgId || null,
     };
     if (existing) {
-      await Struttura.updateOne({ id: data.id }).set(record);
+      db.Struttura.updateOne({ id: data.id }).set(record);
     } else {
-      await Struttura.create({ id: data.id, ...record });
+      db.Struttura.create({ id: data.id, ...record });
     }
     // Importa anche le liste se presenti nel payload
     if (data.liste && Array.isArray(data.liste)) {
       for (const lista of data.liste) {
-        await this._upsertLista(lista, data.id);
+        this._upsertLista(lista, data.id);
       }
     }
   }
 
-  async _upsertLista(data, strutturaId) {
-    const existing = await Lista.findOne({ id: data.id });
+  _upsertLista(data, strutturaId) {
+    const existing = db.Lista.findOne({ id: data.id });
     const record = {
       denominazione: data.denominazione,
       aperta: data.aperta !== undefined ? data.aperta : true,
@@ -257,15 +292,15 @@ class ListManager {
       struttura: strutturaId || data.struttura,
     };
     if (existing) {
-      await Lista.updateOne({ id: data.id }).set(record);
+      db.Lista.updateOne({ id: data.id }).set(record);
     } else {
-      await Lista.create({ id: data.id, ...record });
+      db.Lista.create({ id: data.id, ...record });
     }
   }
 
-  async _upsertAssistito(data) {
-    const existing = await Assistito.findOne({ id: data.id });
-    const anonId = data.anonId || (data.codiceFiscale ? Assistito.generateAnonId(data.codiceFiscale) : 'UNKNOWN');
+  _upsertAssistito(data) {
+    const existing = db.Assistito.findOne({ id: data.id });
+    const anonId = data.anonId || (data.codiceFiscale ? generateAnonId(data.codiceFiscale) : 'UNKNOWN');
     const record = {
       nome: data.nome,
       cognome: data.cognome,
@@ -279,49 +314,50 @@ class ListManager {
       ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
     };
     if (existing) {
-      await Assistito.updateOne({ id: data.id }).set(record);
+      db.Assistito.updateOne({ id: data.id }).set(record);
     } else {
-      await Assistito.create({ id: data.id, ...record });
+      db.Assistito.create({ id: data.id, ...record });
     }
   }
 
   async updateListeAssistitiFromBlockchain(idLista) {
     let liste = null;
     if (idLista) {
-      liste = await Lista.find({id: idLista});
+      liste = db.Lista.find({id: idLista});
     } else {
-      liste = await Lista.find();
+      liste = db.Lista.find();
     }
     if (liste && liste.length > 0) {
       for (let lista of liste) {
-        let listaEntityId = await Lista.getWalletIdLista({id: lista.id});
+        let listaEntityId = getWalletIdLista(lista.id);
         let record = await iota.getLastDataByTag(ASSISTITI_IN_LISTA, listaEntityId);
-        let privateKeyData = await this.getLastPrivateKeyOfEntityId(await Struttura.getWalletIdStruttura({id: lista.struttura}));
+        let strutturaEntityId = getWalletIdStruttura(lista.struttura);
+        let privateKeyData = await this.getLastPrivateKeyOfEntityId(strutturaEntityId);
         if (record && record.payload) {
           let data = record.payload;
           let clearData = await CryptHelper.receiveAndDecrypt(data, privateKeyData.clearData.privateKey);
           data.clearData = JSON.parse(clearData);
-          await this.updateDBFromJsonListeAssistiti(data.clearData);
+          this.updateDBFromJsonListeAssistiti(data.clearData);
         }
       }
     }
   }
 
   async updateDBFromJsonData(data) {
-    await this.syncDBFromJsonData(data);
+    this.syncDBFromJsonData(data);
   }
 
-  async syncDBFromJsonData(data) {
+  syncDBFromJsonData(data) {
     for (let organizzazione of data) {
-      let org = await Organizzazione.findOne({id: organizzazione.id});
+      let org = db.Organizzazione.findOne({id: organizzazione.id});
       if (org) {
-        await Organizzazione.updateOne({id: organizzazione.id}).set({
+        db.Organizzazione.updateOne({id: organizzazione.id}).set({
           denominazione: organizzazione.denominazione,
           publicKey: organizzazione.publicKey,
           ultimaVersioneSuBlockchain: organizzazione.ultimaVersioneSuBlockchain
         });
       } else {
-        await Organizzazione.create({
+        db.Organizzazione.create({
           id: organizzazione.id,
           denominazione: organizzazione.denominazione,
           publicKey: organizzazione.publicKey,
@@ -330,9 +366,9 @@ class ListManager {
       }
 
       for (let strutture of organizzazione.strutture) {
-        let str = await Struttura.findOne({id: strutture.id});
+        let str = db.Struttura.findOne({id: strutture.id});
         if (str) {
-          await Struttura.updateOne({id: strutture.id}).set({
+          db.Struttura.updateOne({id: strutture.id}).set({
             denominazione: strutture.denominazione,
             attiva: strutture.attiva,
             indirizzo: strutture.indirizzo,
@@ -341,7 +377,7 @@ class ListManager {
             organizzazione: organizzazione.id
           });
         } else {
-          await Struttura.create({
+          db.Struttura.create({
             id: strutture.id,
             denominazione: strutture.denominazione,
             attiva: strutture.attiva,
@@ -353,9 +389,9 @@ class ListManager {
         }
 
         for (let lista of strutture.liste) {
-          let lst = await Lista.findOne({id: lista.id});
+          let lst = db.Lista.findOne({id: lista.id});
           if (lst) {
-            await Lista.updateOne({id: lista.id}).set({
+            db.Lista.updateOne({id: lista.id}).set({
               denominazione: lista.denominazione,
               aperta: lista.aperta,
               publicKey: lista.publicKey,
@@ -363,7 +399,7 @@ class ListManager {
               struttura: strutture.id
             });
           } else {
-            await Lista.create({
+            db.Lista.create({
               id: lista.id,
               denominazione: lista.denominazione,
               aperta: lista.aperta,
@@ -402,15 +438,14 @@ class ListManager {
 
   async updateDatiOrganizzazioneToBlockchain(idOrganizzazione) {
     if (idOrganizzazione) {
-      let entityId = await Organizzazione.getWalletIdOrganizzazione({id: idOrganizzazione});
-      let organizzazioneStrutture = await Organizzazione.findOne({id: idOrganizzazione})
-        .select(['id', 'denominazione', 'publicKey', 'ultimaVersioneSuBlockchain']);
+      let entityId = getWalletIdOrganizzazione(idOrganizzazione);
+      let organizzazioneStrutture = db.Organizzazione.findOne({id: idOrganizzazione});
       if (organizzazioneStrutture) {
         organizzazioneStrutture.ultimaVersioneSuBlockchain = organizzazioneStrutture.ultimaVersioneSuBlockchain + 1;
         let data = await CryptHelper.encryptAndSend(JSON.stringify(organizzazioneStrutture), organizzazioneStrutture.ultimaVersioneSuBlockchain, organizzazioneStrutture.publicKey);
         let res = await iota.publishData(ORGANIZZAZIONE_DATA, data.data, entityId, organizzazioneStrutture.ultimaVersioneSuBlockchain);
         if (res.success) {
-          await Organizzazione.updateOne({id: idOrganizzazione}).set({ultimaVersioneSuBlockchain: organizzazioneStrutture.ultimaVersioneSuBlockchain});
+          db.Organizzazione.updateOne({id: idOrganizzazione}).set({ultimaVersioneSuBlockchain: organizzazioneStrutture.ultimaVersioneSuBlockchain});
           this._backupToArweave(ORGANIZZAZIONE_DATA, data.data, idOrganizzazione, organizzazioneStrutture.ultimaVersioneSuBlockchain);
         }
         return res;
@@ -420,9 +455,9 @@ class ListManager {
   }
 
   async getLastDatiOrganizzazioneFromBlockchain(idOrganizzazione) {
-    let organizzazione = await Organizzazione.findOne({id: idOrganizzazione});
+    let organizzazione = db.Organizzazione.findOne({id: idOrganizzazione});
     if (organizzazione) {
-      let entityId = await Organizzazione.getWalletIdOrganizzazione({id: idOrganizzazione});
+      let entityId = getWalletIdOrganizzazione(idOrganizzazione);
       let record = await iota.getLastDataByTag(ORGANIZZAZIONE_DATA, entityId);
       if (record && record.payload) {
         let data = record.payload;
@@ -436,19 +471,16 @@ class ListManager {
 
   async updateDatiStrutturaToBlockchain(idStruttura) {
     if (idStruttura) {
-      let entityId = await Struttura.getWalletIdStruttura({id: idStruttura});
-      let strutturaCode = await Struttura.findOne({id: idStruttura})
-        .populate('liste',
-          {
-            select: ['id', 'denominazione', 'aperta', 'ultimaVersioneSuBlockchain', 'struttura']
-          })
-        .select(['id', 'denominazione', 'attiva', 'indirizzo', 'publicKey', 'ultimaVersioneSuBlockchain', 'organizzazione']);
+      let entityId = getWalletIdStruttura(idStruttura);
+      let strutturaCode = db.Struttura.findOne({id: idStruttura});
       if (strutturaCode) {
+        // Manual populate: attach liste for this struttura
+        strutturaCode.liste = db.Lista.find({struttura: idStruttura});
         strutturaCode.ultimaVersioneSuBlockchain = strutturaCode.ultimaVersioneSuBlockchain + 1;
         let data = await CryptHelper.encryptAndSend(JSON.stringify(strutturaCode), strutturaCode.ultimaVersioneSuBlockchain, strutturaCode.publicKey);
         let res = await iota.publishData(STRUTTURE_LISTE_DATA, data.data, entityId, strutturaCode.ultimaVersioneSuBlockchain);
         if (res.success) {
-          await Struttura.updateOne({id: idStruttura}).set({ultimaVersioneSuBlockchain: strutturaCode.ultimaVersioneSuBlockchain});
+          db.Struttura.updateOne({id: idStruttura}).set({ultimaVersioneSuBlockchain: strutturaCode.ultimaVersioneSuBlockchain});
           this._backupToArweave(STRUTTURE_LISTE_DATA, data.data, idStruttura, strutturaCode.ultimaVersioneSuBlockchain);
         }
         return res;
@@ -471,7 +503,7 @@ class ListManager {
   }
 
   async getLastDatiStrutturaFromBlockchain(idStruttura) {
-    let entityId = await Struttura.getWalletIdStruttura({id: idStruttura});
+    let entityId = getWalletIdStruttura(idStruttura);
     let strutturaPrivateKey = await this.getLastPrivateKeyOfEntityId(entityId);
     let record = await iota.getLastDataByTag(STRUTTURE_LISTE_DATA, entityId);
     if (record && record.payload) {
@@ -507,25 +539,25 @@ class ListManager {
     // Costruisci l'indice leggero
     let entities = [];
 
-    let organizzazioni = await Organizzazione.find().select(['id']);
+    let organizzazioni = db.Organizzazione.find();
     for (let org of organizzazioni) {
-      let entityId = await Organizzazione.getWalletIdOrganizzazione({id: org.id});
+      let entityId = getWalletIdOrganizzazione(org.id);
       entities.push({ type: 'ORG', entityId, id: org.id });
     }
 
-    let strutture = await Struttura.find().select(['id']);
+    let strutture = db.Struttura.find();
     for (let str of strutture) {
-      let entityId = await Struttura.getWalletIdStruttura({id: str.id});
+      let entityId = getWalletIdStruttura(str.id);
       entities.push({ type: 'STR', entityId, id: str.id });
     }
 
-    let liste = await Lista.find().select(['id']);
+    let liste = db.Lista.find();
     for (let lst of liste) {
-      let entityId = await Lista.getWalletIdLista({id: lst.id});
+      let entityId = getWalletIdLista(lst.id);
       entities.push({ type: 'LST', entityId, id: lst.id });
     }
 
-    let assistiti = await Assistito.find().select(['id']);
+    let assistiti = db.Assistito.find();
     for (let ass of assistiti) {
       entities.push({ type: 'ASS', entityId: 'ASS#' + ass.id, id: ass.id });
     }
@@ -544,14 +576,13 @@ class ListManager {
   async updateDatiAssistitoToBlockchain(id) {
     if (id) {
       let entityId = 'ASS#' + id;
-      let assistito = await Assistito.findOne({id: id})
-        .select(['id', 'nome', 'cognome', 'codiceFiscale', 'dataNascita', 'email', 'telefono', 'indirizzo', 'publicKey', 'ultimaVersioneSuBlockchain']);
+      let assistito = db.Assistito.findOne({id: id});
       if (assistito) {
         assistito.ultimaVersioneSuBlockchain = assistito.ultimaVersioneSuBlockchain + 1;
         let data = await CryptHelper.encryptAndSend(JSON.stringify(assistito), assistito.ultimaVersioneSuBlockchain, assistito.publicKey);
         let res = await iota.publishData(ASSISTITI_DATA, data.data, entityId, assistito.ultimaVersioneSuBlockchain);
         if (res.success) {
-          await Assistito.updateOne({id: id}).set({ultimaVersioneSuBlockchain: assistito.ultimaVersioneSuBlockchain});
+          db.Assistito.updateOne({id: id}).set({ultimaVersioneSuBlockchain: assistito.ultimaVersioneSuBlockchain});
           this._backupToArweave(ASSISTITI_DATA, data.data, id, assistito.ultimaVersioneSuBlockchain);
         }
         return res;
@@ -579,30 +610,34 @@ class ListManager {
 
   async aggiungiAssistitoInListaToBlockchain(idAssistito, idLista) {
     if (idAssistito && idLista) {
-      let lista = await Lista.findOne({id: idLista}).populate('struttura');
-      let assistito = await Assistito.findOne({id: idAssistito});
-      if (lista && assistito) {
+      let lista = db.Lista.findOne({id: idLista});
+      if (lista) {
+        // Manual populate: attach struttura
+        lista.struttura = db.Struttura.findOne({id: lista.struttura});
+      }
+      let assistito = db.Assistito.findOne({id: idAssistito});
+      if (lista && lista.struttura && assistito) {
         let res1 = {success: false};
         let res2 = {success: false};
         let assistitoEntityId = 'ASS#' + idAssistito;
-        let listaEntityId = await Lista.getWalletIdLista({id: idLista});
-        let listeInCoda = await AssistitiListe.find({assistito: idAssistito, stato: INSERITO_IN_CODA, chiuso: false});
+        let listaEntityId = getWalletIdLista(idLista);
+        let listeInCoda = db.AssistitiListe.find({assistito: idAssistito, stato: INSERITO_IN_CODA, chiuso: false});
         if ((listeInCoda.length > 0 && (listeInCoda.find((l) => l.lista === idLista)) === undefined) || listeInCoda.length === 0) {
           let assistitoLista = null;
           try {
-            assistitoLista = await AssistitiListe.create({
+            assistitoLista = db.AssistitiListe.create({
               assistito: idAssistito,
               lista: idLista,
               stato: INSERITO_IN_CODA,
               dataOraIngresso: Date.now(),
-            }).fetch();
+            });
             let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
             res1 = await iota.publishData(LISTE_IN_CODA, data.data, assistitoEntityId);
             if (res1.success) {
               this._backupToArweave(LISTE_IN_CODA, data.data, idAssistito);
             }
             if (!res1.success) {
-              await AssistitiListe.destroy({id: assistitoLista.id});
+              db.AssistitiListe.destroy({id: assistitoLista.id});
             } else {
               let data2 = await CryptHelper.encryptAndSend(JSON.stringify(assistitoLista), null, lista.struttura.publicKey);
               res2 = await iota.publishData(MOVIMENTI_ASSISTITI_LISTA, data2.data, listaEntityId);
@@ -610,12 +645,12 @@ class ListManager {
                 this._backupToArweave(MOVIMENTI_ASSISTITI_LISTA, data2.data, idLista);
               }
               if (!res2.success) {
-                await AssistitiListe.destroy({id: assistitoLista.id});
+                db.AssistitiListe.destroy({id: assistitoLista.id});
               }
             }
           } catch (e) {
             if (assistitoLista) {
-              await AssistitiListe.destroy({id: assistitoLista.id});
+              db.AssistitiListe.destroy({id: assistitoLista.id});
             }
           }
           let res3 = {success: false};
@@ -650,18 +685,18 @@ class ListManager {
 
   }
 
-  async updateDBFromJsonListeAssistiti(assistitiListe) {
+  updateDBFromJsonListeAssistiti(assistitiListe) {
     for (let lista of assistitiListe) {
-      let assititoLista = await AssistitiListe.findOne({id: lista.id});
+      let assititoLista = db.AssistitiListe.findOne({id: lista.id});
       if (assititoLista) {
-        await AssistitiListe.updateOne({id: lista.id}).set({
+        db.AssistitiListe.updateOne({id: lista.id}).set({
           assistito: lista.assistito,
           lista: lista.lista,
           stato: lista.stato,
           chiuso: lista.chiuso
         });
       } else {
-        await AssistitiListe.create({
+        db.AssistitiListe.create({
           id: lista.id,
           assistito: lista.assistito,
           lista: lista.lista,
