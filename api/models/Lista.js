@@ -12,6 +12,11 @@ module.exports = {
       type: 'string',
       required: true
     },
+    tag: {
+      type: 'string',
+      allowNull: true,
+      description: 'Tag per categorizzare la lista (es. riabilitazioneA, fisioterapia, logopedia). Ricercabile e filtrabile.',
+    },
     aperta: {
       type: 'boolean',
       defaultsTo: true

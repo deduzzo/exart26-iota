@@ -32,7 +32,7 @@ export default function Strutture() {
   });
 
   // Form state for new lista
-  const [listaForm, setListaForm] = useState({ denominazione: '' });
+  const [listaForm, setListaForm] = useState({ denominazione: '', tag: '' });
 
   const organizzazioni = Array.isArray(orgsData) ? orgsData : (orgsData?.items || orgsData?.organizzazioni || []);
   const strutture = Array.isArray(struttureData) ? struttureData : (struttureData?.items || struttureData?.strutture || []);
@@ -158,11 +158,12 @@ export default function Strutture() {
     try {
       await addLista({
         denominazione: listaForm.denominazione.trim(),
+        tag: listaForm.tag.trim() || null,
         struttura: selectedStruttura.id,
       });
       addToast('Lista creata con successo', 'success');
       setListaModalOpen(false);
-      setListaForm({ denominazione: '' });
+      setListaForm({ denominazione: '', tag: '' });
       setSelectedStruttura(null);
       reload();
     } catch (err) {
@@ -340,6 +341,17 @@ export default function Strutture() {
               minLength={2}
               required
             />
+          </div>
+          <div className="mb-5">
+            <label className="block text-sm text-slate-400 mb-2">Tag (opzionale)</label>
+            <input
+              type="text"
+              value={listaForm.tag}
+              onChange={(e) => setListaForm({ ...listaForm, tag: e.target.value })}
+              placeholder="es. riabilitazione, fisioterapia, logopedia"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 transition-colors"
+            />
+            <p className="text-xs text-slate-600 mt-1">Il tag permette di filtrare e raggruppare le liste per categoria</p>
           </div>
           <div className="flex justify-end gap-3">
             <button

@@ -17,6 +17,12 @@ module.exports = {
       type: 'number',
       required: true
     },
+    tag: {
+      type: 'string',
+      required: false,
+      allowNull: true,
+      description: 'Tag per categorizzare (es. riabilitazioneA, fisioterapia)',
+    },
   },
 
   exits: {
@@ -35,6 +41,7 @@ module.exports = {
     try {
       let nuovaLista = await Lista.create({
         denominazione: inputs.denominazione,
+        tag: inputs.tag || null,
         publicKey: keyPairList.publicKey,
         privateKey: keyPairList.privateKey,
         struttura: inputs.struttura,

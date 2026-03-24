@@ -42,9 +42,13 @@ export const getGraphData = () => api('/api/v1/graph-data');
 // Liste dettaglio (assistiti in lista)
 export const getListeDettaglio = (idLista) => api(`/api/v1/liste-dettaglio?idLista=${idLista}`);
 
-// Rimozione assistito da lista
-export const rimuoviAssistitoDaLista = (idAssistitoListe, stato) =>
-  api('/api/v1/rimuovi-assistito-da-lista', { method: 'POST', body: { idAssistitoListe, stato } });
+// Rimozione assistito da lista (con azioni multi-lista)
+export const rimuoviAssistitoDaLista = (idAssistitoListe, stato, azioniAltreListe = []) =>
+  api('/api/v1/rimuovi-assistito-da-lista', { method: 'POST', body: { idAssistitoListe, stato, azioniAltreListe } });
+
+// Tag lista
+export const updateListaTag = (id, tag) =>
+  api('/api/v1/update-lista-tag', { method: 'PUT', body: { id, tag } });
 
 // Admin
 export const fetchDbFromBlockchain = () =>

@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import {
   FileText, Users, ChevronRight, Clock, CheckCircle, UserPlus,
-  UserMinus, History, ArrowRightCircle, XCircle, Ban
+  UserMinus, History, ArrowRightCircle, XCircle, Ban, Tag, Edit3
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import { useApi } from '../hooks/useApi';
-import { getStrutture, getAssistiti, addAssistitoInLista, getListeDettaglio, rimuoviAssistitoDaLista } from '../api/endpoints';
+import { getStrutture, getAssistiti, addAssistitoInLista, getListeDettaglio, rimuoviAssistitoDaLista, updateListaTag } from '../api/endpoints';
 
 const STATO_USCITA = [
   { value: 2, label: 'Preso in assistenza', icon: ArrowRightCircle, color: 'text-amber-500' },
@@ -30,8 +30,12 @@ export default function Liste() {
   const [selectedAssistito, setSelectedAssistito] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [removeStato, setRemoveStato] = useState(2);
+  const [altreListe, setAltreListe] = useState([]); // altre liste in cui l'assistito è in coda
+  const [azioniAltreListe, setAzioniAltreListe] = useState({}); // { idAssistitoListe: 'mantieni'|'rimuovi' }
   const [submitting, setSubmitting] = useState(false);
   const [showStorico, setShowStorico] = useState(false);
+  const [editingTag, setEditingTag] = useState(null);
+  const [tagInput, setTagInput] = useState('');
 
   const strutture = struttureData?.strutture || struttureData || [];
   const assistiti = assistitiData?.assistiti || assistitiData || [];
@@ -72,15 +76,56 @@ export default function Liste() {
     } finally { setSubmitting(false); }
   };
 
+  // Quando si apre il modal rimozione, carica le altre liste dell'assistito
+  const openRemoveModal = async (record) => {
+    setSelectedRecord(record);
+    setRemoveStato(2);
+    setAzioniAltreListe({});
+    // Cerca le altre liste in coda per questo assistito
+    const assId = record.assistito?.id || record.assistito;
+    const allAssListe = [];
+    for (const str of strutture) {
+      for (const lista of (str.liste || [])) {
+        if (lista.id === selectedLista?.id) continue; // skip la lista corrente
+        // Cerca se l'assistito è in coda in questa lista
+        try {
+          const det = await getListeDettaglio(lista.id);
+          const inCoda = det?.coda?.find(c => {
+            const cId = c.assistito?.id || c.assistito;
+            return cId === assId;
+          });
+          if (inCoda) {
+            allAssListe.push({
+              ...inCoda,
+              listaNome: lista.denominazione,
+              listaTag: lista.tag,
+              strutturaNome: str.denominazione,
+            });
+          }
+        } catch (e) { /* skip */ }
+      }
+    }
+    setAltreListe(allAssListe);
+    setRemoveModalOpen(true);
+  };
+
   const handleRemove = async () => {
     if (!selectedRecord) return;
     setSubmitting(true);
     try {
-      await rimuoviAssistitoDaLista(selectedRecord.id, removeStato);
+      // Costruisci array azioni per le altre liste
+      const azioni = altreListe.map(al => ({
+        idAssistitoListe: al.id,
+        azione: azioniAltreListe[al.id] === 'rimuovi' ? 'rimuovi' : 'mantieni',
+        statoRimozione: 4, // cambio lista
+      }));
+      await rimuoviAssistitoDaLista(selectedRecord.id, removeStato, azioni);
       const nome = selectedRecord.assistito ? `${selectedRecord.assistito.cognome} ${selectedRecord.assistito.nome}` : 'Assistito';
-      addToast(`${nome} rimosso dalla lista`, 'success');
+      const rimossiCount = azioni.filter(a => a.azione === 'rimuovi').length;
+      addToast(`${nome} rimosso dalla lista${rimossiCount > 0 ? ` e da altre ${rimossiCount} liste` : ''}`, 'success');
       setRemoveModalOpen(false);
       setSelectedRecord(null);
+      setAltreListe([]);
       reloadDettaglio();
     } catch (err) {
       addToast(`Errore: ${err.message}`, 'error');
@@ -122,6 +167,11 @@ export default function Liste() {
                 <div>
                   <h3 className="font-semibold text-sm">{lista.denominazione}</h3>
                   <p className="text-xs text-slate-500 mt-0.5">{lista.strutturaNome}</p>
+                  {lista.tag && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-neon-purple/10 text-neon-purple text-[10px]">
+                      <Tag size={9} />{lista.tag}
+                    </span>
+                  )}
                 </div>
                 <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
                   lista.aperta !== false ? 'bg-neon-emerald/10 text-neon-emerald' : 'bg-red-500/10 text-red-400'
@@ -175,6 +225,34 @@ export default function Liste() {
                 <p className="text-sm text-slate-400">Struttura: {selectedLista.strutturaNome}</p>
               </div>
               <div className="flex gap-2">
+                {/* Tag edit inline */}
+                {editingTag === selectedLista?.id ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      placeholder="tag..."
+                      className="w-28 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-neon-purple/50"
+                      autoFocus
+                    />
+                    <button onClick={async () => {
+                      await updateListaTag(selectedLista.id, tagInput || null);
+                      addToast('Tag aggiornato', 'success');
+                      setEditingTag(null);
+                    }} className="text-neon-emerald text-xs px-2 py-1.5 hover:bg-white/5 rounded-lg">
+                      <CheckCircle size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setEditingTag(selectedLista?.id); setTagInput(selectedLista?.tag || ''); }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/5 text-slate-400 text-xs hover:bg-white/10 transition-colors"
+                    title="Modifica tag"
+                  >
+                    <Tag size={14} /> {selectedLista?.tag || 'Aggiungi tag'}
+                  </button>
+                )}
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                   onClick={() => setShowStorico(!showStorico)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 text-slate-300 text-sm hover:bg-white/10 transition-colors"
@@ -228,7 +306,7 @@ export default function Liste() {
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => { setSelectedRecord(item); setRemoveModalOpen(true); }}
+                            onClick={() => openRemoveModal(item)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-500 text-xs font-medium hover:bg-amber-500/20 transition-colors"
                           >
                             <UserMinus size={14} /> Chiama
@@ -298,31 +376,97 @@ export default function Liste() {
         </div>
       </Modal>
 
-      {/* Remove assistito modal */}
-      <Modal open={removeModalOpen} onClose={() => { setRemoveModalOpen(false); setSelectedRecord(null); }}
-        title={`Rimuovi ${selectedRecord?.assistito?.cognome || ''} ${selectedRecord?.assistito?.nome || ''}`}>
-        <div className="space-y-4">
-          <p className="text-sm text-slate-400">
-            Seleziona il motivo della rimozione dalla lista:
-          </p>
-          <div className="space-y-2">
-            {STATO_USCITA.map((s) => (
-              <button key={s.value}
-                onClick={() => setRemoveStato(s.value)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl text-sm transition-all ${
-                  removeStato === s.value
-                    ? 'glass-static border border-neon-cyan/30 text-slate-100'
-                    : 'hover:bg-white/5 text-slate-400'
-                }`}>
-                <s.icon size={18} className={s.color} />
-                {s.label}
-              </button>
-            ))}
+      {/* Remove assistito modal - form decisionale multi-lista */}
+      <Modal open={removeModalOpen} onClose={() => { setRemoveModalOpen(false); setSelectedRecord(null); setAltreListe([]); }}
+        title={`Rimuovi ${selectedRecord?.assistito?.cognome || ''} ${selectedRecord?.assistito?.nome || ''}`} wide>
+        <div className="space-y-5">
+          {/* Step 1: Motivo rimozione dalla lista corrente */}
+          <div>
+            <p className="text-sm text-slate-400 mb-2">Motivo della rimozione da <strong className="text-slate-200">{selectedLista?.denominazione}</strong>:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {STATO_USCITA.map((s) => (
+                <button key={s.value}
+                  onClick={() => setRemoveStato(s.value)}
+                  className={`flex items-center gap-2 p-3 rounded-xl text-sm transition-all ${
+                    removeStato === s.value
+                      ? 'glass-static border border-neon-cyan/30 text-slate-100'
+                      : 'hover:bg-white/5 text-slate-400'
+                  }`}>
+                  <s.icon size={16} className={s.color} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Step 2: Altre liste (se presenti) */}
+          {altreListe.length > 0 && (
+            <div className="border-t border-white/10 pt-4">
+              <p className="text-sm text-slate-400 mb-3">
+                L'assistito e in coda anche in altre <strong className="text-neon-cyan">{altreListe.length}</strong> liste. Cosa vuoi fare?
+              </p>
+              <div className="space-y-2">
+                {altreListe.map((al) => (
+                  <div key={al.id} className="glass-static rounded-xl p-3 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{al.listaNome}</p>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>{al.strutturaNome}</span>
+                        {al.listaTag && (
+                          <span className="px-1.5 py-0.5 rounded bg-neon-purple/10 text-neon-purple text-[10px]">
+                            {al.listaTag}
+                          </span>
+                        )}
+                        <span>Pos. #{al.posizione}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setAzioniAltreListe(prev => ({...prev, [al.id]: 'mantieni'}))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          azioniAltreListe[al.id] !== 'rimuovi'
+                            ? 'bg-neon-emerald/15 text-neon-emerald'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}>
+                        Mantieni
+                      </button>
+                      <button
+                        onClick={() => setAzioniAltreListe(prev => ({...prev, [al.id]: 'rimuovi'}))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          azioniAltreListe[al.id] === 'rimuovi'
+                            ? 'bg-red-500/15 text-red-400'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}>
+                        Rimuovi
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {/* Azioni rapide per tag */}
+                {altreListe.some(al => al.listaTag) && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="text-xs text-slate-500">Rimuovi per tag:</span>
+                    {[...new Set(altreListe.filter(al => al.listaTag).map(al => al.listaTag))].map(tag => (
+                      <button key={tag}
+                        onClick={() => {
+                          const updates = {};
+                          altreListe.forEach(al => { if (al.listaTag === tag) updates[al.id] = 'rimuovi'; });
+                          setAzioniAltreListe(prev => ({...prev, ...updates}));
+                        }}
+                        className="px-2 py-1 rounded-lg text-[10px] bg-neon-purple/10 text-neon-purple hover:bg-neon-purple/20 transition-colors">
+                        <Tag size={10} className="inline mr-1" />{tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             onClick={handleRemove} disabled={submitting}
             className="w-full py-3 rounded-xl bg-amber-500/20 text-amber-500 font-medium text-sm hover:bg-amber-500/30 disabled:opacity-50">
-            {submitting ? 'Rimozione...' : 'Conferma Rimozione'}
+            {submitting ? 'Rimozione in corso...' : `Conferma Rimozione${Object.values(azioniAltreListe).filter(a => a === 'rimuovi').length > 0 ? ` (+ ${Object.values(azioniAltreListe).filter(a => a === 'rimuovi').length} altre liste)` : ''}`}
           </motion.button>
         </div>
       </Modal>

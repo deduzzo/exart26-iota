@@ -56,6 +56,7 @@ module.exports.routes = {
   'POST /api/v1/recover-from-arweave':    { action: 'recover-from-arweave' },
   'GET /api/v1/liste-dettaglio':          { action: 'api-liste-dettaglio' },
   'POST /api/v1/rimuovi-assistito-da-lista': { action: 'rimuovi-assistito-da-lista' },
+  'PUT /api/v1/update-lista-tag':           { action: 'update-lista-tag' },
 
   // API pubblica (senza autenticazione)
   'GET /api/v1/public/liste':             { action: 'api-public' },
