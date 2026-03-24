@@ -28,12 +28,16 @@ module.exports = {
     let keyPairAss = await CryptHelper.RSAGenerateKeyPair();
     let dataNascita = moment(inputs.dataNascita, 'YYYY-MM-DD');
 
+    // Genera anonId (il beforeCreate potrebbe non funzionare con inMemoryOnly)
+    const anonId = Assistito.generateAnonId(inputs.codiceFiscale);
+
     let assistito;
     try {
       assistito = await Assistito.create({
         nome: inputs.nome,
         cognome: inputs.cognome,
         codiceFiscale: inputs.codiceFiscale.toUpperCase().trim(),
+        anonId: anonId,
         dataNascita: dataNascita.isValid() ? dataNascita.format('YYYY-MM-DD') : null,
         email: inputs.email,
         telefono: inputs.telefono,

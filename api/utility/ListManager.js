@@ -233,10 +233,12 @@ class ListManager {
 
   async _upsertAssistito(data) {
     const existing = await Assistito.findOne({ id: data.id });
+    const anonId = data.anonId || (data.codiceFiscale ? Assistito.generateAnonId(data.codiceFiscale) : 'UNKNOWN');
     const record = {
       nome: data.nome,
       cognome: data.cognome,
       codiceFiscale: data.codiceFiscale,
+      anonId: anonId,
       dataNascita: data.dataNascita,
       email: data.email,
       telefono: data.telefono,
