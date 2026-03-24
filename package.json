@@ -69,6 +69,7 @@
   },
   "scripts": {
     "dev": "npx concurrently -n backend,frontend -c cyan,magenta \"sails lift\" \"cd frontend && npm run dev\"",
+    "simulate": "node simulate.js",
     "start": "NODE_ENV=production node app.js",
     "lift": "sails lift",
     "test": "npm run lint && npm run custom-tests && echo 'Done.'",
