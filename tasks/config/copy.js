@@ -1,78 +1,76 @@
 /**
  * `tasks/config/copy`
  *
- * ---------------------------------------------------------------
- *
- * Copy files and/or folders.
- *
- * For more information, see:
- *   https://sailsjs.com/anatomy/tasks/config/copy.js
+ * Custom implementation using Node.js fs to avoid
+ * grunt-contrib-copy Symbol bug on Node.js >= 20
  *
  */
-module.exports = function (grunt) {
+module.exports = function(grunt) {
 
-  grunt.config.set('copy', {
-    dev: {
-      files: [{
-        expand: true,
-        cwd: './assets',
-        src: ['**/*.!(coffee|less)'],
-        dest: '.tmp/public'
-      }, {
-        expand: true,
-        cwd: './node_modules',
-        src: ['bootstrap/dist/css/bootstrap.*'],
-        dest: './assets/dependencies',
-        flatten: false
-      },
-        {
-          expand: true,
-          cwd: './node_modules',
-          src: ['bootstrap/dist/js/bootstrap.*'],
-          dest: './assets/dependencies',
-          flatten: false
-        },]
-    },
-    build: {
-      files: [{
-        expand: true,
-        cwd: '.tmp/public',
-        src: ['**/*'],
-        dest: 'www'
-      }]
-    },
-    beforeLinkBuildProd: {
-      files: [{
-        expand: true,
-        cwd: '.tmp/public/hash',
-        src: ['**/*'],
-        dest: '.tmp/public/dist'
-      }]
-    },
+  grunt.registerTask('copy:dev', 'Copy assets to .tmp/public', function() {
+    var fs = require('fs');
+    var path = require('path');
+
+    function copyRecursive(src, dest, filterExt) {
+      if (!fs.existsSync(src)) { return; }
+      var stats = fs.statSync(src);
+      if (stats.isDirectory()) {
+        fs.mkdirSync(dest, { recursive: true });
+        fs.readdirSync(src).forEach(function(child) {
+          copyRecursive(path.join(src, child), path.join(dest, child), filterExt);
+        });
+      } else {
+        var ext = path.extname(src).toLowerCase();
+        if (filterExt && filterExt.indexOf(ext) !== -1) { return; }
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(src, dest);
+      }
+    }
+
+    // Copy assets to .tmp/public (excluding .coffee and .less files)
+    copyRecursive(
+      path.resolve('assets'),
+      path.resolve('.tmp/public'),
+      ['.coffee', '.less']
+    );
+
+    // Copy bootstrap CSS from node_modules to assets/dependencies
+    copyRecursive(
+      path.resolve('node_modules/bootstrap/dist/css'),
+      path.resolve('assets/dependencies/bootstrap/dist/css'),
+      null
+    );
+
+    // Copy bootstrap JS from node_modules to assets/dependencies
+    copyRecursive(
+      path.resolve('node_modules/bootstrap/dist/js'),
+      path.resolve('assets/dependencies/bootstrap/dist/js'),
+      null
+    );
+
+    grunt.log.ok('Copied assets to .tmp/public/');
   });
 
-  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  // This Grunt plugin is part of the default asset pipeline in Sails,
-  // so it's already been automatically loaded for you at this point.
-  //
-  // Of course, you can always remove this Grunt plugin altogether by
-  // deleting this file.  But check this out: you can also use your
-  // _own_ custom version of this Grunt plugin.
-  //
-  // Here's how:
-  //
-  // 1. Install it as a local dependency of your Sails app:
-  //    ```
-  //    $ npm install grunt-contrib-copy --save-dev --save-exact
-  //    ```
-  //
-  //
-  // 2. Then uncomment the following code:
-  //
-  // ```
-  // // Load Grunt plugin from the node_modules/ folder.
-  // grunt.loadNpmTasks('grunt-contrib-copy');
-  // ```
-  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  grunt.registerTask('copy:build', 'Copy .tmp/public to www', function() {
+    var fs = require('fs');
+    var path = require('path');
+
+    function copyRecursive(src, dest) {
+      if (!fs.existsSync(src)) { return; }
+      var stats = fs.statSync(src);
+      if (stats.isDirectory()) {
+        fs.mkdirSync(dest, { recursive: true });
+        fs.readdirSync(src).forEach(function(child) {
+          copyRecursive(path.join(src, child), path.join(dest, child));
+        });
+      } else {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(src, dest);
+      }
+    }
+
+    copyRecursive(path.resolve('.tmp/public'), path.resolve('www'));
+    grunt.log.ok('Copied .tmp/public to www/');
+  });
 
 };

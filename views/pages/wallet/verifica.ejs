@@ -1,8 +1,21 @@
 
-<div id="verifica" v-cloak>
+<div id="verifica">
 
-    <% if (!isWalletInitialized) {
-    %>
+    <% if (networkError) { %>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="alert alert-warning" role="alert">
+                        <strong>Errore di connessione alla rete IOTA!</strong><br>
+                        <code><%= networkError %></code><br><br>
+                        Verificare che il nodo configurato sia raggiungibile:<br>
+                        <strong><%= iotaNetwork %></strong><br><br>
+                        <small>Controllare il file <code>config/private_iota_conf.js</code> e aggiornare <code>IOTA_NODE_URL</code> con un nodo attivo.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <% } else if (!isWalletInitialized) { %>
         <div class="container">
             <div class="row">
                 <div class="col-md-12">
@@ -13,14 +26,12 @@
                 </div>
             </div>
         </div>
-    <%
-    } else if (mnemonic) {
-    %>
+    <% } else if (mnemonic) { %>
         <div class="container">
             <div class="row">
                 <div class="col-md-12">
                     <div class="alert alert-success" role="alert">
-                        <strong>Complimenti!</strong> Il tuo wallet è stato inizializzato correttamente, <strong>Quì' sotto trovi la frase segreta, conservala con cura!</strong> Aggiungere inoltre dei fondi all'indirizzo: <br /><strong><%= mainAddress %></strong><br />
+                        <strong>Complimenti!</strong> Il tuo wallet e stato inizializzato correttamente, <strong>qui sotto trovi la frase segreta, conservala con cura!</strong> Aggiungere inoltre dei fondi all'indirizzo: <br /><strong><%= mainAddress %></strong><br />
                         Rete: <%= iotaNetwork %>
                     </div>
                 </div>
@@ -32,15 +43,12 @@
                 </div>
             </div>
         </div>
-    <%
-    } else {
-    %>
+    <% } else { %>
         <div class="container">
             <div class="row">
                 <div class="col-md-12">
-                    <!-- wallet inizializzato correttamente -->
                     <div class="alert alert-success" role="alert">
-                        Il tuo wallet è già stato inizializzato correttamente: <br />MainAddress: <strong><%= mainAddress %></strong><br />Balance: <strong><%= balance %></strong> </div>
+                        Il tuo wallet e gia stato inizializzato correttamente: <br />MainAddress: <strong><%= mainAddress %></strong><br />Balance: <strong><%= balance %></strong> </div>
                 </div>
             </div>
         </div>

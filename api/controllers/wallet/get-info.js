@@ -2,26 +2,26 @@ const iota = require('../../utility/iota');
 
 module.exports = {
 
+  friendlyName: 'Get wallet info',
 
-  friendlyName: 'Get wallet info info',
+  description: 'Restituisce le informazioni sullo stato del wallet IOTA.',
 
+  inputs: {},
 
-  description: '',
+  exits: {},
 
-
-  inputs: {
-
-  },
-
-
-  exits: {
-
-  },
-
-
-  fn: async function (inputs) {
-    return await iota.getStatusAndBalance();
+  fn: async function () {
+    try {
+      return await iota.getStatusAndBalance();
+    } catch (err) {
+      let msg = (err && err.error) ? err.error : (err && err.message) ? err.message : String(err);
+      return {
+        status: 'Errore connessione',
+        balance: '0',
+        address: null,
+        error: msg
+      };
+    }
   }
-
 
 };

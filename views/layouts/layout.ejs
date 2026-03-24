@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="/compiled/css/app-dark.css">
     <link rel="stylesheet" href="/compiled/css/iconly.css">
     <!--STYLES END-->
+    <style>[v-cloak] { display: none !important; }</style>
 
 </head>
 
@@ -167,18 +168,18 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/v1/wallet/get-info')
-      .then(response => response.text())
-      .then(text => {
-        let data = JSON.parse(text);
+      .then(response => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(data => {
         document.getElementById('walletStatus').innerHTML = data.status;
         document.getElementById('walletBalance').innerHTML = data.balance;
         document.getElementById('subTitle').innerHTML = data.address ?? ' ';
       })
       .catch(error => {
-        console.error('Errore durante il recupero delle informazioni:', error);
         document.getElementById('walletStatus').innerHTML = 'No rete';
       });
-
   });
 </script>
 </body>

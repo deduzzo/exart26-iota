@@ -242,15 +242,15 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 
 ---
 
-## Installazione
+## Guida all'Installazione e Avvio
 
 ### Prerequisiti
 
-- **Node.js** >= 17
-- **npm** >= 8
-- **MySQL** (per produzione) oppure nessun DB (sails-disk in sviluppo)
-- Un **wallet IOTA/Shimmer** con fondi per le transazioni
-- Un **wallet Arweave** con fondi per il backup (opzionale)
+| Requisito | Versione | Note |
+|:----------|:---------|:-----|
+| **Node.js** | >= 17 | Consigliato v20 LTS o v22 |
+| **npm** | >= 8 | Incluso con Node.js |
+| **MySQL** | >= 5.7 | Solo per produzione (in sviluppo usa sails-disk) |
 
 ### 1. Clonare il repository
 
@@ -265,37 +265,148 @@ cd exart-26-iota
 npm install
 ```
 
-### 3. Configurare IOTA/Shimmer
+> **Nota**: il pacchetto `@iota/sdk` include un modulo nativo precompilato. Se l'installazione fallisce con errori relativi a `prebuild-install`, provare:
+> ```bash
+> npm install --ignore-scripts
+> ```
+> In questo caso il modulo nativo potrebbe non essere disponibile e le funzionalità blockchain saranno limitate.
 
-Copiare il file di esempio e inserire le proprie chiavi:
+### 3. Configurare IOTA/Shimmer (obbligatorio)
+
+Questa configurazione e **necessaria** per avviare l'applicazione. Senza di essa il server non partira.
 
 ```bash
 cp config/sample_private_iota_conf.js config/private_iota_conf.js
 ```
 
-Editare `config/private_iota_conf.js`:
+Editare `config/private_iota_conf.js` con i propri parametri:
 
 ```javascript
+const { sep } = require('path');
+const { CoinType } = require('@iota/sdk');
+
 module.exports = {
-  COIN_TYPE: CoinType.Shimmer,           // o CoinType.IOTA
+  // Rete da utilizzare: CoinType.Shimmer (testnet/mainnet) o CoinType.IOTA
+  COIN_TYPE: CoinType.Shimmer,
+
+  // Chiavi RSA-2048 per la crittografia master dei dati
+  // Generare con: node -e "require('./api/utility/CryptHelper').RSAGenerateKeyPair().then(k => console.log(JSON.stringify(k, null, 2)))"
   MAIN_PRIVATE_KEY: 'YOUR_RSA_PRIVATE_KEY',
   MAIN_PUBLIC_KEY: 'YOUR_RSA_PUBLIC_KEY',
-  IOTA_STRONGHOLD_PASSWORD: 'una-password-sicura',
+
+  // Password per il vault Stronghold (protegge il wallet IOTA locale)
+  IOTA_STRONGHOLD_PASSWORD: 'una-password-sicura-e-lunga',
+
+  // Percorso del database wallet locale
+  IOTA_WALLET_DB_PATH: 'wallet-db',
+
+  // URL del nodo IOTA/Shimmer
+  // Testnet Shimmer: https://api.testnet.shimmer.network
+  // Mainnet Shimmer: https://api.shimmer.network
   IOTA_NODE_URL: 'https://api.testnet.shimmer.network',
+
+  // URL dell'explorer per visualizzare le transazioni
   IOTA_EXPLORER_URL: 'https://explorer.shimmer.network/testnet',
-  // ... altri parametri
+
+  // Percorso del file Stronghold (vault crittografico)
+  IOTA_STRONGHOLD_SNAPSHOT_PATH: 'wallet-db' + sep + 'vault.stronghold',
+
+  // Alias dell'account principale nel wallet
+  IOTA_MAIN_ACCOUNT_ALIAS: 'main-account',
+
+  // Valori delle transazioni (in unita base della rete)
+  TRANSACTION_VALUE: BigInt(100000),
+  ACCOUNT_BASE_BALANCE: BigInt(500000),
+  TRANSACTION_ZERO_VALUE: BigInt(0),
 };
 ```
 
-> Per generare la coppia di chiavi RSA, utilizzare: `await CryptHelper.RSAGenerateKeyPair()`
+#### Generare le chiavi RSA
 
-### 4. Configurare Arweave (opzionale)
+Le chiavi RSA master sono fondamentali: vengono usate per cifrare/decifrare tutte le chiavi private delle entita. Per generarle:
+
+```bash
+node -e "require('./api/utility/CryptHelper').RSAGenerateKeyPair().then(k => console.log(JSON.stringify(k, null, 2)))"
+```
+
+Copiare i valori `privateKey` e `publicKey` nei campi `MAIN_PRIVATE_KEY` e `MAIN_PUBLIC_KEY`.
+
+> **Importante**: conservare la chiave privata master in un luogo sicuro. Senza di essa non sara possibile decifrare i dati sulla blockchain.
+
+#### Reti disponibili
+
+| Rete | COIN_TYPE | Node URL | Explorer |
+|:-----|:----------|:---------|:---------|
+| Shimmer Testnet | `CoinType.Shimmer` | `https://api.testnet.shimmer.network` | `https://explorer.shimmer.network/testnet` |
+| Shimmer Mainnet | `CoinType.Shimmer` | `https://api.shimmer.network` | `https://explorer.shimmer.network/shimmer` |
+| IOTA Mainnet | `CoinType.IOTA` | `https://api.stardust-mainnet.iotaledger.net` | `https://explorer.iota.org/mainnet` |
+
+### 4. Configurare Arweave - Backup Permanente (opzionale)
+
+Arweave fornisce un layer di backup permanente e immutabile. Se configurato, ogni transazione IOTA viene automaticamente duplicata su Arweave. Se non configurato, il sistema funziona normalmente solo con IOTA.
 
 ```bash
 cp config/sample_private_arweave_conf.js config/private_arweave_conf.js
 ```
 
-Editare `config/private_arweave_conf.js` inserendo il proprio wallet JWK (scaricabile da [arweave.app](https://arweave.app/wallet)).
+Editare `config/private_arweave_conf.js`:
+
+```javascript
+module.exports = {
+  // Host del gateway Arweave
+  ARWEAVE_HOST: 'arweave.net',
+  ARWEAVE_PORT: 443,
+  ARWEAVE_PROTOCOL: 'https',
+
+  // Wallet JWK - copiare qui il contenuto del file JSON scaricato
+  ARWEAVE_WALLET_JWK: {
+    "kty": "RSA",
+    "n": "...",
+    "e": "...",
+    // ... contenuto completo del file JWK
+  },
+};
+```
+
+#### Come ottenere un wallet Arweave
+
+1. Andare su [arweave.app](https://arweave.app/wallet)
+2. Creare un nuovo wallet
+3. Scaricare il file JSON (JWK) - questo e il wallet
+4. Copiare l'**intero contenuto** del file JSON nel campo `ARWEAVE_WALLET_JWK`
+5. Finanziare il wallet con AR token (per testnet: [faucet.arweave.net](https://faucet.arweave.net/))
+
+#### Come funziona il backup Arweave
+
+```
+Operazione utente
+      |
+      v
+  Scrivi su IOTA (primario, bloccante)
+      |
+      +---> Backup su Arweave (non-bloccante, in parallelo)
+      |
+      v
+  Risposta all'utente
+```
+
+- Il backup e **non-bloccante**: se Arweave fallisce, l'operazione IOTA non viene interrotta
+- I dati su Arweave sono **permanenti**: una volta scritti, non possono essere cancellati
+- I dati sono **cifrati**: stesso payload crittografico usato per IOTA
+- I tag GraphQL permettono di cercare e recuperare i dati per tipo ed entita
+
+#### Recovery da Arweave
+
+In caso di perdita dei dati IOTA, e possibile recuperare tutto dal backup Arweave:
+
+```bash
+# Via API (richiede autenticazione admin)
+curl -X POST http://localhost:1337/api/v1/recover-from-arweave \
+  -H "Cookie: sails.sid=YOUR_SESSION" \
+  -H "X-CSRF-Token: YOUR_CSRF_TOKEN"
+```
+
+Oppure dalla dashboard dell'applicazione, nella sezione amministrazione.
 
 ### 5. Configurare il database (produzione)
 
@@ -308,22 +419,40 @@ default: {
 }
 ```
 
-> In sviluppo, il sistema usa `sails-disk` (nessuna configurazione necessaria).
+> In sviluppo, il sistema usa `sails-disk` (database su file, nessuna configurazione necessaria).
 
 ### 6. Avviare l'applicazione
 
 ```bash
-# Sviluppo
-sails lift
-
-# Oppure direttamente
+# Sviluppo (con auto-reload)
 node app.js
 
 # Produzione
 NODE_ENV=production node app.js
 ```
 
-L'applicazione sara disponibile su `http://localhost:1337`.
+L'applicazione sara disponibile su **http://localhost:1337**.
+
+#### Primo avvio
+
+Al primo avvio, il sistema:
+1. Inizializza il database locale (sails-disk o MySQL)
+2. Verifica la connessione al nodo IOTA/Shimmer
+3. Se il wallet e inizializzato, sincronizza il DB dalla blockchain
+4. Se Arweave e configurato, verifica la connessione al gateway
+5. Genera la documentazione Swagger su `/docs`
+
+> **Nota**: al primo avvio il wallet IOTA non sara ancora inizializzato. Accedere a `/wallet/verifica` dopo il login per inizializzare il wallet e creare l'account principale.
+
+### Risoluzione problemi
+
+| Problema | Soluzione |
+|:---------|:----------|
+| `Cannot find module '../../config/private_iota_conf'` | Copiare il sample: `cp config/sample_private_iota_conf.js config/private_iota_conf.js` |
+| `Cannot find module '../build/Release/index.node'` | Ricompilare: `npm rebuild @iota/sdk` (richiede build tools C++) |
+| Errore Grunt `Cannot convert a Symbol value to a string` | Warning non bloccante con Node.js >= 20, gli asset statici non vengono ricompilati automaticamente ma l'app funziona |
+| `migrate: 'safe'` al bootstrap | Normale in produzione. In sviluppo, cancellare `.tmp/bootstrap-version.json` per forzare il re-seed |
+| Arweave non funziona | Verificare che il wallet JWK sia completo e che abbia fondi sufficienti |
 
 ---
 

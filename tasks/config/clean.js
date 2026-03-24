@@ -1,52 +1,43 @@
 /**
  * `tasks/config/clean`
  *
- * ---------------------------------------------------------------
- *
- * Remove generated files and folders.
- *
- * For more information, see:
- *   https://sailsjs.com/anatomy/tasks/config/clean.js
+ * Custom implementation using Node.js fs.rmSync to avoid
+ * grunt-contrib-clean Symbol bug on Node.js >= 20
  *
  */
 module.exports = function(grunt) {
 
-  grunt.config.set('clean', {
-    dev: ['.tmp/public/**'],
-    build: ['www'],
-    afterBuildProd: [
-      'www/concat',
-      'www/min',
-      'www/hash',
-      'www/js',
-      'www/styles',
-      'www/templates',
-      'www/dependencies'
-    ]
+  grunt.registerTask('clean:dev', 'Clean .tmp/public directory', function() {
+    var fs = require('fs');
+    var path = require('path');
+    var dir = path.resolve('.tmp/public');
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    grunt.log.ok('Cleaned .tmp/public/');
   });
 
-  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  // This Grunt plugin is part of the default asset pipeline in Sails,
-  // so it's already been automatically loaded for you at this point.
-  //
-  // Of course, you can always remove this Grunt plugin altogether by
-  // deleting this file.  But check this out: you can also use your
-  // _own_ custom version of this Grunt plugin.
-  //
-  // Here's how:
-  //
-  // 1. Install it as a local dependency of your Sails app:
-  //    ```
-  //    $ npm install grunt-contrib-clean --save-dev --save-exact
-  //    ```
-  //
-  //
-  // 2. Then uncomment the following code:
-  //
-  // ```
-  // // Load Grunt plugin from the node_modules/ folder.
-  // grunt.loadNpmTasks('grunt-contrib-clean');
-  // ```
-  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  grunt.registerTask('clean:build', 'Clean www directory', function() {
+    var fs = require('fs');
+    var path = require('path');
+    var dir = path.resolve('www');
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    grunt.log.ok('Cleaned www/');
+  });
+
+  grunt.registerTask('clean:afterBuildProd', 'Clean prod build artifacts', function() {
+    var fs = require('fs');
+    var path = require('path');
+    ['www/concat','www/min','www/hash','www/js','www/styles','www/templates','www/dependencies'].forEach(function(d) {
+      var dir = path.resolve(d);
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+    grunt.log.ok('Cleaned prod build artifacts');
+  });
 
 };

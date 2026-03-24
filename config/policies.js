@@ -9,22 +9,13 @@
  */
 
 module.exports.policies = {
-  '*': 'is-logged-in',
+  // Tutte le rotte sono pubbliche (nessuna autenticazione richiesta)
+  '*': true,
 
-  // Public routes - no auth needed
-  'view-homepage-or-redirect': true,
-  'entrance/*': true,
-  'security/*': true,
+  // Wallet: tutte le rotte sono pubbliche (get-info gestisce gia il caso non inizializzato)
+  'wallet/*': true,
 
-  // Wallet routes need auth + wallet check
-  'wallet/*': ['is-logged-in', 'is-wallet-initialized'],
-
-  // API routes need auth
-  'add-organizzazione': 'is-logged-in',
-  'add-struttura': 'is-logged-in',
-  'add-lista': 'is-logged-in',
-  'add-assistito': 'is-logged-in',
-  'add-assistito-in-lista': 'is-logged-in',
-  'fetch-db-from-blockchain': ['is-logged-in', 'is-super-admin'],
-  'recover-from-arweave': ['is-logged-in', 'is-super-admin'],
+  // Admin routes: solo verifica wallet
+  'fetch-db-from-blockchain': 'is-wallet-initialized',
+  'recover-from-arweave': 'is-wallet-initialized',
 };

@@ -6,7 +6,14 @@ module.exports = async function (req, res, proceed) {
     return proceed();
   }
 
-  // redirect to wallet/verifica
-  return res.redirect('/wallet/verifica');
+  // Per le richieste API, restituire JSON
+  if (req.wantsJSON || req.path.startsWith('/api/')) {
+    return res.status(503).json({
+      status: 'WALLET non inizializzato',
+      message: 'Il wallet IOTA non e ancora inizializzato. Accedere a /wallet/verifica per configurarlo.'
+    });
+  }
 
+  // Per le pagine, redirect alla verifica wallet
+  return res.redirect('/wallet/verifica');
 };
