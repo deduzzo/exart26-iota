@@ -32,22 +32,13 @@ module.exports.http = {
      ***************************************************************************/
     swaggerUi: require('express').static('node_modules/swagger-ui-dist'),
 
-    apiRateLimit: rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minuti
-      max: 1000, // massimo 1000 richieste per IP per finestra (SPA fa molte chiamate)
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: 'Troppe richieste da questo IP, riprova tra 15 minuti.' },
-      skip: function (req) {
-        // Applica solo alle rotte API
-        return !req.path.startsWith('/api/');
-      },
-    }),
+    // Rate limiting disabilitato (SPA fa molte chiamate)
+    // apiRateLimit: rateLimit({ ... }),
 
     order: [
       'cookieParser',
       'session',
-      'apiRateLimit',
+      // 'apiRateLimit',
       'bodyParser',
       'compress',
       'poweredBy',
