@@ -444,6 +444,18 @@ async function requestFaucet() {
 
 // --- Exports ---
 
+/**
+ * Reset dello stato runtime (per reinizializzazione wallet).
+ */
+function _resetRuntime() {
+  _keypair = null;
+  _client = null;
+  _address = null;
+  _config = null;
+  // Forza il reload del config alla prossima chiamata
+  delete require.cache[require.resolve('../../config/private_iota_conf')];
+}
+
 module.exports = {
   setSocketId,
   stringToHex,
@@ -461,5 +473,6 @@ module.exports = {
   getClient,
   getKeypair,
   loadSdk,
+  _resetRuntime,
   ASSISTITO_ACCOUNT_PREFIX,
 };

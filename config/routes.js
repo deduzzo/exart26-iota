@@ -44,6 +44,7 @@ module.exports.routes = {
   'GET /csrfToken':                       { action: 'security/grant-csrf-token' },
   'GET /api/v1/wallet/get-info':          { action: 'wallet/get-info' },
   'POST /api/v1/wallet/init':             { action: 'wallet/init-wallet' },
+  'POST /api/v1/wallet/reset':            { action: 'wallet/reset-wallet' },
   'GET /api/v1/get-transaction':          { action: 'get-transaction' },
   'POST /api/v1/add-organizzazione':      { action: 'add-organizzazione' },
   'POST /api/v1/add-struttura':           { action: 'add-struttura' },
@@ -53,6 +54,8 @@ module.exports.routes = {
   'POST /api/v1/fetch-db-from-blockchain': { action: 'fetch-db-from-blockchain' },
   'POST /api/v1/add-assistito-in-lista':  { action: 'add-assistito-in-lista' },
   'POST /api/v1/recover-from-arweave':    { action: 'recover-from-arweave' },
+  'GET /api/v1/liste-dettaglio':          { action: 'api-liste-dettaglio' },
+  'POST /api/v1/rimuovi-assistito-da-lista': { action: 'rimuovi-assistito-da-lista' },
 
   // API JSON per frontend React
   'GET /api/v1/dashboard':                { action: 'api-dashboard' },

@@ -3,11 +3,12 @@ import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import {
   Wallet as WalletIcon, Shield, Database, RefreshCw, ExternalLink,
-  CheckCircle, AlertTriangle, Copy, Download, Upload, Zap
+  CheckCircle, AlertTriangle, Copy, Download, Upload, Zap, Trash2, Key
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Modal from '../components/Modal';
 import { useApi } from '../hooks/useApi';
-import { getWalletInfo, initWallet, fetchDbFromBlockchain, recoverFromArweave, getDashboardData } from '../api/endpoints';
+import { getWalletInfo, initWallet, resetWallet, fetchDbFromBlockchain, recoverFromArweave, getDashboardData } from '../api/endpoints';
 import { truncateAddress } from '../utils/formatters';
 
 export default function Wallet() {
@@ -18,6 +19,52 @@ export default function Wallet() {
   const [recovering, setRecovering] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Reset wallet state machine: null -> 'confirm1' -> 'confirm2' -> 'resetting' -> 'done'
+  const [resetStep, setResetStep] = useState(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
+  const [mnemonicCopied, setMnemonicCopied] = useState(false);
+
+  const handleResetStart = () => setResetStep('confirm1');
+
+  const handleResetConfirm1 = () => setResetStep('confirm2');
+
+  const handleResetConfirm2 = async () => {
+    setResetting(true);
+    setResetStep('resetting');
+    try {
+      const result = await resetWallet();
+      if (result.success) {
+        setResetResult(result);
+        setResetStep('done');
+        addToast('Wallet resettato e reinizializzato', 'success');
+      } else {
+        addToast(`Errore: ${result.error}`, 'error');
+        setResetStep(null);
+      }
+    } catch (err) {
+      addToast(`Errore: ${err.message}`, 'error');
+      setResetStep(null);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleResetClose = () => {
+    setResetStep(null);
+    setResetResult(null);
+    setMnemonicCopied(false);
+    reloadWallet();
+  };
+
+  const copyMnemonic = () => {
+    if (resetResult?.mnemonic) {
+      navigator.clipboard.writeText(resetResult.mnemonic);
+      setMnemonicCopied(true);
+      setTimeout(() => setMnemonicCopied(false), 2000);
+    }
+  };
 
   const isWalletOk = wallet?.status === 'WALLET OK';
   const arweaveEnabled = dashboard?.arweaveStatus?.enabled;
@@ -147,6 +194,18 @@ export default function Wallet() {
                   <ExternalLink size={14} /> Visualizza su IOTA Explorer
                 </a>
               )}
+
+              {/* Reset Wallet Button */}
+              <div className="pt-4 mt-4 border-t border-white/5">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleResetStart}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors"
+                >
+                  <Trash2 size={16} /> Distruggi e Reinizializza Wallet
+                </motion.button>
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">
@@ -290,6 +349,128 @@ export default function Wallet() {
           </div>
         </motion.div>
       </div>
+
+      {/* Reset Wallet Modal - Double Confirmation */}
+      <Modal
+        open={resetStep !== null}
+        onClose={resetStep === 'done' ? handleResetClose : () => setResetStep(null)}
+        title={resetStep === 'done' ? 'Nuovo Wallet Creato' : 'Distruggi Wallet'}
+      >
+        {resetStep === 'confirm1' && (
+          <div className="text-center">
+            <div className="inline-flex p-4 rounded-2xl bg-red-500/10 mb-4">
+              <Trash2 size={40} className="text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-red-400 mb-2">Sei sicuro?</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              Questa operazione distruggera il wallet corrente e tutti i dati locali.
+              Un nuovo wallet verra creato con un nuovo mnemonic e indirizzo.
+              <strong className="text-red-400"> I fondi sul wallet corrente andranno persi.</strong>
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setResetStep(null)}
+                className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 transition-colors"
+              >
+                Annulla
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleResetConfirm1}
+                className="px-5 py-2.5 rounded-xl bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30 transition-colors"
+              >
+                Si, continua
+              </motion.button>
+            </div>
+          </div>
+        )}
+
+        {resetStep === 'confirm2' && (
+          <div className="text-center">
+            <div className="inline-flex p-4 rounded-2xl bg-red-500/20 mb-4">
+              <AlertTriangle size={40} className="text-red-500 animate-pulse" />
+            </div>
+            <h3 className="text-lg font-bold text-red-500 mb-2">Ultima conferma!</h3>
+            <p className="text-slate-400 text-sm mb-2">
+              Stai per distruggere definitivamente:
+            </p>
+            <div className="glass-static rounded-xl p-3 mb-4 text-left text-sm space-y-1">
+              <p className="text-red-400">- Wallet corrente e mnemonic</p>
+              <p className="text-red-400">- Tutte le organizzazioni, strutture, liste locali</p>
+              <p className="text-red-400">- Tutti gli assistiti e le assegnazioni locali</p>
+              <p className="text-slate-500 text-xs mt-2">I dati sulla blockchain IOTA restano immutabili.</p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setResetStep(null)}
+                className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 transition-colors"
+              >
+                Annulla
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleResetConfirm2}
+                disabled={resetting}
+                className="px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {resetting ? <LoadingSpinner size={16} /> : <Trash2 size={16} />}
+                {resetting ? ' Resettando...' : ' DISTRUGGI E RICREA'}
+              </motion.button>
+            </div>
+          </div>
+        )}
+
+        {resetStep === 'resetting' && (
+          <div className="text-center py-8">
+            <LoadingSpinner size={40} />
+            <p className="text-slate-400 mt-4">Distruzione e reinizializzazione in corso...</p>
+          </div>
+        )}
+
+        {resetStep === 'done' && resetResult && (
+          <div>
+            <div className="text-center mb-6">
+              <div className="inline-flex p-4 rounded-2xl bg-neon-emerald/10 mb-4">
+                <CheckCircle size={40} className="text-neon-emerald" />
+              </div>
+              <h3 className="text-lg font-bold mb-1">Nuovo Wallet Creato</h3>
+              <p className="text-slate-400 text-sm">Indirizzo: <span className="font-mono text-neon-cyan text-xs">{resetResult.address}</span></p>
+            </div>
+
+            <div className="glass-static rounded-xl p-4 mb-4 border border-amber-500/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={16} className="text-amber-500" />
+                <p className="text-amber-500 text-xs font-semibold uppercase tracking-wider">Nuova Frase Segreta</p>
+              </div>
+              <p className="font-mono text-sm text-slate-200 leading-relaxed break-all">
+                {resetResult.mnemonic}
+              </p>
+              <button
+                onClick={copyMnemonic}
+                className="mt-3 flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                {mnemonicCopied ? <CheckCircle size={14} className="text-neon-emerald" /> : <Copy size={14} />}
+                {mnemonicCopied ? 'Copiata!' : 'Copia negli appunti'}
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-5 text-center">
+              Conserva questa frase in un luogo sicuro. Non verra piu mostrata.
+            </p>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleResetClose}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-cyan to-neon-purple text-white font-medium text-sm"
+            >
+              Ho salvato la frase, continua
+            </motion.button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

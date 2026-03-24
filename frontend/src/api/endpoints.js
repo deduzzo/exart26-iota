@@ -3,6 +3,7 @@ import { api } from './client';
 // Wallet
 export const getWalletInfo = () => api('/api/v1/wallet/get-info');
 export const initWallet = () => api('/api/v1/wallet/init', { method: 'POST' });
+export const resetWallet = () => api('/api/v1/wallet/reset', { method: 'POST' });
 
 // Dashboard data
 export const getDashboardData = () => api('/api/v1/dashboard');
@@ -37,6 +38,13 @@ export const addAssistitoInLista = (idAssistito, idLista) =>
 
 // Graph
 export const getGraphData = () => api('/api/v1/graph-data');
+
+// Liste dettaglio (assistiti in lista)
+export const getListeDettaglio = (idLista) => api(`/api/v1/liste-dettaglio?idLista=${idLista}`);
+
+// Rimozione assistito da lista
+export const rimuoviAssistitoDaLista = (idAssistitoListe, stato) =>
+  api('/api/v1/rimuovi-assistito-da-lista', { method: 'POST', body: { idAssistitoListe, stato } });
 
 // Admin
 export const fetchDbFromBlockchain = () =>
