@@ -26,6 +26,7 @@ module.exports = {
 
     anonId: {
       type: 'string',
+      required: true,
       unique: true,
       description: 'ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica.',
       maxLength: 8,
