@@ -34,7 +34,7 @@ const NODE_TYPES = {
   assistito: {
     color: '#f59e0b',
     glowColor: 'rgba(245, 158, 11, 0.6)',
-    size: 4,
+    size: 3,
     label: 'Assistito',
     icon: Users,
   },
@@ -107,7 +107,8 @@ function buildGraphData(data) {
 
   // Add assistiti from assistitiListe links
   if (assistitiListe) {
-    const assistitiMap = new Map();
+    // Raggruppa per assistito per ottenere tutte le liste in cui si trova
+    const assistitoListeMap = new Map(); // assId -> [{ lista, stato, dataOraIngresso }]
 
     for (const al of assistitiListe) {
       const assistito = al.assistito;
@@ -116,24 +117,36 @@ function buildGraphData(data) {
 
       const assId = typeof assistito === 'object' ? assistito.id : assistito;
       const listaId = typeof lista === 'object' ? lista.id : lista;
+      const listaNome = typeof lista === 'object' ? lista.denominazione : `Lista #${listaId}`;
       const nodeAssId = `ass-${assId}`;
       const nodeListaId = `lista-${listaId}`;
 
+      if (!assistitoListeMap.has(assId)) assistitoListeMap.set(assId, []);
+      assistitoListeMap.get(assId).push({
+        listaId, listaNome, stato: al.stato, dataOraIngresso: al.dataOraIngresso
+      });
+
       if (!nodeIds.has(nodeAssId) && typeof assistito === 'object') {
         nodeIds.add(nodeAssId);
-        assistitiMap.set(assId, assistito);
         nodes.push({
           id: nodeAssId,
           type: 'assistito',
           label: assistito.cognome
             ? `${assistito.cognome} ${assistito.nome || ''}`
             : `Assistito #${assId}`,
-          data: assistito,
+          data: { ...assistito, listeAssegnate: assistitoListeMap.get(assId) },
         });
       }
 
       if (nodeIds.has(nodeListaId) && nodeIds.has(nodeAssId)) {
         links.push({ source: nodeListaId, target: nodeAssId });
+      }
+    }
+
+    // Aggiorna i nodi assistiti gia creati con le liste assegnate
+    for (const node of nodes) {
+      if (node.type === 'assistito' && assistitoListeMap.has(node.data?.id)) {
+        node.data.listeAssegnate = assistitoListeMap.get(node.data.id);
       }
     }
   }
@@ -249,9 +262,9 @@ function HoverPanel({ node, position }) {
             <InfoRow
               label="Blockchain"
               value={
-                d.ultimaVersioneSuBlockchain
-                  ? <span className="text-neon-emerald text-xs">Sincronizzato</span>
-                  : <span className="text-amber-400 text-xs">Non sincronizzato</span>
+                d.ultimaVersioneSuBlockchain >= 0
+                  ? <span className="text-neon-emerald text-xs">v{d.ultimaVersioneSuBlockchain} (in sync)</span>
+                  : <span className="text-neon-cyan text-xs">In pubblicazione...</span>
               }
             />
 
@@ -264,6 +277,24 @@ function HoverPanel({ node, position }) {
               <>
                 {d.codiceFiscale && <InfoRow label="Codice Fiscale" value={d.codiceFiscale} mono />}
                 {d.email && <InfoRow label="Email" value={d.email} />}
+                {d.listeAssegnate && d.listeAssegnate.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-white/10">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Liste assegnate</p>
+                    {d.listeAssegnate.map((l, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] py-0.5">
+                        <span className="text-slate-300">{l.listaNome}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                          l.stato === 1 ? 'bg-neon-cyan/20 text-neon-cyan' :
+                          l.stato === 2 ? 'bg-amber-500/20 text-amber-500' :
+                          l.stato === 3 ? 'bg-neon-emerald/20 text-neon-emerald' :
+                          'bg-slate-500/20 text-slate-400'
+                        }`}>
+                          {l.stato === 1 ? 'In coda' : l.stato === 2 ? 'In assistenza' : l.stato === 3 ? 'Completato' : `Stato ${l.stato}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -482,6 +513,9 @@ export default function Grafo() {
   const nodeCanvasObject = useCallback((node, ctx, globalScale) => {
     const typeInfo = NODE_TYPES[node.type];
     if (!typeInfo) return;
+
+    // Guard: skip render if coordinates are not yet computed
+    if (!isFinite(node.x) || !isFinite(node.y)) return;
 
     const size = typeInfo.size;
     const isHovered = hoveredNode?.id === node.id;

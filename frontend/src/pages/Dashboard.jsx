@@ -17,11 +17,14 @@ const item = {
 };
 
 const operazioniColumns = [
-  { key: 'assistitoNome', label: 'Assistito', render: (_, row) => {
-    const nome = row.assistitoNome || (row.assistito ? `ID: ${row.assistito}` : '-');
-    return <span className="font-medium">{nome}</span>;
+  { key: 'assistito', label: 'Assistito', render: (v) => {
+    if (v && typeof v === 'object') return <span className="font-medium">{v.cognome} {v.nome}</span>;
+    return <span className="text-slate-500">ID: {v || '-'}</span>;
   }},
-  { key: 'listaNome', label: 'Lista', render: (_, row) => row.listaNome || '-' },
+  { key: 'lista', label: 'Lista', render: (v) => {
+    if (v && typeof v === 'object') return v.denominazione;
+    return <span className="text-slate-500">-</span>;
+  }},
   { key: 'stato', label: 'Stato', render: (v) => <StatusBadge status={v} /> },
   { key: 'dataOraIngresso', label: 'Data', render: (v) => v ? new Date(v).toLocaleDateString('it-IT') : '-' },
 ];
