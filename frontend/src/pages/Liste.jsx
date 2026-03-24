@@ -129,6 +129,26 @@ export default function Liste() {
                   {lista.aperta !== false ? 'Aperta' : 'Chiusa'}
                 </span>
               </div>
+              {/* Stats */}
+              {lista.stats && (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-neon-cyan">{lista.stats.inCoda}</p>
+                    <p className="text-[10px] text-slate-500 uppercase">In coda</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-neon-emerald">{lista.stats.usciti}</p>
+                    <p className="text-[10px] text-slate-500 uppercase">Usciti</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-slate-300">
+                      {lista.stats.tempoMedioGiorni !== null ? `${lista.stats.tempoMedioGiorni}g` : '-'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase">Media attesa</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span className="flex items-center gap-1"><Clock size={12} /> v{lista.ultimaVersioneSuBlockchain || 0}</span>
                 <span className="flex items-center gap-1 text-neon-cyan">Dettagli <ChevronRight size={12} /></span>
