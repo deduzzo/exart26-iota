@@ -382,33 +382,46 @@ function _decodeTransactionPayload(txDetail) {
  * Recupera tutte le transazioni exart26 dalla blockchain per il nostro indirizzo.
  * Filtra per tag e entityId.
  */
-async function _queryTransactionsFromChain(tag = null, entityId = null, limit = 50) {
+async function _queryTransactionsFromChain(tag = null, entityId = null, maxResults = 500) {
   try {
     const client = await getClient();
     const address = await getAddress();
 
-    const txBlocks = await client.queryTransactionBlocks({
-      filter: { FromAddress: address },
-      options: { showInput: true },
-      limit: limit,
-      order: 'descending',
-    });
-
     const results = [];
-    for (const tx of txBlocks.data) {
-      const decoded = _decodeTransactionPayload(tx);
-      if (!decoded) continue;
-      if (tag && decoded.tag !== tag) continue;
-      if (entityId !== null && entityId !== undefined && String(decoded.entityId) !== String(entityId)) continue;
-      results.push({
-        payload: decoded.data,
-        version: decoded.version,
-        timestamp: decoded.timestamp,
-        digest: tx.digest,
-        tag: decoded.tag,
-        entityId: decoded.entityId,
-      });
+    let cursor = null;
+    let hasMore = true;
+
+    // Paginazione: continua a chiedere finche ci sono risultati
+    while (hasMore && results.length < maxResults) {
+      const opts = {
+        filter: { FromAddress: address },
+        options: { showInput: true },
+        limit: 50,
+        order: 'descending',
+      };
+      if (cursor) opts.cursor = cursor;
+
+      const txBlocks = await client.queryTransactionBlocks(opts);
+
+      for (const tx of txBlocks.data) {
+        const decoded = _decodeTransactionPayload(tx);
+        if (!decoded) continue;
+        if (tag && decoded.tag !== tag) continue;
+        if (entityId !== null && entityId !== undefined && String(decoded.entityId) !== String(entityId)) continue;
+        results.push({
+          payload: decoded.data,
+          version: decoded.version,
+          timestamp: decoded.timestamp,
+          digest: tx.digest,
+          tag: decoded.tag,
+          entityId: decoded.entityId,
+        });
+      }
+
+      hasMore = txBlocks.hasNextPage;
+      cursor = txBlocks.nextCursor;
     }
+
     return results;
   } catch (e) {
     console.error('[iota] _queryTransactionsFromChain error:', e.message);
