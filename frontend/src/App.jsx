@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import Organizzazioni from './pages/Organizzazioni';
 
 // Placeholder pages
 const Placeholder = ({ title }) => (
@@ -16,7 +17,7 @@ function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
-          <Route path="organizzazioni" element={<Placeholder title="Organizzazioni" />} />
+          <Route path="organizzazioni" element={<Organizzazioni />} />
           <Route path="strutture" element={<Placeholder title="Strutture" />} />
           <Route path="assistiti" element={<Placeholder title="Assistiti" />} />
           <Route path="wallet" element={<Placeholder title="Wallet" />} />
