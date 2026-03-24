@@ -233,75 +233,123 @@ async function main() {
     log('👤', `Assistiti OK (${assIds.length}/${NUM_ASS})`);
   }
 
-  // === FASE 5+6: Ciclo continuo ingresso/uscita (tasso negativo: entrano piu di quanti escono) ===
-  if (listaIds.length > 0 && assIds.length > 0) {
-    // Ogni assistito entra in 1-3 liste
-    log('🔄', `\nFASE 5: Ciclo ingresso/uscita (tasso di crescita ~70% ingressi, ~30% uscite)...`);
+  // === FASE 5: LOOP INFINITO - simulazione continua ===
+  // Il sistema non si ferma mai:
+  // - Ogni ciclo: crea nuovi assistiti, li inserisce in liste, chiama uscite
+  // - Ogni 10 cicli: aggiunge nuove strutture/liste proporzionalmente
+  // - Tasso crescita: ~70% ingressi, ~30% uscite → le code crescono sempre
+  // - CTRL+C per fermare
 
-    let totIngressi = 0, totUscite = 0;
-    const BATCH = 10; // ogni batch: ingressi + qualche uscita
-    const NUM_CICLI = Math.ceil(NUM_ASS / BATCH);
+  log('🔄', '\n═══ FASE 5: SIMULAZIONE CONTINUA (CTRL+C per fermare) ═══');
+  log('🔄', 'Ogni ciclo: 3 nuovi assistiti, ingressi in liste, ~30% uscite');
+  log('🔄', 'Ogni 10 cicli: nuova struttura + 2 liste\n');
 
-    for (let ciclo = 0; ciclo < NUM_CICLI; ciclo++) {
-      if (assIds.length === 0 || listaIds.length === 0) break;
+  let ciclo = 0;
+  let totIngressi = 0, totUscite = 0, totNuoviAss = 0, totNuoviStr = 0, totNuoveListe = 0;
+  const cfSet = new Set(existingAss.map(a => a.codiceFiscale));
+  const STATI_USCITA = [2, 3, 3, 5]; // 25% assistenza, 50% completato, 25% rinuncia
 
-      // -- INGRESSI: 7-10 assistiti entrano in liste --
-      const numIngressi = Math.min(BATCH, assIds.length - totIngressi);
-      const startIdx = ciclo * BATCH;
-      for (let i = 0; i < numIngressi; i++) {
-        const assIdx = startIdx + i;
-        if (assIdx >= assIds.length) break;
-        const assId = assIds[assIdx];
-        // Ogni assistito entra in 1-2 liste
-        const numListe = Math.floor(Math.random() * 2) + 1;
-        for (let l = 0; l < numListe; l++) {
-          const listaId = pick(listaIds);
-          try {
-            await postJSON('/api/v1/add-assistito-in-lista', { idAssistito: assId, idLista: listaId });
-            totIngressi++;
-            log('➡️', `  IN  Ass #${assId} → Lista #${listaId} (tot ingressi: ${totIngressi})`);
-          } catch (e) { /* duplicato o errore, skip */ }
-          await sleep(150);
-        }
-      }
+  while (true) {
+    ciclo++;
 
-      // -- USCITE: ~30% del batch (3 uscite ogni 10 ingressi) --
-      const numUscite = Math.max(1, Math.floor(numIngressi * 0.3));
-      for (let u = 0; u < numUscite; u++) {
-        // Scegli una lista random e chiama il primo in coda
-        const listaId = pick(listaIds);
-        try {
-          const det = await fetchJSON(`/api/v1/liste-dettaglio?idLista=${listaId}`);
-          if (det.coda && det.coda.length > 0) {
-            const primo = det.coda[0];
-            const stati = [2, 3, 3, 5]; // 25% in assistenza, 50% completato, 25% rinuncia
-            await postJSON('/api/v1/rimuovi-assistito-da-lista', {
-              idAssistitoListe: primo.id,
-              stato: pick(stati),
-            });
-            totUscite++;
-            const nome = primo.assistito ? `${primo.assistito.cognome} ${primo.assistito.nome}` : `?`;
-            log('⬅️', `  OUT ${nome} da Lista #${listaId} (tot uscite: ${totUscite})`);
+    // --- Ogni 10 cicli: crescita infrastruttura ---
+    if (ciclo % 10 === 0 && orgIds.length > 0) {
+      const orgId = pick(orgIds);
+      const strNome = `${pick(TIPI_STR)} ${pick(COGNOMI)} ${strIds.length + 1}`;
+      try {
+        const res = await postJSON('/api/v1/add-struttura', {
+          denominazione: strNome,
+          indirizzo: `Via ${pick(COGNOMI)} ${Math.floor(Math.random()*100)+1}, ${pick(CITTA)}`,
+          organizzazione: orgId,
+        });
+        if (res.struttura?.id) {
+          strIds.push(res.struttura.id);
+          totNuoviStr++;
+          log('🏥', `  NUOVA Str #${res.struttura.id}: ${strNome}`);
+
+          // 2 liste per la nuova struttura
+          for (let k = 0; k < 2; k++) {
+            const cat = pick(CATEGORIE);
+            try {
+              const lRes = await postJSON('/api/v1/add-lista', {
+                denominazione: `Lista ${cat.replace(/_/g,' ')} ${listaIds.length + 1}`,
+                tag: cat, struttura: res.struttura.id,
+              });
+              if (lRes.lista?.id) { listaIds.push(lRes.lista.id); totNuoveListe++; }
+            } catch(e) {}
+            await sleep(300);
           }
-        } catch (e) { /* nessuno in coda */ }
-        await sleep(200);
-      }
-
-      // Riepilogo ciclo
-      const tasso = totIngressi > 0 ? Math.round((1 - totUscite / totIngressi) * 100) : 0;
-      log('📊', `  Ciclo ${ciclo+1}/${NUM_CICLI}: ${totIngressi} ingressi, ${totUscite} uscite, coda netta +${totIngressi - totUscite} (tasso crescita: ${tasso}%)`);
+        }
+      } catch(e) { log('⚠️', `  Str: ${e.message.substring(0,40)}`); }
     }
 
-    log('📊', `\nRiepilogo flusso: ${totIngressi} ingressi totali, ${totUscite} uscite totali, coda netta: +${totIngressi - totUscite}`);
-  }
+    // --- Crea 3 nuovi assistiti ---
+    for (let n = 0; n < 3; n++) {
+      let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
+      const isMale = Math.random() > 0.5;
+      const nome = pick(isMale ? NOMI_M : NOMI_F);
+      const cognome = pick(COGNOMI);
+      try {
+        const res = await postJSON('/api/v1/add-assistito', {
+          nome, cognome, codiceFiscale: cf,
+          email: `${nome.toLowerCase()}.${cognome.toLowerCase()}${assIds.length}@test.it`,
+        });
+        if (res.assistito?.id) {
+          assIds.push(res.assistito.id);
+          totNuoviAss++;
+          // Inserisci subito in 1-2 liste
+          const numListe = Math.floor(Math.random() * 2) + 1;
+          for (let l = 0; l < numListe; l++) {
+            if (listaIds.length === 0) break;
+            try {
+              await postJSON('/api/v1/add-assistito-in-lista', { idAssistito: res.assistito.id, idLista: pick(listaIds) });
+              totIngressi++;
+            } catch(e) {}
+            await sleep(100);
+          }
+        }
+      } catch(e) {}
+      await sleep(200);
+    }
 
-  // === RIEPILOGO ===
-  console.log('\n' + '─'.repeat(60));
-  log('✅', `SIMULAZIONE COMPLETATA!`);
-  log('📊', `Creati: ${orgIds.length} org, ${strIds.length} str, ${listaIds.length} liste, ${assIds.length} assistiti`);
-  console.log('\n👉 Apri http://localhost:5173 per vedere i dati nel frontend');
-  console.log('👉 Apri http://localhost:5173/pubblico per la vista pubblica');
-  console.log('👉 Apri http://localhost:5173/grafo per il grafo interattivo\n');
+    // --- Inserisci assistiti esistenti random in liste ---
+    const numExtraIngressi = Math.floor(Math.random() * 4) + 2; // 2-5 ingressi extra
+    for (let i = 0; i < numExtraIngressi; i++) {
+      if (assIds.length === 0 || listaIds.length === 0) break;
+      try {
+        await postJSON('/api/v1/add-assistito-in-lista', { idAssistito: pick(assIds), idLista: pick(listaIds) });
+        totIngressi++;
+      } catch(e) {}
+      await sleep(100);
+    }
+
+    // --- Uscite: ~30% degli ingressi del ciclo ---
+    const numUscite = Math.max(1, Math.floor((3 + numExtraIngressi) * 0.3));
+    for (let u = 0; u < numUscite; u++) {
+      if (listaIds.length === 0) break;
+      const listaId = pick(listaIds);
+      try {
+        const det = await fetchJSON(`/api/v1/liste-dettaglio?idLista=${listaId}`);
+        if (det.coda && det.coda.length > 0) {
+          const primo = det.coda[0];
+          await postJSON('/api/v1/rimuovi-assistito-da-lista', {
+            idAssistitoListe: primo.id,
+            stato: pick(STATI_USCITA),
+          });
+          totUscite++;
+          const nome = primo.assistito ? `${primo.assistito.cognome} ${primo.assistito.nome}` : '?';
+          log('⬅️', `  OUT ${nome} da Lista #${listaId}`);
+        }
+      } catch(e) {}
+      await sleep(200);
+    }
+
+    // --- Riepilogo ---
+    const tasso = totIngressi > 0 ? Math.round((1 - totUscite / totIngressi) * 100) : 0;
+    log('📊', `Ciclo #${ciclo} | +${totNuoviAss} ass, ${totIngressi} IN, ${totUscite} OUT, netto +${totIngressi - totUscite} | ${orgIds.length} org, ${strIds.length} str, ${listaIds.length} liste, ${assIds.length} ass | crescita ${tasso}%`);
+
+    await sleep(500);
+  }
 }
 
 main().catch(e => { console.error('Fatal:', e); process.exit(1); });
