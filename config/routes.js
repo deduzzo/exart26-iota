@@ -138,6 +138,20 @@ module.exports.routes = {
 
     res.send(data);
     });
+  },
+
+  // SPA catch-all: serve index.html per le rotte frontend React
+  // Deve essere l'ultima rotta
+  'GET /app/*': {
+    skipAssets: true,
+    fn: (req, res) => {
+      const filePath = require('path').resolve(sails.config.appPath, '.tmp/public/index.html');
+      const fs = require('fs');
+      if (fs.existsSync(filePath)) {
+        return res.sendFile(filePath);
+      }
+      return res.notFound();
+    }
   }
 
 };
