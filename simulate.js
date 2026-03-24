@@ -109,11 +109,19 @@ async function main() {
   const listaIds = [];
   const assIds = [];
 
+  // Parametro: numero assistiti (da argv o default 100)
+  const TARGET_ASS = parseInt(process.argv[2]) || 100;
+
   // Proporzioni: 5% org, 10% strutture, 20% liste, 65% assistiti
-  const NUM_ORG = 5;
-  const STR_PER_ORG = 2;   // = 10 strutture totali
-  const LISTE_PER_STR = 2; // = 20 liste totali
-  const NUM_ASS = 65;
+  const NUM_ASS = Math.round(TARGET_ASS * 0.65);
+  const TOT_LISTE = Math.max(2, Math.round(TARGET_ASS * 0.20));
+  const TOT_STR = Math.max(1, Math.round(TARGET_ASS * 0.10));
+  const NUM_ORG = Math.max(1, Math.round(TARGET_ASS * 0.05));
+  const STR_PER_ORG = Math.max(1, Math.round(TOT_STR / NUM_ORG));
+  const LISTE_PER_STR = Math.max(1, Math.round(TOT_LISTE / TOT_STR));
+
+  log('📊', `Target: ${TARGET_ASS} entita totali`);
+  log('📊', `  ${NUM_ORG} org × ${STR_PER_ORG} str × ${LISTE_PER_STR} liste = ${NUM_ORG * STR_PER_ORG * LISTE_PER_STR} liste, ${NUM_ASS} assistiti`);
 
   // === FASE 1: Organizzazioni ===
   log('🏢', `FASE 1: Creazione ${NUM_ORG} organizzazioni...`);
