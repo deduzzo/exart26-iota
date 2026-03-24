@@ -52,5 +52,8 @@ export const fetchDbFromBlockchain = () =>
 export const recoverFromArweave = () =>
   api('/api/v1/recover-from-arweave', { method: 'POST' });
 
+// Pubblico
+export const getPublicListe = () => api('/api/v1/public/liste');
+
 // Debug
 export const getDebugData = () => api('/api/v1/debug');

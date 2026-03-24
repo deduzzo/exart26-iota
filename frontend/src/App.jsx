@@ -8,6 +8,7 @@ import Liste from './pages/Liste';
 import Wallet from './pages/Wallet';
 import Grafo from './pages/Grafo';
 import Debug from './pages/Debug';
+import Pubblico from './pages/Pubblico';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="wallet" element={<Wallet />} />
           <Route path="grafo" element={<Grafo />} />
           <Route path="debug" element={<Debug />} />
+          <Route path="pubblico" element={<Pubblico />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

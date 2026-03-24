@@ -57,6 +57,9 @@ module.exports.routes = {
   'GET /api/v1/liste-dettaglio':          { action: 'api-liste-dettaglio' },
   'POST /api/v1/rimuovi-assistito-da-lista': { action: 'rimuovi-assistito-da-lista' },
 
+  // API pubblica (senza autenticazione)
+  'GET /api/v1/public/liste':             { action: 'api-public' },
+
   // API JSON per frontend React
   'GET /api/v1/dashboard':                { action: 'api-dashboard' },
   'GET /api/v1/organizzazioni/:id?':      { action: 'api-organizzazioni' },
