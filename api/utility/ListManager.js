@@ -100,6 +100,19 @@ class ListManager {
         sails.log.info(`[ListManager] Discovery: trovate ${entityIndex.entities.length} entita`);
       }
 
+      // Se l'indice non contiene assistiti, fai discovery dalla chain
+      const hasAss = entityIndex.entities.some(e => e.type === 'ASS');
+      if (!hasAss) {
+        sails.log.info('[ListManager] Indice senza assistiti, discovery ASSISTITI_DATA dalla chain...');
+        const assRecords = await iota.getAllDataByTag(ASSISTITI_DATA);
+        for (const r of assRecords) {
+          entityIndex.entities.push({ type: 'ASS', entityId: r.entityId, digest: r.digest });
+        }
+        if (assRecords.length > 0) {
+          sails.log.info(`[ListManager] Discovery: trovati ${assRecords.length} assistiti sulla chain`);
+        }
+      }
+
       // Deduplicazione per entityId (tieni solo l'ultimo per tipo+entityId)
       const seen = new Set();
       const uniqueEntities = [];

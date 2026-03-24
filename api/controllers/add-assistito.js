@@ -62,6 +62,7 @@ module.exports = {
     sails.log.info(`[add-assistito] Blockchain: ASS_DATA=${res1.success}`);
     const res2 = await manager.updatePrivateKey(walletId, keyPairAss.privateKey);
     sails.log.info(`[add-assistito] Blockchain: PK=${res2.success}`);
+    // MAIN_DATA non aggiornato per velocita - gli assistiti vengono trovati via discovery
 
     return exits.success({
       assistito: {...assistito, privateKey: undefined},
