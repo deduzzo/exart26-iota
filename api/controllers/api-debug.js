@@ -69,12 +69,6 @@ module.exports = {
               }
             }
 
-            return {
-              digest: tx.digest,
-              tag: tx.tag,
-              entityId: tx.entityId,
-              version: tx.version,
-              timestamp: tx.timestamp,
             txResults.push({
               digest: tx.digest,
               tag: tx.tag,
