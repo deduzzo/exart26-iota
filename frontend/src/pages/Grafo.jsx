@@ -69,7 +69,9 @@ function buildGraphData(data) {
   if (strutture) {
     for (const str of strutture) {
       const strId = `str-${str.id}`;
-      const orgId = `org-${typeof str.organizzazione === 'object' ? str.organizzazione.id : str.organizzazione}`;
+      const orgRef = str.organizzazione;
+      if (!orgRef) continue;
+      const orgId = `org-${typeof orgRef === 'object' ? orgRef.id : orgRef}`;
 
       if (!nodeIds.has(strId)) {
         nodeIds.add(strId);
