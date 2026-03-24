@@ -68,10 +68,10 @@ function buildGraphData(data) {
   // Add strutture + liste nodes and links
   if (strutture) {
     for (const str of strutture) {
+      if (!str || !str.id) continue;
       const strId = `str-${str.id}`;
       const orgRef = str.organizzazione;
-      if (!orgRef) continue;
-      const orgId = `org-${typeof orgRef === 'object' ? orgRef.id : orgRef}`;
+      const orgId = orgRef ? `org-${typeof orgRef === 'object' ? orgRef.id : orgRef}` : null;
 
       if (!nodeIds.has(strId)) {
         nodeIds.add(strId);
@@ -84,13 +84,14 @@ function buildGraphData(data) {
       }
 
       // Link struttura -> organizzazione
-      if (nodeIds.has(orgId)) {
+      if (orgId && nodeIds.has(orgId)) {
         links.push({ source: orgId, target: strId });
       }
 
       // Add liste
       if (str.liste) {
         for (const lista of str.liste) {
+          if (!lista || !lista.id) continue;
           const listaId = `lista-${lista.id}`;
           if (!nodeIds.has(listaId)) {
             nodeIds.add(listaId);
