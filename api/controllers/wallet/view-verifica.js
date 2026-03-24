@@ -2,8 +2,6 @@ const pageTitle = 'Wallet Info';
 const pageSubTitle = 'Verifica stato del wallet';
 
 let iota = require('../../utility/iota');
-const {IOTA_NODE_URL} = require('../../../config/private_iota_conf');
-const ListManager = require('../../utility/ListManager');
 
 module.exports = {
 
@@ -36,16 +34,23 @@ module.exports = {
     let balance = null;
     let isWalletInitialized = await iota.isWalletInitialized();
     if (initWallet && !isWalletInitialized) {
-      let res = await iota.getOrInitWallet(false);
-      mainAddress = await iota.getFirstAddressOfAnAccount(res.mainAccount);
+      let res = await iota.getOrInitWallet();
+      mainAddress = res.address;
       isWalletInitialized = res.init;
       initWallet = false;
       mnemonic = res.mnemonic;
     }
     else if (isWalletInitialized) {
-      let mainAccount = await iota.getMainAccount();
-      mainAddress = await iota.getFirstAddressOfAnAccount(mainAccount);
-      balance = await iota.getAccountBalance(mainAccount);
+      let statusInfo = await iota.getStatusAndBalance();
+      mainAddress = statusInfo.address;
+      balance = statusInfo.balance;
+    }
+
+    let iotaNetwork = 'testnet';
+    try {
+      iotaNetwork = require('../../../config/private_iota_conf').IOTA_NETWORK || 'testnet';
+    } catch (e) {
+      // Config non presente
     }
     return {
       pageTitle,
@@ -54,8 +59,8 @@ module.exports = {
       initWallet,
       mainAddress,
       mnemonic,
-      iotaNetwork: IOTA_NODE_URL,
-      balance: iota.showBalanceFormatted(balance ? balance.baseCoin.available : BigInt(0))
+      iotaNetwork: iotaNetwork,
+      balance: balance || iota.showBalanceFormatted(0)
     };
   }
 

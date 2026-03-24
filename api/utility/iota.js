@@ -48,6 +48,9 @@ const GET_MAIN_KEYS = () => {
 // Tag prefix per identificare le nostre transazioni
 const APP_TAG = 'exart26';
 
+// Prefisso entityId per assistiti (compatibilita con Assistito.getWalletIdAssistito)
+const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
+
 /**
  * Carica i moduli ESM dell'SDK via dynamic import (una sola volta)
  */
@@ -400,4 +403,5 @@ module.exports = {
   getClient,
   getKeypair,
   loadSdk,
+  ASSISTITO_ACCOUNT_PREFIX,
 };
