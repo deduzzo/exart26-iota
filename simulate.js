@@ -109,9 +109,15 @@ async function main() {
   const listaIds = [];
   const assIds = [];
 
+  // Proporzioni: 5% org, 10% strutture, 20% liste, 65% assistiti
+  const NUM_ORG = 5;
+  const STR_PER_ORG = 2;   // = 10 strutture totali
+  const LISTE_PER_STR = 2; // = 20 liste totali
+  const NUM_ASS = 65;
+
   // === FASE 1: Organizzazioni ===
-  log('🏢', 'FASE 1: Creazione organizzazioni...');
-  for (let i = 0; i < 3; i++) {
+  log('🏢', `FASE 1: Creazione ${NUM_ORG} organizzazioni...`);
+  for (let i = 0; i < NUM_ORG; i++) {
     const nome = `ASL ${pick(CITTA)} ${i + 1}`;
     try {
       const res = await postJSON('/api/v1/add-organizzazione', { denominazione: nome });
@@ -123,9 +129,9 @@ async function main() {
   }
 
   // === FASE 2: Strutture ===
-  log('🏥', `\nFASE 2: Creazione strutture (${orgIds.length * 3} totali)...`);
+  log('🏥', `\nFASE 2: Creazione strutture (${orgIds.length * STR_PER_ORG} totali)...`);
   for (const orgId of orgIds) {
-    for (let j = 0; j < 3; j++) {
+    for (let j = 0; j < STR_PER_ORG; j++) {
       const nome = `${pick(TIPI_STR)} ${pick(COGNOMI)} ${j + 1}`;
       try {
         const res = await postJSON('/api/v1/add-struttura', {
@@ -141,9 +147,9 @@ async function main() {
   }
 
   // === FASE 3: Liste ===
-  log('📋', `\nFASE 3: Creazione liste (${strIds.length * 2} totali)...`);
+  log('📋', `\nFASE 3: Creazione liste (${strIds.length * LISTE_PER_STR} totali)...`);
   for (const strId of strIds) {
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < LISTE_PER_STR; k++) {
       const cat = pick(CATEGORIE);
       try {
         const res = await postJSON('/api/v1/add-lista', {
@@ -159,10 +165,9 @@ async function main() {
   }
 
   // === FASE 4: Assistiti ===
-  const numAss = 20;
-  log('👤', `\nFASE 4: Creazione ${numAss} assistiti...`);
+  log('👤', `\nFASE 4: Creazione ${NUM_ASS} assistiti...`);
   const cfSet = new Set();
-  for (let a = 0; a < numAss; a++) {
+  for (let a = 0; a < NUM_ASS; a++) {
     let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
     const isMale = Math.random() > 0.5;
     const nome = pick(isMale ? NOMI_M : NOMI_F);
