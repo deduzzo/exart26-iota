@@ -241,7 +241,7 @@ async function getStatusAndBalance() {
 // Il primo split ha amount = 1 (marker), il secondo = lunghezza payload.
 // I successivi contengono i chunks del payload codificati.
 
-const CHUNK_DATA_SIZE = 7;
+const CHUNK_DATA_SIZE = 6; // 6 bytes dati + 2 bytes indice = 8 bytes = 1 u64
 
 function _encodePayloadToChunks(payloadStr) {
   const payloadBytes = Buffer.from(payloadStr);
@@ -249,8 +249,11 @@ function _encodePayloadToChunks(payloadStr) {
   for (let i = 0; i < payloadBytes.length; i += CHUNK_DATA_SIZE) {
     const chunk = payloadBytes.subarray(i, i + CHUNK_DATA_SIZE);
     const buf = Buffer.alloc(8, 0);
-    buf[0] = Math.floor(i / CHUNK_DATA_SIZE); // chunk index
-    chunk.copy(buf, 1);
+    // 2 bytes per indice (Big Endian) - supporta fino a 65535 chunks (~393KB)
+    const chunkIdx = Math.floor(i / CHUNK_DATA_SIZE);
+    buf[0] = (chunkIdx >> 8) & 0xFF;
+    buf[1] = chunkIdx & 0xFF;
+    chunk.copy(buf, 2);
     chunks.push(BigInt('0x' + buf.toString('hex')));
   }
   return { chunks, length: payloadBytes.length };
@@ -261,8 +264,9 @@ function _decodeChunksToPayload(u64Values, payloadLength) {
     const hex = BigInt(val).toString(16).padStart(16, '0');
     return Buffer.from(hex, 'hex');
   });
-  buffers.sort((a, b) => a[0] - b[0]);
-  const combined = Buffer.concat(buffers.map(b => b.subarray(1)));
+  // New format: 2-byte index (Big Endian) + 6 bytes data
+  buffers.sort((a, b) => ((a[0] << 8) | a[1]) - ((b[0] << 8) | b[1]));
+  const combined = Buffer.concat(buffers.map(b => b.subarray(2)));
   return combined.subarray(0, payloadLength).toString();
 }
 

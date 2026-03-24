@@ -6,7 +6,7 @@ const ListManager = require('../utility/ListManager');
 module.exports = {
   friendlyName: 'Add organizzazione',
 
-  description: 'Aggiunge una nuova organizzazione al database',
+  description: 'Aggiunge una nuova organizzazione al database e pubblica su blockchain.',
 
   inputs: {
     denominazione: {
@@ -37,31 +37,31 @@ module.exports = {
         ultimaVersioneSuBlockchain: -1
       }).fetch();
 
-      // Blockchain publish in background (non-bloccante)
+      // Pubblica tutto su blockchain (sincrono - attende completamento)
+      // Le 3 pubblicazioni vanno in parallelo per velocizzare
       const manager = new ListManager();
       const orgId = nuovaOrganizzazione.id;
-      setImmediate(async () => {
-        try {
-          const res1 = await manager.updateDatiOrganizzazioneToBlockchain(orgId);
-          if (res1.success) sails.log.info('Blockchain: ORGANIZZAZIONE_DATA OK');
-          else sails.log.warn('Blockchain: ORGANIZZAZIONE_DATA failed', res1.error);
+      const walletId = await Organizzazione.getWalletIdOrganizzazione({id: orgId});
 
-          const walletId = await Organizzazione.getWalletIdOrganizzazione({id: orgId});
-          const res2 = await manager.updatePrivateKey(walletId, keyPairOrg.privateKey);
-          if (res2.success) sails.log.info('Blockchain: PRIVATE_KEY OK');
-          else sails.log.warn('Blockchain: PRIVATE_KEY failed', res2.error);
+      sails.log.info(`[add-organizzazione] Pubblicazione blockchain per org #${orgId}...`);
 
-          const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-          if (res3.success) sails.log.info('Blockchain: MAIN_DATA OK');
-          else sails.log.warn('Blockchain: MAIN_DATA failed', res3.error);
-        } catch (err) {
-          sails.log.warn('Blockchain publish error (organizzazione):', err.message || err);
-        }
-      });
+      // Pubblicazioni SEQUENZIALI (IOTA non permette tx parallele dallo stesso wallet)
+      const res1 = await manager.updateDatiOrganizzazioneToBlockchain(orgId);
+      sails.log.info(`[add-organizzazione] Blockchain: ORG_DATA=${res1.success}`);
+
+      const res2 = await manager.updatePrivateKey(walletId, keyPairOrg.privateKey);
+      sails.log.info(`[add-organizzazione] Blockchain: PRIVATE_KEY=${res2.success}`);
+
+      const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
+      sails.log.info(`[add-organizzazione] Blockchain: MAIN_DATA=${res3.success}`);
 
       return exits.success({
         organizzazione: {...nuovaOrganizzazione, privateKey: undefined},
-        blockchainStatus: 'publishing',
+        blockchain: {
+          orgData: res1.success,
+          privateKey: res2.success,
+          mainData: res3.success,
+        },
         error: null
       });
     } catch (err) {
