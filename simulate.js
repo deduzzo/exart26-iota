@@ -104,43 +104,75 @@ async function main() {
     process.exit(1);
   }
 
-  const orgIds = [];
-  const strIds = [];
-  const listaIds = [];
-  const assIds = [];
-
-  // Parametro: numero assistiti (da argv o default 100)
-  const TARGET_ASS = parseInt(process.argv[2]) || 100;
+  // Parametro: numero target (da argv o default 100)
+  const TARGET = parseInt(process.argv[2]) || 100;
 
   // Proporzioni: 5% org, 10% strutture, 20% liste, 65% assistiti
-  const NUM_ASS = Math.round(TARGET_ASS * 0.65);
-  const TOT_LISTE = Math.max(2, Math.round(TARGET_ASS * 0.20));
-  const TOT_STR = Math.max(1, Math.round(TARGET_ASS * 0.10));
-  const NUM_ORG = Math.max(1, Math.round(TARGET_ASS * 0.05));
+  const NUM_ORG = Math.max(1, Math.round(TARGET * 0.05));
+  const TOT_STR = Math.max(1, Math.round(TARGET * 0.10));
+  const TOT_LISTE = Math.max(2, Math.round(TARGET * 0.20));
+  const NUM_ASS = Math.round(TARGET * 0.65);
   const STR_PER_ORG = Math.max(1, Math.round(TOT_STR / NUM_ORG));
   const LISTE_PER_STR = Math.max(1, Math.round(TOT_LISTE / TOT_STR));
 
-  log('📊', `Target: ${TARGET_ASS} entita totali`);
-  log('📊', `  ${NUM_ORG} org × ${STR_PER_ORG} str × ${LISTE_PER_STR} liste = ${NUM_ORG * STR_PER_ORG * LISTE_PER_STR} liste, ${NUM_ASS} assistiti`);
+  // === FASE 0: Inventario di cio che esiste ===
+  log('🔍', 'Verifica dati esistenti...');
 
-  // === FASE 1: Organizzazioni ===
-  log('🏢', `FASE 1: Creazione ${NUM_ORG} organizzazioni...`);
-  for (let i = 0; i < NUM_ORG; i++) {
-    const nome = `ASL ${pick(CITTA)} ${i + 1}`;
-    try {
-      const res = await postJSON('/api/v1/add-organizzazione', { denominazione: nome });
-      const id = res.organizzazione?.id;
-      if (id) { orgIds.push(id); log('🏢', `  Org #${id}: ${nome} [blockchain: ${JSON.stringify(res.blockchain)}]`); }
-      else { log('⚠️', `  Org "${nome}": risposta senza ID`); }
-    } catch (e) { log('❌', `  Org "${nome}": ${e.message}`); }
-    await sleep(1000);
+  let existingOrgs = [];
+  try { const r = await fetchJSON('/api/v1/organizzazioni'); existingOrgs = r.organizzazioni || []; } catch(e) {}
+  let existingStr = [];
+  try { const r = await fetchJSON('/api/v1/strutture'); existingStr = r.strutture || []; } catch(e) {}
+  let existingAss = [];
+  try { const r = await fetchJSON('/api/v1/assistiti'); existingAss = r.assistiti || []; } catch(e) {}
+
+  // Raccogli gli ID delle liste da tutte le strutture
+  let existingListe = [];
+  for (const s of existingStr) {
+    if (s.liste) existingListe.push(...s.liste);
   }
 
-  // === FASE 2: Strutture ===
-  log('🏥', `\nFASE 2: Creazione strutture (${orgIds.length * STR_PER_ORG} totali)...`);
-  for (const orgId of orgIds) {
-    for (let j = 0; j < STR_PER_ORG; j++) {
-      const nome = `${pick(TIPI_STR)} ${pick(COGNOMI)} ${j + 1}`;
+  const orgIds = existingOrgs.map(o => o.id);
+  const strIds = existingStr.map(s => s.id);
+  const listaIds = existingListe.map(l => l.id);
+  const assIds = existingAss.map(a => a.id);
+
+  log('📊', `Target: ${TARGET} entita → ${NUM_ORG} org, ${TOT_STR} str, ${TOT_LISTE} liste, ${NUM_ASS} ass`);
+  log('📊', `Esistenti: ${orgIds.length} org, ${strIds.length} str, ${listaIds.length} liste, ${assIds.length} ass`);
+
+  const needOrg = Math.max(0, NUM_ORG - orgIds.length);
+  const needStr = Math.max(0, TOT_STR - strIds.length);
+  const needListe = Math.max(0, TOT_LISTE - listaIds.length);
+  const needAss = Math.max(0, NUM_ASS - assIds.length);
+
+  log('📊', `Da creare: ${needOrg} org, ${needStr} str, ${needListe} liste, ${needAss} ass`);
+
+  if (needOrg + needStr + needListe + needAss === 0) {
+    log('✅', 'Tutte le entita base sono gia presenti, passo al flusso ingresso/uscita.');
+  }
+
+  // === FASE 1: Organizzazioni mancanti ===
+  if (needOrg > 0) {
+    log('🏢', `\nFASE 1: Creazione ${needOrg} organizzazioni...`);
+    for (let i = 0; i < needOrg; i++) {
+      const nome = `ASL ${pick(CITTA)} ${orgIds.length + i + 1}`;
+      try {
+        const res = await postJSON('/api/v1/add-organizzazione', { denominazione: nome });
+        const id = res.organizzazione?.id;
+        if (id) { orgIds.push(id); log('🏢', `  ✓ Org #${id}: ${nome}`); }
+      } catch (e) { log('❌', `  Org: ${e.message}`); }
+      await sleep(1000);
+    }
+  } else {
+    log('🏢', `Organizzazioni OK (${orgIds.length}/${NUM_ORG})`);
+  }
+
+  // === FASE 2: Strutture mancanti ===
+  if (needStr > 0 && orgIds.length > 0) {
+    log('🏥', `\nFASE 2: Creazione ${needStr} strutture...`);
+    let created = 0;
+    while (created < needStr) {
+      const orgId = orgIds[created % orgIds.length]; // distribuisci tra le org
+      const nome = `${pick(TIPI_STR)} ${pick(COGNOMI)} ${strIds.length + 1}`;
       try {
         const res = await postJSON('/api/v1/add-struttura', {
           denominazione: nome,
@@ -148,47 +180,57 @@ async function main() {
           organizzazione: orgId,
         });
         const id = res.struttura?.id;
-        if (id) { strIds.push(id); log('🏥', `  Str #${id}: ${nome} (org #${orgId})`); }
-      } catch (e) { log('❌', `  Str: ${e.message}`); }
+        if (id) { strIds.push(id); created++; log('🏥', `  ✓ Str #${id}: ${nome} (org #${orgId})`); }
+      } catch (e) { log('❌', `  Str: ${e.message}`); created++; }
       await sleep(500);
     }
+  } else {
+    log('🏥', `Strutture OK (${strIds.length}/${TOT_STR})`);
   }
 
-  // === FASE 3: Liste ===
-  log('📋', `\nFASE 3: Creazione liste (${strIds.length * LISTE_PER_STR} totali)...`);
-  for (const strId of strIds) {
-    for (let k = 0; k < LISTE_PER_STR; k++) {
+  // === FASE 3: Liste mancanti ===
+  if (needListe > 0 && strIds.length > 0) {
+    log('📋', `\nFASE 3: Creazione ${needListe} liste...`);
+    let created = 0;
+    while (created < needListe) {
+      const strId = strIds[created % strIds.length];
       const cat = pick(CATEGORIE);
       try {
         const res = await postJSON('/api/v1/add-lista', {
-          denominazione: `Lista ${cat.replace(/_/g,' ')} ${k+1}`,
-          tag: cat,
-          struttura: strId,
+          denominazione: `Lista ${cat.replace(/_/g,' ')} ${listaIds.length + 1}`,
+          tag: cat, struttura: strId,
         });
         const id = res.lista?.id;
-        if (id) { listaIds.push(id); log('📋', `  Lista #${id}: ${cat} (str #${strId})`); }
-      } catch (e) { log('❌', `  Lista: ${e.message}`); }
+        if (id) { listaIds.push(id); created++; log('📋', `  ✓ Lista #${id}: ${cat} (str #${strId})`); }
+      } catch (e) { log('❌', `  Lista: ${e.message}`); created++; }
       await sleep(500);
     }
+  } else {
+    log('📋', `Liste OK (${listaIds.length}/${TOT_LISTE})`);
   }
 
-  // === FASE 4: Assistiti ===
-  log('👤', `\nFASE 4: Creazione ${NUM_ASS} assistiti...`);
-  const cfSet = new Set();
-  for (let a = 0; a < NUM_ASS; a++) {
-    let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
-    const isMale = Math.random() > 0.5;
-    const nome = pick(isMale ? NOMI_M : NOMI_F);
-    const cognome = pick(COGNOMI);
-    try {
-      const res = await postJSON('/api/v1/add-assistito', {
-        nome, cognome, codiceFiscale: cf,
-        email: `${nome.toLowerCase()}.${cognome.toLowerCase()}${a}@test.it`,
-      });
-      const id = res.assistito?.id;
-      if (id) { assIds.push(id); log('👤', `  Ass #${id}: ${cognome} ${nome} (${cf}) anonId:${res.assistito?.anonId}`); }
-    } catch (e) { log('❌', `  Ass: ${e.message}`); }
-    await sleep(300);
+  // === FASE 4: Assistiti mancanti ===
+  if (needAss > 0) {
+    log('👤', `\nFASE 4: Creazione ${needAss} assistiti...`);
+    const cfSet = new Set(existingAss.map(a => a.codiceFiscale));
+    for (let a = 0; a < needAss; a++) {
+      let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
+      const isMale = Math.random() > 0.5;
+      const nome = pick(isMale ? NOMI_M : NOMI_F);
+      const cognome = pick(COGNOMI);
+      try {
+        const res = await postJSON('/api/v1/add-assistito', {
+          nome, cognome, codiceFiscale: cf,
+          email: `${nome.toLowerCase()}.${cognome.toLowerCase()}${assIds.length}@test.it`,
+        });
+        const id = res.assistito?.id;
+        if (id) { assIds.push(id); log('👤', `  ✓ #${id}: ${cognome} ${nome} anonId:${res.assistito?.anonId}`); }
+      } catch (e) { log('❌', `  Ass: ${e.message}`); }
+      if ((a+1) % 10 === 0) log('👤', `  ... ${a+1}/${needAss}`);
+      await sleep(300);
+    }
+  } else {
+    log('👤', `Assistiti OK (${assIds.length}/${NUM_ASS})`);
   }
 
   // === FASE 5+6: Ciclo continuo ingresso/uscita (tasso negativo: entrano piu di quanti escono) ===
