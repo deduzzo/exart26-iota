@@ -174,8 +174,8 @@ La funzione `_queryTransactionsFromChain` interroga il nodo IOTA con `queryTrans
 | **Cache locale** | sails-disk | 3.0.1 | Cache ricostruibile (source of truth = blockchain) |
 | **Real-time** | Socket.io (sails-hook-sockets) | 2.0.0 | Feedback live operazioni blockchain |
 | **API Docs** | Swagger UI | 5.17.2 | Documentazione interattiva OpenAPI |
-| **Rate Limiting** | express-rate-limit | 7.1.0 | Protezione contro abusi |
-| **Crittografia** | Node.js crypto (built-in) | - | RSA-2048, AES-256-CBC, HMAC-SHA256 |
+| **Rate Limiting** | express-rate-limit | 7.1.0 | Disponibile ma disabilitato per compatibilita SPA |
+| **Crittografia** | Node.js crypto (built-in) | - | RSA-2048 OAEP SHA-256, AES-256-CBC, HMAC-SHA256 |
 | **Task Runner** | Grunt | 1.6.1 | Build e pipeline asset (con fix Node.js >= 20) |
 
 ---
@@ -248,7 +248,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
   Dati cifrati (ciphertext)
         +
   +---------------------+
-  | RSA-2048            |  <-- La chiave AES viene cifrata con la chiave pubblica
+  | RSA-2048 OAEP       |  <-- La chiave AES viene cifrata con la chiave pubblica
   | (cifratura chiave)  |      del destinatario
   +-----+---------------+
         |
@@ -272,11 +272,12 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 | **Chiave MAIN** | Esiste una coppia di chiavi master (`MAIN_PUBLIC_KEY` / `MAIN_PRIVATE_KEY`) usata per cifrare le chiavi private delle entita |
 | **Archiviazione privata** | Le chiavi private delle entita vengono cifrate con la chiave pubblica MAIN e salvate on-chain come transazioni PRIVATE_KEY |
 | **Protezione API** | Le chiavi private non vengono mai esposte nelle risposte JSON grazie a `customToJSON()` nei modelli |
+| **Padding RSA** | OAEP con SHA-256 (aggiornato da PKCS1 per compatibilita Node.js 22) |
 | **Wallet IOTA 2.0** | Singolo keypair Ed25519 derivato da mnemonic BIP39 (nessun vault Stronghold) |
 
 ### Misure di sicurezza aggiuntive
 
-- **Rate Limiting**: `express-rate-limit` limita a 100 richieste per 15 minuti per IP sulle rotte `/api/`
+- **Rate Limiting**: disponibile via `express-rate-limit` ma attualmente disabilitato per compatibilita SPA
 - **CSRF Protection**: token CSRF disponibile via `/csrfToken` per le richieste mutative
 - **Nessuna autenticazione**: l'applicazione e attualmente in modalita aperta (tutte le rotte pubbliche)
 - **Policy**: le rotte admin (`fetch-db-from-blockchain`, `recover-from-arweave`) richiedono wallet inizializzato
@@ -288,6 +289,10 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 ### Gestione liste d'attesa
 - Creazione e gestione di **organizzazioni**, **strutture**, **liste** e **assistiti**
 - Inserimento e rimozione assistiti dalle liste con tracciamento dello **stato** e dei **timestamp**
+- **Pagina Liste dedicata** (`/app/liste`): cards per lista con statistiche (in coda, usciti, media attesa giorni), vista coda con posizioni, bottone "Chiama" per il primo in coda, toggle Coda/Storico
+- **Rimozione assistiti**: selezione dello stato di uscita (in assistenza, completato, rinuncia, annullato)
+- **Statistiche liste**: API strutture arricchita con stats per lista (inCoda, usciti, totale, tempoMedioGiorni)
+- **Assistiti con liste**: la tabella assistiti mostra le liste assegnate con posizione in coda (#1, #2...)
 - Relazioni many-to-many: un assistito puo essere in piu liste contemporaneamente
 
 ### Dati interamente on-chain
@@ -297,7 +302,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - Ogni entita ha la propria **transazione dedicata** sulla chain
 - Il DB locale (sails-disk) e una **cache ricostruibile** dalla blockchain in qualsiasi momento
 - **Sincronizzazione al bootstrap**: all'avvio l'app legge l'indice MAIN_DATA e ricostruisce la cache locale
-- **Controller non-bloccanti**: rispondono immediatamente al client, pubblicazione blockchain in background via `setImmediate`
+- **Controller non-bloccanti**: tutti i CRUD (inclusi add-assistito-in-lista e rimuovi-assistito-da-lista) rispondono immediatamente al client, pubblicazione blockchain in background via `setImmediate`
 
 ### Backup permanente su Arweave
 - **Backup automatico** di ogni transazione sul permaweb Arweave
@@ -305,15 +310,33 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - **Recovery da Arweave**: in caso di perdita dei dati IOTA, e possibile recuperare tutto dal backup Arweave (`recover-from-arweave`)
 - Il backup e **non-bloccante**: se Arweave fallisce, l'operazione IOTA non viene interrotta
 
+### Consultazione Pubblica Anonimizzata
+- **Pagina Pubblico** (`/app/pubblico`): frontend accessibile senza autenticazione per la verifica della posizione in lista
+- Ogni assistito viene mostrato come **ID anonimo** (primi 8 caratteri dello SHA-256 del codice fiscale)
+- L'utente inserisce il proprio codice fiscale, che viene **hashato lato client** (mai inviato al server)
+- La posizione corrispondente viene **evidenziata** nella lista
+- Toggle Coda/Storico per ogni lista
+- **Zero dati personali esposti**: nessun nome, cognome o codice fiscale visibile
+- API dedicata: `GET /api/v1/public/liste`
+
 ### Visualizzazione Grafo
 - Pagina `/app/grafo` con **grafo interattivo force-directed** (react-force-graph-2d)
 - Tutte le entita rappresentate come nodi con **codifica colore per tipo** (organizzazioni, strutture, liste, assistiti)
 - **Pannello dettagli** al hover con chiavi, indirizzi e timestamp
 - Controlli zoom e layout
 
+### Pagina Debug
+- Pagina `/app/debug` per diagnostica e verifica del sistema
+- Mostra stato **wallet** (indirizzo, balance, rete)
+- Visualizza **transazioni blockchain** con decrypt del payload cifrato
+- Mostra contenuto **DB locale** (cache)
+- **Cross-references** con verifica di consistency tra DB e blockchain
+- API dedicata: `GET /api/v1/debug`
+
 ### Gestione Wallet
 - **WalletInitModal**: modale globale presente in ogni pagina, si attiva automaticamente se il wallet non e inizializzato
 - Inizializzazione wallet via API `POST /api/v1/wallet/init` (genera mnemonic, mostra con copia, richiede fondi faucet)
+- **Reset Wallet**: `POST /api/v1/wallet/reset` per distruggere e ricreare il wallet con doppia conferma UI
 - Pagina dedicata per stato e informazioni wallet
 - Keypair Ed25519 singolo derivato da mnemonic BIP39
 
@@ -321,7 +344,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - **Single Page Application** con React 19 e React Router 7
 - Design futuristico **dark mode** con glassmorphism e neon gradients
 - Animazioni fluide con **Framer Motion**
-- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, Wallet, Grafo
+- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, Grafo, **Pubblico**, **Debug**
 - **PWA ready** per supporto mobile
 - **Feedback WebSocket** durante le operazioni blockchain (progresso, conferme, errori)
 
@@ -533,7 +556,7 @@ exart26-iota/
 |
 +-- frontend/                     # Frontend React SPA
 |   +-- src/
-|   |   +-- pages/                # Dashboard, Organizzazioni, Strutture, Assistiti, Wallet, Grafo
+|   |   +-- pages/                # Dashboard, Organizzazioni, Strutture, Assistiti, Liste, Wallet, Grafo, Pubblico, Debug
 |   |   +-- components/           # Layout, WalletInitModal, LoadingSpinner, ...
 |   |   +-- hooks/                # Custom React hooks (useApi, ...)
 |   |   +-- api/                  # Client API per comunicazione con backend
@@ -548,19 +571,23 @@ exart26-iota/
 +-- api/
 |   +-- controllers/              # Action-based controllers (Sails.js actions2)
 |   |   +-- dashboard/            # Dashboard
-|   |   +-- wallet/               # get-info, init-wallet, view-verifica
+|   |   +-- wallet/               # get-info, init-wallet, reset-wallet, view-verifica
 |   |   +-- add-organizzazione.js # Non-bloccante (setImmediate per blockchain)
 |   |   +-- add-struttura.js      # Non-bloccante
 |   |   +-- add-lista.js          # Non-bloccante
 |   |   +-- add-assistito.js      # Non-bloccante
-|   |   +-- add-assistito-in-lista.js
+|   |   +-- add-assistito-in-lista.js  # Non-bloccante
+|   |   +-- rimuovi-assistito-da-lista.js  # Non-bloccante, con selezione stato
 |   |   +-- fetch-db-from-blockchain.js
 |   |   +-- recover-from-arweave.js
 |   |   +-- api-dashboard.js      # GET /api/v1/dashboard (JSON)
 |   |   +-- api-organizzazioni.js # GET /api/v1/organizzazioni (JSON)
-|   |   +-- api-strutture.js      # GET /api/v1/strutture (JSON)
-|   |   +-- api-assistiti.js      # GET /api/v1/assistiti (JSON)
+|   |   +-- api-strutture.js      # GET /api/v1/strutture con stats liste (JSON)
+|   |   +-- api-assistiti.js      # GET /api/v1/assistiti con liste e posizione (JSON)
+|   |   +-- api-liste-dettaglio.js # GET /api/v1/liste-dettaglio: coda + storico (JSON)
 |   |   +-- api-graph-data.js     # GET /api/v1/graph-data (JSON)
+|   |   +-- api-public.js         # GET /api/v1/public/liste (dati anonimizzati)
+|   |   +-- api-debug.js          # GET /api/v1/debug (diagnostica)
 |   |   +-- view-*.js             # Controller delle viste (legacy)
 |   |
 |   +-- enums/                    # Enumerazioni
@@ -614,9 +641,17 @@ exart26-iota/
 |:-------|:------|:------------|
 | `GET` | `/api/v1/dashboard` | Statistiche per la dashboard |
 | `GET` | `/api/v1/organizzazioni/:id?` | Lista organizzazioni (dettaglio se `:id`) |
-| `GET` | `/api/v1/strutture?organizzazione=X` | Lista strutture filtrate per organizzazione |
-| `GET` | `/api/v1/assistiti/:id?` | Lista assistiti (dettaglio se `:id`) |
+| `GET` | `/api/v1/strutture?organizzazione=X` | Lista strutture filtrate per organizzazione, con stats per lista (inCoda, usciti, totale, tempoMedioGiorni) |
+| `GET` | `/api/v1/assistiti/:id?` | Lista assistiti con liste assegnate e posizione in coda (dettaglio se `:id`) |
+| `GET` | `/api/v1/liste-dettaglio?idLista=X` | Dettaglio lista: coda con posizione + storico movimenti |
 | `GET` | `/api/v1/graph-data` | Dati per il grafo interattivo (tutte le entita con relazioni) |
+| `GET` | `/api/v1/debug` | Dati debug: wallet, transazioni blockchain con decrypt, DB locale, cross-references |
+
+### API Pubblica (zero autenticazione, dati anonimizzati)
+
+| Metodo | Rotta | Descrizione |
+|:-------|:------|:------------|
+| `GET` | `/api/v1/public/liste` | Liste con assistiti anonimizzati (ID = primi 8 char SHA-256 del CF). Zero dati personali esposti |
 
 ### API Operative (blockchain)
 
@@ -626,7 +661,8 @@ exart26-iota/
 | `POST` | `/api/v1/add-struttura` | Crea struttura (risposta immediata, blockchain in background) |
 | `POST` | `/api/v1/add-lista` | Crea lista d'attesa (risposta immediata, blockchain in background) |
 | `POST` | `/api/v1/add-assistito` | Registra assistito (risposta immediata, blockchain in background) |
-| `POST` | `/api/v1/add-assistito-in-lista` | Inserisce un assistito in una lista d'attesa |
+| `POST` | `/api/v1/add-assistito-in-lista` | Inserisce un assistito in una lista d'attesa (risposta immediata, blockchain in background) |
+| `POST` | `/api/v1/rimuovi-assistito-da-lista` | Rimuove assistito da lista. Body: `{ idAssistitoListe, stato }`. Stati: 2=in assistenza, 3=completato, 5=rinuncia, 6=annullato |
 | `POST` | `/api/v1/fetch-db-from-blockchain` | Ricostruisce la cache locale dalla blockchain (richiede wallet) |
 | `POST` | `/api/v1/recover-from-arweave` | Recupera tutti i dati dal backup Arweave (richiede wallet) |
 
@@ -635,6 +671,7 @@ exart26-iota/
 | Metodo | Rotta | Descrizione |
 |:-------|:------|:------------|
 | `POST` | `/api/v1/wallet/init` | Inizializza wallet: genera mnemonic, ritorna `{ success, mnemonic, address }` |
+| `POST` | `/api/v1/wallet/reset` | Reset wallet: distrugge e ricrea il wallet (doppia conferma UI) |
 | `GET` | `/api/v1/wallet/get-info` | Restituisce stato, balance, indirizzo e rete del wallet |
 | `GET` | `/api/v1/get-transaction` | Recupera una transazione specifica |
 
@@ -663,7 +700,8 @@ exart26-iota/
 
 ## Roadmap
 
-- [ ] Implementazione completa della gestione movimenti tra liste
+- [x] Implementazione completa della gestione movimenti tra liste (pagina Liste con coda, storico, rimozione con stato)
+- [x] Interfaccia pubblica per consultazione posizione in lista (anonimizzata con hash SHA-256 del CF)
 - [ ] Dashboard analitica avanzata con grafici temporali
 - [ ] Esportazione dati in formato PDF e CSV
 - [ ] Notifiche push per aggiornamenti di stato
@@ -671,7 +709,6 @@ exart26-iota/
 - [ ] Test automatizzati end-to-end
 - [ ] Containerizzazione con Docker
 - [ ] Supporto IOTA 2.0 mainnet in produzione
-- [ ] Interfaccia pubblica per consultazione posizione in lista (anonimizzata)
 - [ ] Integrazione con sistemi informativi sanitari regionali
 - [ ] Autenticazione e autorizzazione utenti
 

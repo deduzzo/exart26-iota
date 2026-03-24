@@ -11,7 +11,7 @@ Applicazione per la gestione delle liste d'attesa per la riabilitazione sanitari
 - **Cache locale**: sails-disk (persistenza su disco, ricostruibile dalla blockchain)
 - **Real-time**: Socket.io via sails-hook-sockets
 - **Crittografia**: RSA-2048 + AES-256-CBC + HMAC-SHA256
-- **Sicurezza**: CSRF, rate limiting (express-rate-limit), nessuna autenticazione
+- **Sicurezza**: CSRF, nessuna autenticazione
 - **API Docs**: Swagger (auto-generato)
 - **Task Runner**: Grunt con task personalizzati per Node.js >= 20
 
@@ -75,7 +75,7 @@ Ogni entita ha la propria transazione dedicata sulla chain. MAIN_DATA serve come
 
 ### Controller Non-Bloccanti
 
-Tutti i controller CRUD (add-organizzazione, add-struttura, add-lista, add-assistito) seguono questo pattern:
+Tutti i controller CRUD (add-organizzazione, add-struttura, add-lista, add-assistito, add-assistito-in-lista, rimuovi-assistito-da-lista) seguono questo pattern:
 1. Validazione input
 2. Salvataggio nella cache locale (DB)
 3. **Risposta immediata al client** (HTTP 200)
@@ -129,7 +129,7 @@ Organizzazione
 
 ### Flusso Crittografico
 1. Dati cifrati con AES-256-CBC (chiave random per ogni transazione)
-2. Chiave AES cifrata con RSA-2048 (chiave pubblica destinatario)
+2. Chiave AES cifrata con RSA-2048 OAEP SHA-256 (chiave pubblica destinatario)
 3. HMAC-SHA256 per integrita dei dati
 4. Payload codificato come u64 split-coin amounts nel Programmable TX Block su IOTA 2.0
 5. Stesso payload duplicato su Arweave (backup non-bloccante)
@@ -154,16 +154,38 @@ Organizzazione
 - **socket.io-client** per feedback real-time WebSocket
 - **Lucide React** per icone
 - **react-force-graph-2d** per visualizzazione grafo
-- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, Wallet, **Grafo**
+- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, **Grafo**, **Pubblico**, **Debug**
 - **WalletInitModal**: componente globale in `Layout.jsx`, modale che appare su ogni pagina se il wallet non e inizializzato. Mostra pulsante init, poi mnemonic con copia, poi "continua"
 - Build di produzione: `cd frontend && npm run build` (output in `.tmp/public/`)
 - SPA catch-all: `GET /app/*` serve `index.html` dal backend
+
+### Pagina Liste (/app/liste)
+- Cards per ogni lista con **statistiche** (in coda, usciti, media attesa giorni)
+- Vista **coda** con posizioni numerate (#1, #2...)
+- Bottone **"Chiama"** per il primo in coda (rimozione con stato IN_ASSISTENZA)
+- Toggle **Coda/Storico** per ogni lista
+- Rimozione assistiti con selezione stato (in assistenza, completato, rinuncia, annullato)
+- Dati caricati da `GET /api/v1/liste-dettaglio?idLista=X`
+
+### Pagina Pubblico (/app/pubblico)
+- Frontend **pubblico anonimizzato** per verifica posizione in lista
+- Ogni assistito mostrato come **ID anonimo** (primi 8 caratteri SHA-256 del codice fiscale)
+- L'utente inserisce il proprio CF, viene **hashato lato client**, e la sua posizione viene evidenziata
+- Toggle Coda/Storico per ogni lista
+- **Zero dati personali esposti**
+- Dati caricati da `GET /api/v1/public/liste`
 
 ### Pagina Grafo (/app/grafo)
 - Visualizzazione interattiva **force-directed** di tutte le entita
 - Nodi colorati per tipo: organizzazioni (viola), strutture (cyan), liste (verde), assistiti (arancione)
 - Pannello dettagli al hover con chiavi, indirizzi, timestamp
 - Dati caricati da `GET /api/v1/graph-data`
+
+### Pagina Debug (/app/debug)
+- Mostra stato **wallet** (indirizzo, balance, rete)
+- Visualizza **transazioni blockchain** con decrypt del payload
+- Mostra contenuto **DB locale** (cache)
+- **Cross-references** con verifica consistency tra DB e blockchain
 
 ## Comandi
 ```bash
@@ -190,7 +212,7 @@ npx eslint api/
 - `config/datastores.js` - Connessione DB (sails-disk come cache, ricostruibile dalla blockchain)
 - `config/security.js` - CSRF abilitato
 - `config/policies.js` - Tutte le rotte pubbliche (`'*': true`), rotte admin richiedono wallet inizializzato
-- `config/http.js` - Rate limiting (100 req/15min per IP su /api/)
+- `config/http.js` - Middleware HTTP (rate limiting disabilitato per compatibilita SPA)
 - `config/routes.js` - Tutte le rotte API + SPA catch-all `GET /app/*`
 - `frontend/vite.config.js` - Proxy dev server, build output
 
@@ -200,17 +222,22 @@ npx eslint api/
 | GET | / | Homepage/redirect |
 | GET | /api/v1/dashboard | Statistiche dashboard (JSON) |
 | GET | /api/v1/organizzazioni/:id? | Lista/dettaglio organizzazioni (JSON) |
-| GET | /api/v1/strutture?organizzazione=X | Lista strutture per organizzazione (JSON) |
-| GET | /api/v1/assistiti/:id? | Lista/dettaglio assistiti (JSON) |
+| GET | /api/v1/strutture?organizzazione=X | Lista strutture per organizzazione con stats liste (JSON) |
+| GET | /api/v1/assistiti/:id? | Lista/dettaglio assistiti con liste assegnate e posizione in coda (JSON) |
+| GET | /api/v1/liste-dettaglio?idLista=X | Dettaglio lista: coda con posizione + storico movimenti (JSON) |
 | GET | /api/v1/graph-data | Dati per grafo interattivo (tutte le entita con relazioni) |
+| GET | /api/v1/debug | Dati debug: wallet, transazioni blockchain con decrypt, DB locale, cross-references |
+| GET | /api/v1/public/liste | **API pubblica**: liste anonimizzate (ID = hash SHA-256 del CF, 8 char) |
 | POST | /api/v1/add-organizzazione | Crea organizzazione (risposta immediata, blockchain in background) |
 | POST | /api/v1/add-struttura | Crea struttura (risposta immediata, blockchain in background) |
 | POST | /api/v1/add-lista | Crea lista (risposta immediata, blockchain in background) |
 | POST | /api/v1/add-assistito | Crea assistito (risposta immediata, blockchain in background) |
-| POST | /api/v1/add-assistito-in-lista | Aggiunge assistito a lista (blockchain) |
+| POST | /api/v1/add-assistito-in-lista | Aggiunge assistito a lista (risposta immediata, blockchain in background) |
+| POST | /api/v1/rimuovi-assistito-da-lista | Rimuove assistito da lista con stato: body `{ idAssistitoListe, stato }` (2=assistenza, 3=completato, 5=rinuncia, 6=annullato) |
 | POST | /api/v1/fetch-db-from-blockchain | Ricostruisce cache dalla blockchain (legge MAIN_DATA index) |
 | POST | /api/v1/recover-from-arweave | Recupera dati da Arweave (richiede wallet) |
 | POST | /api/v1/wallet/init | Inizializza wallet: genera mnemonic, ritorna { success, mnemonic, address } |
+| POST | /api/v1/wallet/reset | Reset wallet: distrugge e ricrea wallet (doppia conferma UI) |
 | GET | /api/v1/wallet/get-info | Info wallet IOTA 2.0 (status, balance, address, network) |
 | GET | /api/v1/get-transaction | Recupera transazione specifica |
 | GET | /swagger.json | Schema OpenAPI |
@@ -225,7 +252,7 @@ npx eslint api/
 
 ## Note Sviluppo
 - **Dati interamente on-chain**: il DB locale e solo una cache. Source of truth = blockchain IOTA 2.0
-- **Controller non-bloccanti**: tutti i CRUD rispondono immediatamente, blockchain publishing in background via `setImmediate()`
+- **Controller non-bloccanti**: tutti i CRUD (inclusi add-assistito-in-lista e rimuovi-assistito-da-lista) rispondono immediatamente, blockchain publishing in background via `setImmediate()`
 - **MAIN_DATA e un indice leggero**: contiene solo entityId per tipo (~50 byte per entita), non l'intero dataset
 - Nessuna autenticazione: tutte le rotte sono pubbliche
 - Ogni entita (Organizzazione, Struttura, Lista, Assistito) ha una coppia RSA generata alla creazione
@@ -238,11 +265,18 @@ npx eslint api/
 - Il backup Arweave e non-bloccante: se fallisce, l'operazione IOTA non viene interrotta
 - I modelli usano auto-increment DB nativo per gli ID (no race condition)
 - Validazione input: codice fiscale con regex, email con isEmail, minLength su denominazioni
-- Rate limiting: 100 richieste per 15 minuti per IP sulle rotte /api/
+- Rate limiting disabilitato per compatibilita SPA (commentato in config/http.js)
 - @iota/iota-sdk e ESM-only: iota.js usa dynamic import() per compatibilita con CommonJS Sails.js
+- **RSA OAEP SHA-256**: padding aggiornato da PKCS1 a OAEP per compatibilita Node.js 22
 - Task Grunt personalizzati per compatibilita Node.js >= 20 (clean, copy, sails-linker fix)
 - **WalletInitModal**: modale globale nel Layout che appare su ogni pagina se wallet non inizializzato
 - **Wallet init via API**: `POST /api/v1/wallet/init` sostituisce il vecchio init EJS-based
 - Faucet testnet/devnet richiesto automaticamente alla creazione del wallet
+- **Pagina Liste**: `/app/liste` con cards statistiche, vista coda con posizioni, bottone "Chiama", toggle Coda/Storico, rimozione con selezione stato
+- **Pagina Pubblico**: `/app/pubblico` frontend anonimizzato per verifica posizione (hash SHA-256 del CF, zero dati personali)
 - **Pagina Grafo**: `/app/grafo` con react-force-graph-2d, dati da `GET /api/v1/graph-data`
+- **Pagina Debug**: `/app/debug` mostra wallet, transazioni blockchain con decrypt, DB locale, cross-references consistency
+- **Wallet Reset**: `POST /api/v1/wallet/reset` per distruggere e ricreare il wallet (doppia conferma UI)
+- **Statistiche liste**: API strutture arricchita con stats per lista (inCoda, usciti, totale, tempoMedioGiorni)
+- **Assistiti con liste**: la tabella assistiti mostra le liste assegnate con posizione in coda (#1, #2...)
 - sails-disk configurato con persistenza su disco (non inMemoryOnly) come cache locale
