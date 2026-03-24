@@ -51,30 +51,21 @@ module.exports = {
       for (const tag of allTags) {
         try {
           const txs = await iota.getAllDataByTag(tag);
-          blockchainTransactions[tag] = txs.map(tx => {
+          const txResults = [];
+          for (const tx of txs) {
             let decrypted = null;
             let decryptError = null;
 
-            // Try to decrypt the payload data
             if (tx.payload && mainKeys.privateKey) {
               try {
-                // The payload.data is the encrypted envelope
                 const data = tx.payload;
                 if (data && data.message && data.key && data.iv) {
-                  const clearText = CryptHelper.receiveAndDecrypt(data, mainKeys.privateKey);
-                  // receiveAndDecrypt is not async despite the class having async keyword
-                  if (clearText && typeof clearText.then === 'function') {
-                    // It's a promise - we can't await in map, handle below
-                    decrypted = '__PROMISE__';
-                  } else {
-                    decrypted = clearText;
-                  }
+                  decrypted = await CryptHelper.receiveAndDecrypt(data, mainKeys.privateKey);
                 } else {
-                  // payload may be already decrypted or different format
                   decrypted = data;
                 }
               } catch (e) {
-                decryptError = e.message;
+                decryptError = e.message || 'Decrypt failed';
               }
             }
 
@@ -84,38 +75,21 @@ module.exports = {
               entityId: tx.entityId,
               version: tx.version,
               timestamp: tx.timestamp,
+            txResults.push({
+              digest: tx.digest,
+              tag: tx.tag,
+              entityId: tx.entityId,
+              version: tx.version,
+              timestamp: tx.timestamp,
               timestampFormatted: tx.timestamp ? new Date(tx.timestamp).toLocaleString('it-IT') : null,
               encryptedPayload: tx.payload,
               decryptedPayload: decrypted,
               decryptError: decryptError,
-            };
-          });
+            });
+          }
+          blockchainTransactions[tag] = txResults;
         } catch (e) {
           blockchainTransactions[tag] = { error: e.message };
-        }
-      }
-
-      // Resolve promises for decrypted payloads
-      for (const tag of allTags) {
-        if (Array.isArray(blockchainTransactions[tag])) {
-          for (let i = 0; i < blockchainTransactions[tag].length; i++) {
-            const tx = blockchainTransactions[tag][i];
-            if (tx.decryptedPayload === '__PROMISE__') {
-              try {
-                const data = tx.encryptedPayload;
-                tx.decryptedPayload = await CryptHelper.receiveAndDecrypt(data, mainKeys.privateKey);
-                // Try to parse as JSON
-                if (typeof tx.decryptedPayload === 'string') {
-                  try { tx.decryptedPayload = JSON.parse(tx.decryptedPayload); } catch (_e) { /* keep as string */ }
-                }
-              } catch (e) {
-                tx.decryptedPayload = null;
-                tx.decryptError = e.message;
-              }
-            } else if (typeof tx.decryptedPayload === 'string') {
-              try { tx.decryptedPayload = JSON.parse(tx.decryptedPayload); } catch (_e) { /* keep as string */ }
-            }
-          }
         }
       }
     }
