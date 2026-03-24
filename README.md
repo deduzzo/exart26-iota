@@ -41,7 +41,7 @@ Attualmente, queste liste vengono spesso gestite con fogli di calcolo, documenti
 - **Perdita di dati** in caso di guasti o errori umani
 - **Assenza di auditabilita** sulle modifiche effettuate
 
-Questa applicazione risolve questi problemi registrando **tutti i dati business interamente sulla blockchain IOTA 2.0 Rebased**. Non esiste un database locale per i dati operativi: il DB locale (sails-disk) funge esclusivamente da **cache** ricostruibile in qualsiasi momento dalla chain. Un **backup permanente su Arweave** (permaweb) garantisce un ulteriore livello di resilienza. I dati sensibili degli assistiti sono protetti da un sistema di **crittografia ibrida a triplo livello** (RSA-2048 + AES-256-CBC + HMAC-SHA256).
+Questa applicazione risolve questi problemi registrando **tutti i dati business interamente sulla blockchain IOTA 2.0 Rebased**. Non esiste un database locale per i dati operativi: il DB locale (SQLite via better-sqlite3) funge esclusivamente da **cache su disco** ricostruibile in qualsiasi momento dalla chain. Un **backup permanente su Arweave** (permaweb) garantisce un ulteriore livello di resilienza. I dati sensibili degli assistiti sono protetti da un sistema di **crittografia ibrida a triplo livello** (RSA-2048 + AES-256-CBC + HMAC-SHA256).
 
 Il frontend e una **Single Page Application** moderna costruita con React, Vite e TailwindCSS, con design futuristico dark mode, glassmorphism e neon gradients, ottimizzata come **PWA** per l'uso su dispositivi mobili.
 
@@ -49,7 +49,7 @@ Il frontend e una **Single Page Application** moderna costruita con React, Vite 
 
 ## Architettura
 
-Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fonte di verita unica** (source of truth). Il database locale e una cache riscrivibile. I controller CRUD rispondono immediatamente al client dopo il salvataggio in cache; la pubblicazione sulla blockchain avviene in background (`setImmediate`), senza bloccare l'utente. Il modulo **SyncCache** garantisce un avvio istantaneo del server caricando i dati dalla cache locale su file (`.tmp/sync-cache.json`), con sincronizzazione blockchain in background.
+Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fonte di verita unica** (source of truth). Il database locale (SQLite via better-sqlite3) e una cache su disco riscrivibile. I controller CRUD rispondono immediatamente al client dopo il salvataggio in SQLite; la pubblicazione sulla blockchain avviene in background (`setImmediate`), senza bloccare l'utente. Il file `.tmp/exart26.db` persiste su disco e garantisce avvio istantaneo del server, con sincronizzazione blockchain in background.
 
 ```
                         +---------------------------+
@@ -70,7 +70,7 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
                         |  | ListManager.js       |  |
                         |  | CryptHelper.js       |  |
                         |  | ArweaveHelper.js     |  |
-                        |  | SyncCache.js         |  |
+                        |  | db.js (SQLite)       |  |
                         |  +-----+-------+-------+  |
                         +--------+-------+----------+
                                  |       |
@@ -78,9 +78,9 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
                     |                                   |
                     v                                   v
         +-----------------------+          +----------------------------+
-        |  sails-disk (cache)   |          |   IOTA 2.0 Rebased         |
-        |  Solo cache locale,   |          |   SOURCE OF TRUTH          |
-        |  ricostruibile dalla  |          |   Ed25519 + Programmable   |
+        |  SQLite (cache disco) |          |   IOTA 2.0 Rebased         |
+        |  .tmp/exart26.db      |          |   SOURCE OF TRUTH          |
+        |  Ricostruibile dalla  |          |   Ed25519 + Programmable   |
         |  blockchain           |          |   TX Blocks (u64 encoding) |
         +-----------------------+          +------------+---------------+
                                                         |
@@ -99,7 +99,7 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
 2. Il frontend invia una richiesta REST al backend Sails.js
 3. Il backend valida i dati, genera le chiavi crittografiche, salva nella cache locale
 4. **Il controller risponde immediatamente al client** (HTTP 200)
-5. La **SyncCache** viene aggiornata (debounced 5 secondi)
+5. I dati sono gia persistiti su disco (SQLite)
 6. In background (`setImmediate`):
    - I dati vengono cifrati con il sistema ibrido RSA+AES+HMAC
    - Il payload cifrato viene codificato come u64 split-coin amounts e pubblicato su IOTA 2.0
@@ -107,12 +107,11 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
    - Una copia viene caricata su Arweave come backup permanente
 7. Il client riceve feedback in tempo reale via WebSocket durante le operazioni blockchain
 
-### Flusso di avvio (Bootstrap con SyncCache)
+### Flusso di avvio (Bootstrap con SQLite)
 
-1. **Step 1**: Carica cache locale da `.tmp/sync-cache.json` (istantaneo)
-2. **Step 2**: Il server lifta immediatamente con i dati dalla cache
-3. **Step 3**: Sync blockchain in background (non bloccante) - il frontend mostra un **banner animato** con barra di progresso
-4. **Step 4**: Salva cache aggiornata su disco
+1. **Step 1**: Il server lifta immediatamente — i dati sono gia su disco in `.tmp/exart26.db` (istantaneo se non e il primo avvio)
+2. **Step 2**: Sync blockchain in background (non bloccante) — il frontend mostra un **banner animato** con barra di progresso
+3. **Step 3**: I dati decrittati vengono scritti direttamente su SQLite (zero accumulo RAM)
 
 ---
 

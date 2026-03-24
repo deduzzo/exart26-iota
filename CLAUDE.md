@@ -1,14 +1,14 @@
 # ExArt26 IOTA - Gestione Liste d'Attesa Decentralizzata
 
 ## Descrizione
-Applicazione per la gestione delle liste d'attesa per la riabilitazione sanitaria (Ex art. 26) decentralizzata. I dati business sono archiviati **interamente on-chain** su IOTA 2.0 Rebased. Il database locale (sails-disk) e una cache ricostruibile dalla blockchain. Arweave fornisce un backup permanente opzionale. Frontend moderno con React + Vite + TailwindCSS (dark mode, glassmorphism, neon gradients).
+Applicazione per la gestione delle liste d'attesa per la riabilitazione sanitaria (Ex art. 26) decentralizzata. I dati business sono archiviati **interamente on-chain** su IOTA 2.0 Rebased. Il database locale (better-sqlite3) e una cache su disco ricostruibile dalla blockchain. Arweave fornisce un backup permanente opzionale con modalita Produzione/Test (ArLocal). Frontend moderno con React + Vite + TailwindCSS (dark mode, glassmorphism, neon gradients).
 
 ## Stack Tecnologico
 - **Frontend**: React 19 + Vite 6 + TailwindCSS 4 + Framer Motion + React Router 7 + Lucide React + react-force-graph-2d
 - **Backend**: Sails.js v1.5.0 (Node.js >= 17)
 - **Blockchain primaria**: @iota/iota-sdk v1.10+ (IOTA 2.0 Rebased, Ed25519, Programmable TX Blocks)
-- **Backup permanente**: Arweave (arweave-js v1.15.5) - opzionale, configurabile
-- **Cache locale**: sails-disk (persistenza su disco, ricostruibile dalla blockchain)
+- **Backup permanente**: Arweave (arweave-js v1.15.5) + ArLocal per test - opzionale, toggle Produzione/Test da UI
+- **Cache locale**: better-sqlite3 (SQLite su disco `.tmp/exart26.db`, ricostruibile dalla blockchain). API Waterline-like via `api/utility/db.js`
 - **Real-time**: Socket.io via sails-hook-sockets
 - **Crittografia**: RSA-2048 + AES-256-CBC + HMAC-SHA256
 - **Sicurezza**: CSRF, nessuna autenticazione
@@ -23,7 +23,7 @@ React SPA (Vite, porta 5173 in dev)
     |
     | REST API / WebSocket (proxy Vite -> :1337)
     v
-Sails.js Backend (porta 1337) + sails-disk (CACHE, ricostruibile)
+Sails.js Backend (porta 1337) + SQLite via better-sqlite3 (CACHE su disco, ricostruibile)
     |
     +---> IOTA 2.0 Rebased (SOURCE OF TRUTH, dati on-chain via u64 encoding)
     |
@@ -103,8 +103,8 @@ Organizzazione
 - **iota.js** - IOTA 2.0 Rebased: keypair Ed25519 da mnemonic BIP39, codifica u64 split-coin, publishData via Programmable TX Blocks, lettura diretta dalla chain (zero DB locale), faucet testnet/devnet. Dynamic import() ESM per compatibilita CommonJS Sails.js
 - **ListManager.js** - Logica business: gestione indice MAIN_DATA, sync blockchain->cache, CRUD con crittografia, backup Arweave automatico, recovery con fallback discovery
 - **CryptHelper.js** - Crittografia ibrida RSA+AES, firma digitale, HMAC
-- **ArweaveHelper.js** - Client Arweave: upload dati cifrati, query GraphQL per tag, download e recovery
-- **SyncCache.js** - Cache locale persistente su file `.tmp/sync-cache.json`. Al bootstrap carica dalla cache (istantaneo), poi sync blockchain in background. Ogni operazione CRUD aggiorna la cache (debounced 5 secondi)
+- **ArweaveHelper.js** - Client Arweave riconfigurabile runtime: modalita Produzione (arweave.net) o Test (ArLocal locale). switchMode(), bootstrap ArLocal, upload con inflight counter, query GraphQL, download e recovery. Stato runtime in `.tmp/arweave-runtime-state.json`
+- **db.js** - Storage layer SQLite con API Waterline-like. File DB: `.tmp/exart26.db`. Metodi: find, findOne, create, update, destroy, count. Metodi join: findWithOrg, findWithDetails, findWithStruttura. Transazioni atomiche via `db.transaction()`. Query raw via `db.raw`
 
 ### Interfaccia iota.js (funzioni esportate)
 - `loadSdk()` - Carica moduli ESM @iota/iota-sdk via dynamic import
@@ -135,18 +135,17 @@ Organizzazione
 4. Payload codificato come u64 split-coin amounts nel Programmable TX Block su IOTA 2.0
 5. Stesso payload duplicato su Arweave (backup non-bloccante)
 
-### Flusso Recupero Dati (Bootstrap Sync con SyncCache)
-1. **Step 1**: Carica cache locale da `.tmp/sync-cache.json` (istantaneo)
-2. **Step 2**: Server lifta immediatamente con i dati dalla cache
-3. **Step 3**: Sync blockchain in background (non bloccante)
+### Flusso Recupero Dati (Bootstrap Sync con SQLite)
+1. **Step 1**: Server lifta immediatamente con i dati gia in SQLite su disco (istantaneo se non e il primo avvio)
+2. **Step 2**: Sync blockchain in background (non bloccante)
    - Leggi indice MAIN_DATA dalla blockchain (start-point certificato)
    - Per ogni entityId nell'indice, recupera la transazione dedicata per tag
    - Se MAIN_DATA non esiste -> fallback: discovery scansionando tutte le TX per tag
    - Ulteriore fallback -> recovery da Arweave via GraphQL
-4. **Step 4**: Salva cache aggiornata su disco
-5. Endpoint manuale `/api/v1/recover-from-arweave`
-6. `POST /api/v1/sync-reset` per cancellare cache e riforzare sync da blockchain
-7. `GET /api/v1/sync-status` per stato sync in tempo reale (syncing, progress)
+3. **Step 3**: I dati decrittati vengono scritti direttamente su SQLite (zero accumulo RAM)
+4. Endpoint manuale `/api/v1/recover-from-arweave`
+5. `POST /api/v1/sync-reset` per cancellare DB SQLite e riforzare sync da blockchain
+6. `GET /api/v1/sync-status` per stato sync in tempo reale (syncing, progress)
 
 ### Enums (api/enums/)
 - **TransactionDataType**: MAIN_DATA, ORGANIZZAZIONE_DATA, STRUTTURE_LISTE_DATA, ASSISTITI_DATA, PRIVATE_KEY, LISTE_IN_CODA, ASSISTITI_IN_LISTA, MOVIMENTI_ASSISTITI_LISTA
@@ -227,7 +226,9 @@ npx eslint api/
 - `config/private_iota_conf.js` - Configurazione IOTA 2.0 (NON committare, vedi sample): IOTA_NETWORK, IOTA_NODE_URL, IOTA_MNEMONIC, MAIN_PRIVATE_KEY, MAIN_PUBLIC_KEY, IOTA_EXPLORER_URL
 - `config/private_arweave_conf.js` - Wallet Arweave JWK (NON committare, vedi sample)
 - `config/custom.js` - URL base, email, token TTL
-- `config/datastores.js` - Connessione DB (sails-disk come cache, ricostruibile dalla blockchain)
+- `config/datastores.js` - sails-disk stub (migrate: safe, non usato per storage reale)
+- `.tmp/exart26.db` - Database SQLite (cache locale, ricostruibile dalla blockchain)
+- `.tmp/arweave-runtime-state.json` - Stato runtime Arweave (mode, test wallet JWK)
 - `config/security.js` - CSRF abilitato
 - `config/policies.js` - Tutte le rotte pubbliche (`'*': true`), rotte admin richiedono wallet inizializzato
 - `config/http.js` - Middleware HTTP (rate limiting disabilitato per compatibilita SPA)
@@ -259,6 +260,12 @@ npx eslint api/
 | POST | /api/v1/wallet/init | Inizializza wallet: genera mnemonic, ritorna { success, mnemonic, address } |
 | POST | /api/v1/wallet/reset | Reset wallet: distrugge e ricrea wallet (doppia conferma UI) |
 | GET | /api/v1/wallet/get-info | Info wallet IOTA 2.0 (status, balance, address, network) |
+| GET | /api/v1/arweave/status | Stato Arweave: mode, enabled, address, balance, arLocalRunning |
+| POST | /api/v1/arweave/switch-mode | Cambia modalita Arweave: `{ mode: 'production'\|'test' }` |
+| GET | /api/v1/arweave/transactions | Transazioni Arweave per dataType: `?dataType=X&limit=20` |
+| POST | /api/v1/arweave/test-upload | Test upload payload dummy su Arweave |
+| POST | /api/v1/arweave/test-verify | Verifica transazione Arweave: `{ txId }` |
+| GET | /api/v1/arweave/consistency | Consistency check IOTA vs Arweave per entita |
 | GET | /api/v1/get-transaction | Recupera transazione specifica |
 | GET | /swagger.json | Schema OpenAPI |
 | GET | /docs | Swagger UI |
@@ -298,11 +305,15 @@ npx eslint api/
 - **Pagina Debug**: `/app/debug` mostra wallet, transazioni blockchain con decrypt, DB locale, cross-references consistency
 - **Pagina Load Test**: `/app/load-test` per generazione dati di prova dall'UI con log in tempo reale
 - **`npm run simulate`**: script CLI per simulazione continua infinita con crescita proporzionale
-- **SyncCache**: cache locale persistente su `.tmp/sync-cache.json`, il server lifta subito con dati dalla cache senza aspettare la blockchain
+- **better-sqlite3**: cache locale su disco `.tmp/exart26.db`, il server lifta subito con dati gia su disco senza caricare nulla in RAM. API Waterline-like via `db.js`. Zero OOM anche con 100K+ record
 - **Banner sync UI**: barra progresso animata durante sincronizzazione blockchain, visibile su ogni pagina, polling ogni 2 secondi
 - **Pagina Liste a 2 colonne**: con filtro testuale per ricerca rapida
 - **Nodi Trattati nel grafo**: pazienti usciti aggregati per lista, visualizzati come nodi dedicati
 - **Wallet Reset**: `POST /api/v1/wallet/reset` per distruggere e ricreare il wallet (doppia conferma UI)
 - **Statistiche liste**: API strutture arricchita con stats per lista (inCoda, usciti, totale, tempoMedioGiorni)
 - **Assistiti con liste**: la tabella assistiti mostra le liste assegnate con posizione in coda (#1, #2...)
-- sails-disk configurato con persistenza su disco (non inMemoryOnly) come cache locale
+- sails-disk ancora presente come stub (Sails.js lo richiede al boot) ma migrate: 'safe', non usato per storage
+- I controller usano `db.js` (better-sqlite3) per tutti gli accessi dati: `const db = require('../utility/db'); db.Assistito.find({...})`
+- **Arweave Produzione/Test**: toggle da UI nella pagina Wallet. Test usa ArLocal (nodo locale in-memory su porta 1984). Stato runtime in `.tmp/arweave-runtime-state.json`
+- **Pagina Debug sezione Arweave**: transazioni per DataType, consistency check IOTA vs Arweave, test interattivo (upload + verify)
+- **6 endpoint API Arweave**: status, switch-mode, transactions, test-upload, test-verify, consistency
