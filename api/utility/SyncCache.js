@@ -131,22 +131,17 @@ class SyncCache {
   }
 }
 
-  /**
-   * Salvataggio debounced - salva al massimo ogni 5 secondi.
-   */
-  static scheduleSave() {
-    if (SyncCache._timer) return;
-    SyncCache._timer = setTimeout(async () => {
-      SyncCache._timer = null;
-      try {
-        await this.exportFromDB();
-      } catch (e) {
-        sails.log.warn('[SyncCache] Errore salvataggio schedulato:', e.message);
-      }
-    }, 5000);
-  }
-}
-
 SyncCache._timer = null;
+SyncCache.scheduleSave = function() {
+  if (SyncCache._timer) return;
+  SyncCache._timer = setTimeout(async () => {
+    SyncCache._timer = null;
+    try {
+      await SyncCache.exportFromDB();
+    } catch (e) {
+      if (typeof sails !== 'undefined') sails.log.warn('[SyncCache] Errore salvataggio schedulato:', e.message);
+    }
+  }, 5000);
+};
 
 module.exports = SyncCache;
