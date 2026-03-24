@@ -104,7 +104,7 @@ module.exports = {
       }
     });
 
-    SyncCache.scheduleSave();
+    SyncCache.markDirty('AssistitiListe');
       return exits.success({
       record: updated,
       altreListe: risultatiAltreListe,

@@ -1,5 +1,6 @@
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
+const SyncCache = require('../utility/SyncCache');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
 const NOMI_M = ['Marco','Luca','Alessandro','Andrea','Matteo','Lorenzo','Giuseppe','Francesco','Antonio','Giovanni','Roberto','Davide','Stefano','Paolo','Massimo','Simone','Fabio','Michele','Claudio','Riccardo','Salvatore','Alberto','Daniele','Vincenzo','Enrico','Nicola','Emanuele','Filippo','Giorgio','Tommaso'];
@@ -146,6 +147,9 @@ module.exports = {
     } catch (e) {
       sails.log.warn(`[load] MAIN_DATA: ${e.message}`);
     }
+
+    ['Organizzazione', 'Struttura', 'Lista', 'Assistito', 'AssistitiListe']
+      .forEach(m => SyncCache.markDirty(m));
 
     return exits.success({ stats: S, elapsed: elapsed + 's' });
   }

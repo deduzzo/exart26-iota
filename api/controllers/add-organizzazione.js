@@ -56,7 +56,7 @@ module.exports = {
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-organizzazione] Blockchain: MAIN_DATA=${res3.success}`);
 
-      SyncCache.scheduleSave();
+      SyncCache.markDirty('Organizzazione');
       return exits.success({
         organizzazione: {...nuovaOrganizzazione, privateKey: undefined},
         blockchain: {

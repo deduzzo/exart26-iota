@@ -83,7 +83,7 @@ module.exports = {
       }
     });
 
-    SyncCache.scheduleSave();
+    SyncCache.markDirty('AssistitiListe');
       return exits.success({
       assistitoLista,
       blockchainStatus: 'publishing',
