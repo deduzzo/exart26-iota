@@ -68,6 +68,8 @@ module.exports.routes = {
   'GET /api/v1/assistiti/:id?':           { action: 'api-assistiti' },
   'GET /api/v1/graph-data':               { action: 'api-graph-data' },
   'GET /api/v1/debug':                    { action: 'api-debug' },
+  'GET /api/v1/sync-status':              { action: 'api-sync-status' },
+  'POST /api/v1/load-test':               { action: 'inizializza-dati-di-prova' },
 
 
 

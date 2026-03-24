@@ -64,9 +64,12 @@ class ListManager {
    * poi recupera ogni entita dalla sua transazione dedicata.
    * Se l'indice non esiste, fa discovery scansionando tutte le tx per tag.
    */
-  async updateDBfromBlockchain() {
+  async updateDBfromBlockchain(onProgress = null) {
     sails.log.info('[ListManager] Inizio sync da blockchain...');
     let imported = { organizzazioni: 0, strutture: 0, liste: 0, assistiti: 0 };
+    const reportProgress = (status, total, processed) => {
+      if (onProgress) onProgress({ status, ...imported, total, processed });
+    };
 
     try {
       // Strategia 1: Leggi l'indice MAIN_DATA
@@ -127,6 +130,7 @@ class ListManager {
       // Recupera e importa ogni entita
       const total = uniqueEntities.length;
       let processed = 0;
+      reportProgress('Lettura entita dalla blockchain...', total, 0);
       for (const entity of uniqueEntities) {
         processed++;
         try {
@@ -137,6 +141,7 @@ class ListManager {
 
           if (processed % 10 === 0 || processed === 1 || processed === total) {
             sails.log.info(`[ListManager] Sync ${processed}/${total}: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass...`);
+            reportProgress(`Importazione ${processed}/${total}...`, total, processed);
           }
 
           const record = await iota.getLastDataByTag(tag, entity.entityId);

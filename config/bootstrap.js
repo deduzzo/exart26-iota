@@ -18,20 +18,33 @@ module.exports.bootstrap = async function () {
   //let keys = await CryptHelper.RSAGenerateKeyPair();
   // console.log(keys);
 
+  // Stato sync accessibile via API
+  sails.config.custom._syncInProgress = false;
+  sails.config.custom._syncProgress = null;
+
   sails.log.info('[bootstrap] Verifica wallet...');
   const walletReady = await iota.isWalletInitialized();
   sails.log.info('[bootstrap] Wallet inizializzato: ' + walletReady);
   if (walletReady) {
     try {
-      sails.log.info('[bootstrap] Avvio sync DB da BlockchainData cache...');
+      sails.config.custom._syncInProgress = true;
+      sails.config.custom._syncProgress = { status: 'Avvio sync...', org: 0, str: 0, ass: 0, total: 0, processed: 0 };
+      sails.log.info('[bootstrap] Avvio sync DB da blockchain...');
       const manager = new ListManager();
-      const result = await manager.updateDBfromBlockchain();
+      const result = await manager.updateDBfromBlockchain((progress) => {
+        // Callback per aggiornare il progresso in tempo reale
+        sails.config.custom._syncProgress = progress;
+      });
+      sails.config.custom._syncInProgress = false;
+      sails.config.custom._syncProgress = null;
       if (result.success) {
-        sails.log.info('[bootstrap] Sync completata da ' + result.source + ', organizzazioni: ' + (result.data ? result.data.length : 0));
+        sails.log.info('[bootstrap] Sync completata: ' + JSON.stringify(result.data));
       } else {
-        sails.log.info('[bootstrap] Nessun dato trovato nella cache locale. Il DB partira vuoto.');
+        sails.log.info('[bootstrap] Nessun dato trovato. Il DB partira vuoto.');
       }
     } catch (err) {
+      sails.config.custom._syncInProgress = false;
+      sails.config.custom._syncProgress = null;
       sails.log.warn('[bootstrap] Sync fallita: ' + err.message);
     }
   } else {

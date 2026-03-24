@@ -59,5 +59,8 @@ export const recoverFromArweave = () =>
 // Pubblico
 export const getPublicListe = () => api('/api/v1/public/liste');
 
+// Sync status
+export const getSyncStatus = () => api('/api/v1/sync-status');
+
 // Debug
 export const getDebugData = () => api('/api/v1/debug');
