@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
 
 // Placeholder pages
 const Placeholder = ({ title }) => (
@@ -14,7 +15,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<Placeholder title="Dashboard" />} />
+          <Route index element={<Dashboard />} />
           <Route path="organizzazioni" element={<Placeholder title="Organizzazioni" />} />
           <Route path="strutture" element={<Placeholder title="Strutture" />} />
           <Route path="assistiti" element={<Placeholder title="Assistiti" />} />
