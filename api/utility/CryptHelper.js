@@ -27,7 +27,8 @@ class CryptHelper {
     const bufferData = Buffer.from(data, 'utf8'); // Convert string to Buffer
     const encrypted = crypto.publicEncrypt({
       key: publicKey,
-      padding: crypto.constants.RSA_PKCS1_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256'
     }, bufferData);
     return encrypted.toString('base64'); // Return as base64 string for easy storage/transfer
   }
@@ -36,7 +37,8 @@ class CryptHelper {
     const bufferData = Buffer.from(data, 'base64'); // Convert base64 string to Buffer
     const decrypted = crypto.privateDecrypt({
       key: privateKey,
-      padding: crypto.constants.RSA_PKCS1_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256'
     }, bufferData);
     return decrypted.toString('utf8'); // Convert Buffer back to string
   }
