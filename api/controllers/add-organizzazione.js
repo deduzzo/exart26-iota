@@ -1,3 +1,4 @@
+const SyncCache = require('../utility/SyncCache');
 let iota = require('../utility/iota');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
@@ -55,6 +56,7 @@ module.exports = {
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-organizzazione] Blockchain: MAIN_DATA=${res3.success}`);
 
+      SyncCache.scheduleSave();
       return exits.success({
         organizzazione: {...nuovaOrganizzazione, privateKey: undefined},
         blockchain: {

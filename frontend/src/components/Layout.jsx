@@ -61,12 +61,10 @@ export default function Layout() {
         const status = await getSyncStatus();
         setSyncStatus(status.syncing ? status.syncProgress : null);
         if (!status.syncing && interval) {
-          // Sync finita, ricarica wallet e ferma polling
           loadWallet();
         }
       } catch {
-        // Server non ancora pronto
-        setSyncStatus({ status: 'Server in avvio...' });
+        setSyncStatus({ status: 'Connessione al server...', total: 0, processed: 0 });
       }
     };
     checkSync();

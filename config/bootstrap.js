@@ -13,10 +13,8 @@
 const path = require('path');
 const iota = require('../api/utility/iota');
 const ListManager = require('../api/utility/ListManager');
+const SyncCache = require('../api/utility/SyncCache');
 module.exports.bootstrap = async function () {
-
-  //let keys = await CryptHelper.RSAGenerateKeyPair();
-  // console.log(keys);
 
   // Stato sync accessibile via API
   sails.config.custom._syncInProgress = false;
@@ -25,28 +23,42 @@ module.exports.bootstrap = async function () {
   sails.log.info('[bootstrap] Verifica wallet...');
   const walletReady = await iota.isWalletInitialized();
   sails.log.info('[bootstrap] Wallet inizializzato: ' + walletReady);
+
   if (walletReady) {
-    try {
+    // STEP 1: Carica dalla cache locale (istantaneo)
+    const cached = SyncCache.load();
+    if (cached) {
       sails.config.custom._syncInProgress = true;
-      sails.config.custom._syncProgress = { status: 'Avvio sync...', org: 0, str: 0, ass: 0, total: 0, processed: 0 };
-      sails.log.info('[bootstrap] Avvio sync DB da blockchain...');
-      const manager = new ListManager();
-      const result = await manager.updateDBfromBlockchain((progress) => {
-        // Callback per aggiornare il progresso in tempo reale
-        sails.config.custom._syncProgress = progress;
-      });
+      sails.config.custom._syncProgress = { status: 'Caricamento cache locale...', total: 0, processed: 0 };
+      const imported = await SyncCache.importToDB(cached);
+      sails.log.info('[bootstrap] Cache caricata: ' + JSON.stringify(imported));
       sails.config.custom._syncInProgress = false;
       sails.config.custom._syncProgress = null;
-      if (result.success) {
-        sails.log.info('[bootstrap] Sync completata: ' + JSON.stringify(result.data));
-      } else {
-        sails.log.info('[bootstrap] Nessun dato trovato. Il DB partira vuoto.');
-      }
-    } catch (err) {
-      sails.config.custom._syncInProgress = false;
-      sails.config.custom._syncProgress = null;
-      sails.log.warn('[bootstrap] Sync fallita: ' + err.message);
     }
+
+    // STEP 2: Sync dalla blockchain in background (aggiorna/completa)
+    sails.config.custom._syncInProgress = true;
+    sails.config.custom._syncProgress = { status: cached ? 'Aggiornamento dalla blockchain...' : 'Prima sincronizzazione dalla blockchain...', total: 0, processed: 0, org: 0, str: 0, ass: 0 };
+
+    // Non bloccante: la sync continua in background dopo il lift
+    setImmediate(async () => {
+      try {
+        const manager = new ListManager();
+        const result = await manager.updateDBfromBlockchain((progress) => {
+          sails.config.custom._syncProgress = progress;
+        });
+        if (result.success) {
+          sails.log.info('[bootstrap] Sync blockchain completata: ' + JSON.stringify(result.data));
+          // Salva la cache aggiornata
+          await SyncCache.exportFromDB();
+        }
+      } catch (err) {
+        sails.log.warn('[bootstrap] Sync blockchain fallita: ' + err.message);
+      } finally {
+        sails.config.custom._syncInProgress = false;
+        sails.config.custom._syncProgress = null;
+      }
+    });
   } else {
     sails.log.info('[bootstrap] Wallet non inizializzato, skip sync.');
   }

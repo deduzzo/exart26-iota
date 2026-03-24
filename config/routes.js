@@ -69,6 +69,7 @@ module.exports.routes = {
   'GET /api/v1/graph-data':               { action: 'api-graph-data' },
   'GET /api/v1/debug':                    { action: 'api-debug' },
   'GET /api/v1/sync-status':              { action: 'api-sync-status' },
+  'POST /api/v1/sync-reset':             { action: 'api-sync-reset' },
   'POST /api/v1/load-test':               { action: 'inizializza-dati-di-prova' },
 
 

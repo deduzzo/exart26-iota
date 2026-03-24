@@ -1,3 +1,4 @@
+const SyncCache = require('../utility/SyncCache');
 const CryptHelper = require('../utility/CryptHelper');
 const moment = require('moment');
 const ListManager = require('../utility/ListManager');
@@ -64,7 +65,8 @@ module.exports = {
     sails.log.info(`[add-assistito] Blockchain: PK=${res2.success}`);
     // MAIN_DATA non aggiornato per velocita - gli assistiti vengono trovati via discovery
 
-    return exits.success({
+    SyncCache.scheduleSave();
+      return exits.success({
       assistito: {...assistito, privateKey: undefined},
       blockchain: { assData: res1.success, privateKey: res2.success },
       error: null

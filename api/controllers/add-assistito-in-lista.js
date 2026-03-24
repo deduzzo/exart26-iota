@@ -1,3 +1,4 @@
+const SyncCache = require('../utility/SyncCache');
 const ListManager = require('../utility/ListManager');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 module.exports = {
@@ -82,7 +83,8 @@ module.exports = {
       }
     });
 
-    return exits.success({
+    SyncCache.scheduleSave();
+      return exits.success({
       assistitoLista,
       blockchainStatus: 'publishing',
       error: null
