@@ -45,46 +45,49 @@ module.exports = {
     sails.log.info('[load] Generazione chiave RSA condivisa per test...');
     const sharedKP = await CryptHelper.RSAGenerateKeyPair();
 
-    // 1. Organizzazioni
-    const orgs = [];
+    // 1. Organizzazioni (save only IDs)
+    const orgIds = [];
     for (let i = 0; i < NUM_ORG; i++) {
-      orgs.push(await Organizzazione.create({
+      const org = await Organizzazione.create({
         denominazione: `ASL ${pick(CITTA)} ${i + 1}`,
         publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
         ultimaVersioneSuBlockchain: 0,
-      }).fetch());
+      }).fetch();
+      orgIds.push(org.id);
       S.org++;
     }
     sails.log.info(`[load] ${S.org} organizzazioni (${Math.round((Date.now()-T0)/1000)}s)`);
 
-    // 2. Strutture
-    const strs = [];
-    for (const org of orgs) {
+    // 2. Strutture (save only {id, organizzazione})
+    const strRefs = [];
+    for (const orgId of orgIds) {
       for (let j = 0; j < STR_PER_ORG; j++) {
-        strs.push(await Struttura.create({
+        const str = await Struttura.create({
           denominazione: `${pick(TIPI_STR)} ${pick(COGNOMI)} ${j+1}`,
           indirizzo: `Via ${pick(COGNOMI)} ${Math.floor(Math.random()*200)+1}, ${pick(CITTA)}`,
           attiva: Math.random() > 0.05,
           publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
           ultimaVersioneSuBlockchain: 0,
-          organizzazione: org.id,
-        }).fetch());
+          organizzazione: orgId,
+        }).fetch();
+        strRefs.push({ id: str.id, organizzazione: orgId });
         S.str++;
       }
       if (S.str % 100 === 0) sails.log.info(`[load] Strutture: ${S.str} (${Math.round((Date.now()-T0)/1000)}s)`);
     }
 
-    // 3. Liste
-    const lsts = [];
-    for (const str of strs) {
+    // 3. Liste (save only IDs)
+    const lstIds = [];
+    for (const strRef of strRefs) {
       for (let k = 0; k < LISTE_PER_STR; k++) {
         const cat = pick(CATEGORIE);
-        lsts.push(await Lista.create({
+        const lst = await Lista.create({
           denominazione: `${cat.replace(/_/g,' ')} ${k+1}`,
           tag: cat, aperta: Math.random() > 0.1,
           publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
-          struttura: str.id, ultimaVersioneSuBlockchain: 0,
-        }).fetch());
+          struttura: strRef.id, ultimaVersioneSuBlockchain: 0,
+        }).fetch();
+        lstIds.push(lst.id);
         S.liste++;
       }
       if (S.liste % 1000 === 0) sails.log.info(`[load] Liste: ${S.liste} (${Math.round((Date.now()-T0)/1000)}s)`);
@@ -93,46 +96,52 @@ module.exports = {
     sails.log.info(`[load] Base: ${S.org} org, ${S.str} str, ${S.liste} liste in ${Math.round((Date.now()-T0)/1000)}s`);
     sails.log.info(`[load] Creazione ${NUM_ASS} assistiti + movimenti...`);
 
-    // 4. Assistiti + movimenti
+    // 4. Assistiti + movimenti (processed in batches for memory efficiency)
     const cfSet = new Set();
     const STATI_USCITA = [2, 3, 5, 6];
+    const BATCH = 500;
 
-    for (let a = 0; a < NUM_ASS; a++) {
-      let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
-      const isMale = Math.random() > 0.5;
+    for (let batch = 0; batch < NUM_ASS; batch += BATCH) {
+      const batchEnd = Math.min(batch + BATCH, NUM_ASS);
+      for (let a = batch; a < batchEnd; a++) {
+        let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
+        const isMale = Math.random() > 0.5;
 
-      const ass = await Assistito.create({
-        nome: pick(isMale ? NOMI_M : NOMI_F),
-        cognome: pick(COGNOMI),
-        codiceFiscale: cf,
-        email: Math.random() > 0.3 ? `user${a}@test.it` : null,
-        telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : null,
-        publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
-        ultimaVersioneSuBlockchain: 0,
-      }).fetch();
-      S.ass++;
-
-      // 1-3 inserimenti in liste random
-      const numMov = Math.floor(Math.random() * 3) + 1;
-      for (let m = 0; m < numMov; m++) {
-        const lista = pick(lsts);
-        const ingresso = rndDate(2024, 2026);
-        const al = await AssistitiListe.create({
-          assistito: ass.id, lista: lista.id,
-          stato: INSERITO_IN_CODA, dataOraIngresso: ingresso, chiuso: false,
+        const ass = await Assistito.create({
+          nome: pick(isMale ? NOMI_M : NOMI_F),
+          cognome: pick(COGNOMI),
+          codiceFiscale: cf,
+          email: Math.random() > 0.3 ? `user${a}@test.it` : null,
+          telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : null,
+          publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
+          ultimaVersioneSuBlockchain: 0,
         }).fetch();
-        S.mov++;
+        S.ass++;
 
-        // 60% esce
-        if (Math.random() > 0.4) {
-          await AssistitiListe.updateOne({id: al.id}).set({
-            stato: pick(STATI_USCITA), chiuso: true,
-            dataOraUscita: ingresso + Math.floor(Math.random() * 180 * 86400000),
-          });
+        // 1-3 inserimenti in liste random
+        const numMov = Math.floor(Math.random() * 3) + 1;
+        for (let m = 0; m < numMov; m++) {
+          const lstId = pick(lstIds);
+          const ingresso = rndDate(2024, 2026);
+          const al = await AssistitiListe.create({
+            assistito: ass.id, lista: lstId,
+            stato: INSERITO_IN_CODA, dataOraIngresso: ingresso, chiuso: false,
+          }).fetch();
+          S.mov++;
+
+          // 60% esce
+          if (Math.random() > 0.4) {
+            await AssistitiListe.updateOne({id: al.id}).set({
+              stato: pick(STATI_USCITA), chiuso: true,
+              dataOraUscita: ingresso + Math.floor(Math.random() * 180 * 86400000),
+            });
+          }
         }
-      }
 
-      if ((a+1) % 2000 === 0) sails.log.info(`[load] Assistiti: ${S.ass} mov: ${S.mov} (${Math.round((Date.now()-T0)/1000)}s)`);
+        if ((a+1) % 2000 === 0) sails.log.info(`[load] Assistiti: ${S.ass} mov: ${S.mov} (${Math.round((Date.now()-T0)/1000)}s)`);
+      }
+      // Force GC hint between batches
+      if (global.gc) global.gc();
     }
 
     const elapsed = Math.round((Date.now()-T0)/1000);
