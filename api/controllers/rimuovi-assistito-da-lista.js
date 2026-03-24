@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const ListManager = require('../utility/ListManager');
 const CryptHelper = require('../utility/CryptHelper');
 
@@ -37,8 +37,7 @@ module.exports = {
       return exits.invalid({error: 'Stato non valido.'});
     }
 
-    const record = await AssistitiListe.findOne({id: inputs.idAssistitoListe})
-      .populate('assistito').populate('lista');
+    const record = db.AssistitiListe.findOne({id: inputs.idAssistitoListe});
     if (!record) {
       return exits.invalid({error: 'Record non trovato.'});
     }
@@ -46,11 +45,15 @@ module.exports = {
       return exits.invalid({error: 'L\'assistito non e in coda.'});
     }
 
-    const assistitoNome = record.assistito ? `${record.assistito.cognome} ${record.assistito.nome}` : `#${record.assistito}`;
-    sails.log.info(`[rimuovi] ${assistitoNome} rimosso da lista #${record.lista?.id || record.lista} con stato ${inputs.stato}`);
+    // Fetch related assistito and lista for logging and blockchain
+    const recordAssistito = db.Assistito.findOne({id: record.assistito});
+    const recordLista = db.Lista.findOne({id: record.lista});
+
+    const assistitoNome = recordAssistito ? `${recordAssistito.cognome} ${recordAssistito.nome}` : `#${record.assistito}`;
+    sails.log.info(`[rimuovi] ${assistitoNome} rimosso da lista #${record.lista} con stato ${inputs.stato}`);
 
     // 1. Aggiorna il record principale
-    const updated = await AssistitiListe.updateOne({id: inputs.idAssistitoListe}).set({
+    const updated = db.AssistitiListe.updateOne({id: inputs.idAssistitoListe}).set({
       stato: inputs.stato,
       chiuso: true,
       dataOraUscita: Date.now(),
@@ -63,9 +66,9 @@ module.exports = {
     for (const azione of azioniAltreListe) {
       if (azione.azione === 'rimuovi' && azione.idAssistitoListe) {
         const statoRimozione = azione.statoRimozione || 4; // default: cambio lista
-        const altroRecord = await AssistitiListe.findOne({id: azione.idAssistitoListe});
+        const altroRecord = db.AssistitiListe.findOne({id: azione.idAssistitoListe});
         if (altroRecord && altroRecord.stato === 1) {
-          await AssistitiListe.updateOne({id: azione.idAssistitoListe}).set({
+          db.AssistitiListe.updateOne({id: azione.idAssistitoListe}).set({
             stato: statoRimozione,
             chiuso: true,
             dataOraUscita: Date.now(),
@@ -83,11 +86,12 @@ module.exports = {
       try {
         const iota = require('../utility/iota');
         const {MOVIMENTI_ASSISTITI_LISTA} = require('../enums/TransactionDataType');
-        const lista = await Lista.findOne({id: record.lista?.id || record.lista}).populate('struttura');
-        if (lista && lista.struttura) {
+        const lista = db.Lista.findOne({id: record.lista});
+        const struttura = lista ? db.Struttura.findOne({id: lista.struttura}) : null;
+        if (lista && struttura) {
           const movimentoData = {
             idAssistitoListe: record.id,
-            assistito: record.assistito?.id || record.assistito,
+            assistito: record.assistito,
             lista: lista.id,
             statoOld: 1,
             statoNew: inputs.stato,
@@ -95,7 +99,7 @@ module.exports = {
             azioniAltreListe: risultatiAltreListe,
           };
           const entityId = await Lista.getWalletIdLista({id: lista.id});
-          const encrypted = await CryptHelper.encryptAndSend(JSON.stringify(movimentoData), null, lista.struttura.publicKey);
+          const encrypted = await CryptHelper.encryptAndSend(JSON.stringify(movimentoData), null, struttura.publicKey);
           const res = await iota.publishData(MOVIMENTI_ASSISTITI_LISTA, encrypted.data, entityId);
           sails.log.info(`[rimuovi] Blockchain: MOVIMENTI ${res.success ? 'OK' : 'FAILED'}`);
         }
@@ -104,8 +108,7 @@ module.exports = {
       }
     });
 
-    SyncCache.markDirty('AssistitiListe');
-      return exits.success({
+    return exits.success({
       record: updated,
       altreListe: risultatiAltreListe,
       blockchainStatus: 'publishing',

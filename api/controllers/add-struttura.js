@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
 module.exports = {
@@ -21,10 +21,10 @@ module.exports = {
   fn: async function (inputs, exits) {
     let keyPairStr = await CryptHelper.RSAGenerateKeyPair();
     try {
-      let organizzazione = await Organizzazione.findOne({id: inputs.organizzazione});
+      let organizzazione = db.Organizzazione.findOne({id: inputs.organizzazione});
       if (!organizzazione) return exits.invalid('Organizzazione non trovata.');
 
-      let nuovaStruttura = await Struttura.create({
+      let nuovaStruttura = db.Struttura.create({
         denominazione: inputs.denominazione,
         indirizzo: inputs.indirizzo,
         attiva: inputs.attiva,
@@ -32,7 +32,7 @@ module.exports = {
         privateKey: keyPairStr.privateKey,
         ultimaVersioneSuBlockchain: -1,
         organizzazione: inputs.organizzazione
-      }).fetch();
+      });
 
       const manager = new ListManager();
       const strId = nuovaStruttura.id;
@@ -47,7 +47,6 @@ module.exports = {
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-struttura] Blockchain: MAIN=${res3.success}`);
 
-      SyncCache.markDirty('Struttura');
       return exits.success({
         struttura: {...nuovaStruttura, privateKey: undefined},
         blockchain: { strData: res1.success, privateKey: res2.success, mainData: res3.success },

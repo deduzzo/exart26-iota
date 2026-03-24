@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const ListManager = require('../utility/ListManager');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 module.exports = {
@@ -31,17 +31,17 @@ module.exports = {
   fn: async function (inputs, exits) {
     sails.log.info(`[add-assistito-in-lista] Assistito #${inputs.idAssistito} -> Lista #${inputs.idLista}`);
 
-    let assistito = await Assistito.findOne({id: inputs.idAssistito});
+    let assistito = db.Assistito.findOne({id: inputs.idAssistito});
     if (!assistito) {
       return exits.invalid({error: 'Assistito non trovato.'});
     }
-    let lista = await Lista.findOne({id: inputs.idLista});
+    let lista = db.Lista.findOne({id: inputs.idLista});
     if (!lista) {
       return exits.invalid({error: 'Lista non trovata.'});
     }
 
     // Verifica se gia in coda in questa lista
-    let giaInCoda = await AssistitiListe.findOne({
+    let giaInCoda = db.AssistitiListe.findOne({
       assistito: inputs.idAssistito,
       lista: inputs.idLista,
       stato: INSERITO_IN_CODA,
@@ -54,12 +54,12 @@ module.exports = {
     // Crea il record nel DB locale
     let assistitoLista = null;
     try {
-      assistitoLista = await AssistitiListe.create({
+      assistitoLista = db.AssistitiListe.create({
         assistito: inputs.idAssistito,
         lista: inputs.idLista,
         stato: INSERITO_IN_CODA,
         dataOraIngresso: Date.now(),
-      }).fetch();
+      });
       sails.log.info(`[add-assistito-in-lista] Record #${assistitoLista.id} creato nel DB`);
     } catch (err) {
       sails.log.error('[add-assistito-in-lista] DB error:', err.message);
@@ -83,8 +83,7 @@ module.exports = {
       }
     });
 
-    SyncCache.markDirty('AssistitiListe');
-      return exits.success({
+    return exits.success({
       assistitoLista,
       blockchainStatus: 'publishing',
       error: null

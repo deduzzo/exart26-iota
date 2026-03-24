@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 let iota = require('../utility/iota');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
@@ -31,12 +31,12 @@ module.exports = {
   fn: async function (inputs, exits) {
     let keyPairOrg = await CryptHelper.RSAGenerateKeyPair();
     try {
-      let nuovaOrganizzazione = await Organizzazione.create({
+      let nuovaOrganizzazione = db.Organizzazione.create({
         denominazione: inputs.denominazione,
         publicKey: keyPairOrg.publicKey,
         privateKey: keyPairOrg.privateKey,
         ultimaVersioneSuBlockchain: -1
-      }).fetch();
+      });
 
       // Pubblica tutto su blockchain (sincrono - attende completamento)
       // Le 3 pubblicazioni vanno in parallelo per velocizzare
@@ -56,7 +56,6 @@ module.exports = {
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-organizzazione] Blockchain: MAIN_DATA=${res3.success}`);
 
-      SyncCache.markDirty('Organizzazione');
       return exits.success({
         organizzazione: {...nuovaOrganizzazione, privateKey: undefined},
         blockchain: {

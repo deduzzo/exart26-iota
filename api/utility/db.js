@@ -55,6 +55,7 @@ database.exec(`
     struttura INTEGER,
     aperta INTEGER DEFAULT 1,
     publicKey TEXT,
+    privateKey TEXT,
     ultimaVersioneSuBlockchain INTEGER DEFAULT 0,
     createdAt INTEGER,
     updatedAt INTEGER

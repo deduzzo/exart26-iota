@@ -1,7 +1,16 @@
-const SyncCache = require('../utility/SyncCache');
+const crypto = require('crypto');
+const db = require('../utility/db');
 const CryptHelper = require('../utility/CryptHelper');
 const moment = require('moment');
 const ListManager = require('../utility/ListManager');
+
+function generateAnonId(codiceFiscale) {
+  return crypto.createHash('sha256')
+    .update(codiceFiscale.toUpperCase().trim())
+    .digest('hex')
+    .substring(0, 8)
+    .toUpperCase();
+}
 
 module.exports = {
   friendlyName: 'Add assistito',
@@ -22,23 +31,33 @@ module.exports = {
   fn: async function (inputs, exits) {
     sails.log.info(`[add-assistito] Creazione "${inputs.nome} ${inputs.cognome}" CF:${inputs.codiceFiscale}`);
 
-    if (await Assistito.findOne({codiceFiscale: inputs.codiceFiscale.toUpperCase().trim()})) {
+    if (db.Assistito.findOne({codiceFiscale: inputs.codiceFiscale.toUpperCase().trim()})) {
       return exits.invalid({error: 'Assistito gia presente'});
     }
 
     let keyPairAss = await CryptHelper.RSAGenerateKeyPair();
     let dataNascita = moment(inputs.dataNascita, 'YYYY-MM-DD');
 
-    // Genera anonId (il beforeCreate potrebbe non funzionare con inMemoryOnly)
-    const anonId = Assistito.generateAnonId(inputs.codiceFiscale);
+    // Genera anonId con uniqueness check
+    const anonId = generateAnonId(inputs.codiceFiscale);
+    let candidate = anonId;
+    let salt = 0;
+    while (db.Assistito.findOne({ anonId: candidate })) {
+      salt++;
+      candidate = crypto.createHash('sha256')
+        .update(inputs.codiceFiscale.toUpperCase().trim() + ':' + salt)
+        .digest('hex')
+        .substring(0, 8)
+        .toUpperCase();
+    }
 
     let assistito;
     try {
-      assistito = await Assistito.create({
+      assistito = db.Assistito.create({
         nome: inputs.nome,
         cognome: inputs.cognome,
         codiceFiscale: inputs.codiceFiscale.toUpperCase().trim(),
-        anonId: anonId,
+        anonId: candidate,
         dataNascita: dataNascita.isValid() ? dataNascita.format('YYYY-MM-DD') : null,
         email: inputs.email,
         telefono: inputs.telefono,
@@ -46,7 +65,7 @@ module.exports = {
         publicKey: keyPairAss.publicKey,
         privateKey: keyPairAss.privateKey,
         ultimaVersioneSuBlockchain: -1
-      }).fetch();
+      });
       sails.log.info(`[add-assistito] Assistito #${assistito.id} anonId:${assistito.anonId} creato`);
     } catch (err) {
       sails.log.error('[add-assistito] DB error:', err.message);
@@ -65,8 +84,7 @@ module.exports = {
     sails.log.info(`[add-assistito] Blockchain: PK=${res2.success}`);
     // MAIN_DATA non aggiornato per velocita - gli assistiti vengono trovati via discovery
 
-    SyncCache.markDirty('Assistito');
-      return exits.success({
+    return exits.success({
       assistito: {...assistito, privateKey: undefined},
       blockchain: { assData: res1.success, privateKey: res2.success },
       error: null

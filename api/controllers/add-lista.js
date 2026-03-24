@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const ListManager = require('../utility/ListManager');
 const CryptHelper = require('../utility/CryptHelper');
 module.exports = {
@@ -21,14 +21,14 @@ module.exports = {
     sails.log.info(`[add-lista] Creazione lista "${inputs.denominazione}" per struttura #${inputs.struttura}`);
     let keyPairList = await CryptHelper.RSAGenerateKeyPair();
     try {
-      let nuovaLista = await Lista.create({
+      let nuovaLista = db.Lista.create({
         denominazione: inputs.denominazione,
         tag: inputs.tag || null,
         publicKey: keyPairList.publicKey,
         privateKey: keyPairList.privateKey,
         struttura: inputs.struttura,
         ultimaVersioneSuBlockchain: 0
-      }).fetch();
+      });
 
       const manager = new ListManager();
       const listaId = nuovaLista.id;
@@ -44,7 +44,6 @@ module.exports = {
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-lista] Blockchain: MAIN=${res3.success}`);
 
-      SyncCache.markDirty('Lista');
       return exits.success({
         lista: {...nuovaLista, privateKey: undefined},
         blockchain: { privateKey: res1.success, strData: res2.success, mainData: res3.success },
