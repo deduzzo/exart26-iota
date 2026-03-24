@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import {
@@ -8,7 +8,7 @@ import {
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import { useApi } from '../hooks/useApi';
-import { getWalletInfo, initWallet, resetWallet, fetchDbFromBlockchain, recoverFromArweave, getDashboardData } from '../api/endpoints';
+import { getWalletInfo, initWallet, resetWallet, fetchDbFromBlockchain, recoverFromArweave, getDashboardData, getArweaveStatus, switchArweaveMode } from '../api/endpoints';
 import { truncateAddress } from '../utils/formatters';
 
 export default function Wallet() {
@@ -66,8 +66,36 @@ export default function Wallet() {
     }
   };
 
+  // Arweave mode state
+  const [arweaveStatus, setArweaveStatus] = useState(null);
+  const [selectedMode, setSelectedMode] = useState(null);
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    getArweaveStatus().then((data) => {
+      setArweaveStatus(data);
+      setSelectedMode(data?.mode || null);
+    }).catch(() => {});
+  }, []);
+
+  const handleSwitchMode = async () => {
+    setSwitching(true);
+    try {
+      const result = await switchArweaveMode(selectedMode);
+      if (result.success) {
+        setArweaveStatus(result);
+        addToast(`Arweave: modalità ${result.mode} attivata`, 'success');
+      } else {
+        addToast(result.error || 'Errore cambio modalità', 'error');
+      }
+    } catch (e) {
+      addToast('Errore: ' + e.message, 'error');
+    }
+    setSwitching(false);
+  };
+
   const isWalletOk = wallet?.status === 'WALLET OK';
-  const arweaveEnabled = dashboard?.arweaveStatus?.enabled;
+  const arweaveEnabled = arweaveStatus?.enabled ?? dashboard?.arweaveStatus?.enabled;
 
   const handleInit = async () => {
     setInitializing(true);
@@ -234,37 +262,83 @@ export default function Wallet() {
           transition={{ delay: 0.2 }}
           className="glass-static rounded-2xl p-6"
         >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Shield size={20} className="text-neon-purple" />
-              Backup Arweave
-            </h3>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-              arweaveEnabled
-                ? 'bg-neon-emerald/10 text-neon-emerald'
-                : 'bg-slate-500/10 text-slate-500'
-            }`}>
-              {arweaveEnabled ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-              {arweaveEnabled ? 'Attivo' : 'Non configurato'}
-            </span>
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Database className="w-5 h-5 text-purple-400" />
+            Backup Arweave
+          </h3>
+
+          {/* Mode selector */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setSelectedMode('production')}
+              className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                selectedMode === 'production'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+              }`}
+            >
+              Produzione
+            </button>
+            <button
+              onClick={() => setSelectedMode('test')}
+              className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                selectedMode === 'test'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+              }`}
+            >
+              Test (ArLocal)
+            </button>
           </div>
 
-          <div className="space-y-3 text-sm">
-            <div className="glass-static rounded-xl p-4">
-              <p className="text-slate-400 mb-2">
-                {arweaveEnabled
-                  ? 'Il backup Arweave e attivo. Ogni transazione IOTA viene automaticamente duplicata su Arweave come backup permanente.'
-                  : 'Il backup Arweave non e configurato. Configura il file config/private_arweave_conf.js per abilitare il backup permanente.'
-                }
-              </p>
-              {arweaveEnabled && dashboard?.arweaveStatus?.address && (
-                <div className="mt-3 pt-3 border-t border-white/5">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Wallet Arweave</p>
-                  <p className="font-mono text-xs text-slate-300">{truncateAddress(dashboard.arweaveStatus.address, 12)}</p>
-                </div>
-              )}
+          {/* Status info */}
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Stato</span>
+              <span className={
+                arweaveStatus?.mode === 'production' ? 'text-emerald-400' :
+                arweaveStatus?.mode === 'test' ? 'text-amber-400' : 'text-gray-500'
+              }>
+                {arweaveStatus?.mode === 'production' ? 'Produzione attiva' :
+                 arweaveStatus?.mode === 'test' ? 'Test (ArLocal) attivo' : 'Disabilitato'}
+              </span>
             </div>
+            {arweaveStatus?.enabled && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Indirizzo</span>
+                  <span className="text-cyan-400 font-mono text-xs">
+                    {arweaveStatus.address?.slice(0,8)}...{arweaveStatus.address?.slice(-6)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Balance</span>
+                  <span className="text-white font-mono">{arweaveStatus.balance?.ar} AR</span>
+                </div>
+                {arweaveStatus.mode === 'test' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Server</span>
+                    <span className="text-amber-400 font-mono text-xs">
+                      localhost:{arweaveStatus.port}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
+          {/* Apply button */}
+          {selectedMode !== arweaveStatus?.mode && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={handleSwitchMode}
+              disabled={switching}
+              className="mt-4 w-full px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-xl font-medium transition-all"
+            >
+              {switching ? 'Cambio in corso...' : 'Applica'}
+            </motion.button>
+          )}
         </motion.div>
 
         {/* Admin Actions */}
