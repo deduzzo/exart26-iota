@@ -139,9 +139,10 @@ class ListManager {
                       entity.type === 'ASS' ? ASSISTITI_DATA : null;
           if (!tag) continue;
 
+          // Progresso ad ogni entità per l'UI
+          reportProgress(`Importazione ${processed}/${total}...`, total, processed);
           if (processed % 10 === 0 || processed === 1 || processed === total) {
             sails.log.info(`[ListManager] Sync ${processed}/${total}: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass...`);
-            reportProgress(`Importazione ${processed}/${total}...`, total, processed);
           }
 
           const record = await iota.getLastDataByTag(tag, entity.entityId);
@@ -188,6 +189,7 @@ class ListManager {
             await this._upsertAssistito(clearData);
             imported.assistiti++;
           }
+          reportProgress(`Importazione ${processed}/${total}...`, total, processed);
         } catch (entityErr) {
           sails.log.warn(`[ListManager] Errore import ${entity.type}:${entity.entityId}: ${entityErr.message}`);
         }
