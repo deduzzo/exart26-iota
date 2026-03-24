@@ -1,14 +1,26 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+
+// Placeholder pages
+const Placeholder = ({ title }) => (
+  <div>
+    <h2 className="text-2xl font-bold mb-4">{title}</h2>
+    <div className="glass-static rounded-2xl p-8 text-slate-400">In costruzione...</div>
+  </div>
+);
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen">
-        <h1 className="text-4xl font-bold text-center pt-20 neon-text">
-          ExArt26 IOTA
-        </h1>
-        <p className="text-center text-slate-400 mt-4">Frontend in costruzione...</p>
-      </div>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Placeholder title="Dashboard" />} />
+          <Route path="organizzazioni" element={<Placeholder title="Organizzazioni" />} />
+          <Route path="strutture" element={<Placeholder title="Strutture" />} />
+          <Route path="assistiti" element={<Placeholder title="Assistiti" />} />
+          <Route path="wallet" element={<Placeholder title="Wallet" />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }
