@@ -5,10 +5,12 @@
   "description": "a Sails application",
   "keywords": [],
   "dependencies": {
+    "@iota/iota-sdk": "^1.10.1",
     "@iota/sdk": "^1.1.5",
     "@sailshq/connect-redis": "^3.2.1",
     "@sailshq/lodash": "^3.10.3",
     "@sailshq/socket.io-redis": "^5.2.0",
+    "@scure/bip39": "^2.0.1",
     "arweave": "^1.15.5",
     "bootstrap": "^5.3.3",
     "express-rate-limit": "^7.1.0",

@@ -98,16 +98,16 @@ module.exports = {
         let manager = new ListManager(socketId);
         let res1 = await manager.updateDatiAssistitoToBlockchain(assistito.id);
         if (res1.success) {
-          await sails.helpers.consoleSocket('updateDatiAssistitoToBlockchain Transaction OK, blockId: ' + res1.blockId, socketId);
-          await sails.helpers.consoleSocket('url: <a href="' + res1.url + '" target="_blank">' + res1.url + '</a>', socketId);
+          await sails.helpers.consoleSocket('updateDatiAssistitoToBlockchain Transaction OK, digest: ' + res1.digest, socketId);
+          await sails.helpers.consoleSocket('url: <a href="' + res1.explorerUrl + '" target="_blank">' + res1.explorerUrl + '</a>', socketId);
 
         } else {
           await sails.helpers.consoleSocket('updateDatiAssistitoToBlockchain Transaction KO', socketId);
         }
         let res2 = await manager.updatePrivateKey(await Assistito.getWalletIdAssistito({id: assistito.id}), keyPairAss.privateKey);
         if (res2.success) {
-          await sails.helpers.consoleSocket('updatePrivateKey Transaction OK, blockId: ' + res2.blockId, socketId);
-          await sails.helpers.consoleSocket('url: <a href="' + res2.url + '" target="_blank">' + res2.url + '</a>', socketId);
+          await sails.helpers.consoleSocket('updatePrivateKey Transaction OK, digest: ' + res2.digest, socketId);
+          await sails.helpers.consoleSocket('url: <a href="' + res2.explorerUrl + '" target="_blank">' + res2.explorerUrl + '</a>', socketId);
         } else {
           await sails.helpers.consoleSocket('Aggiornamento chiave privata non riuscito', socketId);
         }

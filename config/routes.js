@@ -53,6 +53,12 @@ module.exports.routes = {
   'POST /api/v1/add-assistito-in-lista':  { action: 'add-assistito-in-lista' },
   'POST /api/v1/recover-from-arweave':    { action: 'recover-from-arweave' },
 
+  // API JSON per frontend React
+  'GET /api/v1/dashboard':                { action: 'api-dashboard' },
+  'GET /api/v1/organizzazioni/:id?':      { action: 'api-organizzazioni' },
+  'GET /api/v1/strutture':                { action: 'api-strutture' },
+  'GET /api/v1/assistiti/:id?':           { action: 'api-assistiti' },
+
 
 
 
@@ -107,6 +113,20 @@ module.exports.routes = {
 
     res.send(data);
     });
+  },
+
+  // SPA catch-all: serve index.html per le rotte frontend React
+  // Deve essere l'ultima rotta
+  'GET /app/*': {
+    skipAssets: true,
+    fn: (req, res) => {
+      const filePath = require('path').resolve(sails.config.appPath, '.tmp/public/index.html');
+      const fs = require('fs');
+      if (fs.existsSync(filePath)) {
+        return res.sendFile(filePath);
+      }
+      return res.notFound();
+    }
   }
 
 };

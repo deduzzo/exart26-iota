@@ -2,7 +2,6 @@ const pageTitle = 'Wallet Info';
 const pageSubTitle = 'Verifica stato del wallet';
 
 let iota = require('../../utility/iota');
-const {IOTA_NODE_URL} = require('../../../config/private_iota_conf');
 
 module.exports = {
 
@@ -34,21 +33,28 @@ module.exports = {
     try {
       isWalletInitialized = await iota.isWalletInitialized();
       if (initWallet && !isWalletInitialized) {
-        let res = await iota.getOrInitWallet(false);
-        mainAddress = await iota.getFirstAddressOfAnAccount(res.mainAccount);
+        let res = await iota.getOrInitWallet();
+        mainAddress = res.address;
         isWalletInitialized = res.init;
         initWallet = false;
         mnemonic = res.mnemonic;
       }
       else if (isWalletInitialized) {
-        let mainAccount = await iota.getMainAccount();
-        mainAddress = await iota.getFirstAddressOfAnAccount(mainAccount);
-        balance = await iota.getAccountBalance(mainAccount);
+        let statusInfo = await iota.getStatusAndBalance();
+        mainAddress = statusInfo.address;
+        balance = statusInfo.balance;
       }
     } catch (err) {
       let msg = (err && err.error) ? err.error : (err && err.message) ? err.message : String(err);
       sails.log.warn('Wallet verifica error: ' + msg);
       networkError = msg;
+    }
+
+    let iotaNetwork = 'testnet';
+    try {
+      iotaNetwork = require('../../../config/private_iota_conf').IOTA_NETWORK || 'testnet';
+    } catch (e) {
+      // Config non presente
     }
 
     return {
@@ -58,9 +64,9 @@ module.exports = {
       initWallet,
       mainAddress,
       mnemonic,
-      iotaNetwork: IOTA_NODE_URL,
+      iotaNetwork: iotaNetwork,
       networkError,
-      balance: iota.showBalanceFormatted(balance ? balance.baseCoin.available : BigInt(0))
+      balance: balance || iota.showBalanceFormatted(0)
     };
   }
 
