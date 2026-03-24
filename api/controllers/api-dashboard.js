@@ -1,3 +1,4 @@
+const db = require('../utility/db');
 const iota = require('../utility/iota');
 const ArweaveHelper = require('../utility/ArweaveHelper');
 
@@ -16,12 +17,12 @@ module.exports = {
   },
 
   fn: async function () {
-    let organizzazioniCount = await Organizzazione.count();
-    let struttureCount = await Struttura.count();
-    let listeCount = await Lista.count();
-    let assistitiCount = await Assistito.count();
-    let listeAperte = await Lista.count({aperta: true});
-    let assistitiInCoda = await AssistitiListe.count({stato: 1, chiuso: false});
+    let organizzazioniCount = db.Organizzazione.count();
+    let struttureCount = db.Struttura.count();
+    let listeCount = db.Lista.count();
+    let assistitiCount = db.Assistito.count();
+    let listeAperte = db.Lista.count({aperta: true});
+    let assistitiInCoda = db.AssistitiListe.count({stato: 1, chiuso: false});
 
     let walletInitialized = await iota.isWalletInitialized();
     let walletInfo = null;
@@ -42,11 +43,8 @@ module.exports = {
       }
     }
 
-    // Ultime 10 operazioni (assistiti inseriti in lista)
-    let ultimeOperazioni = await AssistitiListe.find({
-      sort: 'createdAt DESC',
-      limit: 10
-    }).populate('assistito').populate('lista');
+    // Ultime 10 operazioni (assistiti inseriti in lista) con dettagli
+    let ultimeOperazioni = db.AssistitiListe.findWithDetails({}, { sort: 'al.createdAt DESC', limit: 10 });
 
     return {
       stats: {

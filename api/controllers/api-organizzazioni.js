@@ -1,3 +1,5 @@
+const db = require('../utility/db');
+
 module.exports = {
 
   friendlyName: 'API Organizzazioni',
@@ -24,22 +26,24 @@ module.exports = {
 
   fn: async function (inputs, exits) {
     if (inputs.id) {
-      let organizzazione = await Organizzazione.findOne({id: inputs.id}).populate('strutture');
+      let organizzazione = db.Organizzazione.toJSON(db.Organizzazione.findOne({id: inputs.id}));
       if (!organizzazione) {
         return exits.notFound({error: 'Organizzazione non trovata.'});
       }
+      organizzazione.strutture = db.Struttura.find({organizzazione: organizzazione.id});
       // Per ogni struttura, carica le liste
       for (let struttura of organizzazione.strutture) {
-        struttura.liste = await Lista.find({struttura: struttura.id});
+        struttura.liste = db.Lista.find({struttura: struttura.id});
       }
       return exits.success({organizzazione});
     }
 
     // Lista completa
-    let organizzazioni = await Organizzazione.find().populate('strutture');
+    let organizzazioni = db.Organizzazione.find().map(o => db.Organizzazione.toJSON(o));
     for (let org of organizzazioni) {
+      org.strutture = db.Struttura.find({organizzazione: org.id});
       for (let struttura of org.strutture) {
-        struttura.liste = await Lista.find({struttura: struttura.id});
+        struttura.liste = db.Lista.find({struttura: struttura.id});
       }
     }
     return exits.success({organizzazioni});

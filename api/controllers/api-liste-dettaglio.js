@@ -1,3 +1,5 @@
+const db = require('../utility/db');
+
 module.exports = {
 
   friendlyName: 'API Liste Dettaglio',
@@ -17,33 +19,48 @@ module.exports = {
   },
 
   fn: async function (inputs, exits) {
-    const lista = await Lista.findOne({id: inputs.idLista}).populate('struttura');
+    const lista = db.Lista.findOne({id: inputs.idLista});
     if (!lista) return exits.notFound({error: 'Lista non trovata.'});
 
-    // Assistiti attualmente in coda (stato 1) ordinati per ingresso
-    const inCoda = await AssistitiListe.find({
-      lista: inputs.idLista,
-      stato: 1, // INSERITO_IN_CODA
-      chiuso: false,
-    }).populate('assistito').sort('dataOraIngresso ASC');
+    // Add struttura info
+    lista.struttura = lista.struttura ? db.Struttura.findOne({id: lista.struttura}) : null;
+
+    // Assistiti attualmente in coda (stato 1) ordinati per ingresso, with assistito details
+    const inCoda = db.AssistitiListe.findWithDetails(
+      {lista: inputs.idLista, stato: 1, chiuso: false},
+      { sort: 'al.dataOraIngresso ASC' }
+    );
 
     // Aggiungi posizione
     const codaConPosizione = inCoda.map((al, i) => ({
       id: al.id,
       posizione: i + 1,
-      assistito: al.assistito,
+      assistito: {
+        id: al.assistito,
+        nome: al.assNome,
+        cognome: al.assCognome,
+        codiceFiscale: al.assCF,
+        anonId: al.assAnonId,
+      },
       stato: al.stato,
       dataOraIngresso: al.dataOraIngresso,
     }));
 
-    // Storico completo (tutti gli stati, anche chiusi)
-    const storico = await AssistitiListe.find({
-      lista: inputs.idLista,
-    }).populate('assistito').sort('createdAt DESC');
+    // Storico completo (tutti gli stati, anche chiusi) with assistito details
+    const storico = db.AssistitiListe.findWithDetails(
+      {lista: inputs.idLista},
+      { sort: 'al.createdAt DESC' }
+    );
 
     const storicoFormattato = storico.map(al => ({
       id: al.id,
-      assistito: al.assistito,
+      assistito: {
+        id: al.assistito,
+        nome: al.assNome,
+        cognome: al.assCognome,
+        codiceFiscale: al.assCF,
+        anonId: al.assAnonId,
+      },
       stato: al.stato,
       chiuso: al.chiuso,
       dataOraIngresso: al.dataOraIngresso,

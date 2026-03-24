@@ -1,3 +1,5 @@
+const db = require('../utility/db');
+
 module.exports = {
 
   friendlyName: 'API Strutture',
@@ -29,7 +31,7 @@ module.exports = {
 
   fn: async function (inputs, exits) {
     // Pre-aggregate all AssistitiListe stats in a single query (eliminates N+1)
-    const allAssistitiListe = await AssistitiListe.find();
+    const allAssistitiListe = db.AssistitiListe.find();
     const statsByLista = {};
     for (const al of allAssistitiListe) {
       const lid = al.lista;
@@ -51,12 +53,14 @@ module.exports = {
     }
 
     if (inputs.id) {
-      let struttura = await Struttura.findOne({id: inputs.id})
-        .populate('organizzazione')
-        .populate('liste');
+      let struttura = db.Struttura.findOne({id: inputs.id});
       if (!struttura) {
         return exits.notFound({error: 'Struttura non trovata.'});
       }
+      // Add organizzazione
+      struttura.organizzazione = db.Organizzazione.findOne({id: struttura.organizzazione});
+      // Add liste
+      struttura.liste = db.Lista.find({struttura: struttura.id});
       for (let lista of struttura.liste) {
         lista.assistitiInCoda = (statsByLista[lista.id] || {}).inCoda || 0;
       }
@@ -68,8 +72,12 @@ module.exports = {
     if (inputs.organizzazione) {
       criteria.organizzazione = inputs.organizzazione;
     }
-    let strutture = await Struttura.find(criteria).populate('organizzazione').populate('liste');
+    let strutture = db.Struttura.find(criteria);
     for (let str of strutture) {
+      // Add organizzazione
+      str.organizzazione = db.Organizzazione.findOne({id: str.organizzazione});
+      // Add liste
+      str.liste = db.Lista.find({struttura: str.id});
       for (let lista of str.liste) {
         const raw = statsByLista[lista.id] || { inCoda: 0, usciti: 0, totale: 0, tempoTotaleMs: 0, tempoCount: 0 };
         let tempoMedioGiorni = null;

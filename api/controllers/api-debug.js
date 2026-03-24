@@ -1,3 +1,4 @@
+const db = require('../utility/db');
 const iota = require('../utility/iota');
 const CryptHelper = require('../utility/CryptHelper');
 const TransactionDataType = require('../enums/TransactionDataType');
@@ -88,13 +89,24 @@ module.exports = {
       }
     }
 
-    // 3. Local DB state - fetch records with relationships (limited for performance)
-    const organizzazioni = await Organizzazione.find().limit(100).populate('strutture');
-    const strutture = await Struttura.find().limit(200).populate('organizzazione').populate('liste');
-    const liste = await Lista.find().limit(200).populate('struttura');
-    const assistiti = await Assistito.find().limit(200);
-    const assistitiListe = await AssistitiListe.find().limit(500).populate('assistito').populate('lista');
-    const blockchainData = await BlockchainData.find().sort('createdAt DESC').limit(500);
+    // 3. Local DB state (limited for performance)
+    const organizzazioni = db.Organizzazione.find({}, { limit: 100 });
+    const strutture = db.Struttura.find({}, { limit: 200 });
+    const liste = db.Lista.find({}, { limit: 200 });
+    const assistiti = db.Assistito.find({}, { limit: 200 });
+    const assistitiListe = db.AssistitiListe.findWithDetails({}, { limit: 500 });
+    const blockchainData = db.BlockchainData.find({}, { sort: 'createdAt DESC', limit: 500 });
+
+    // Add org/liste info to strutture for display
+    for (const str of strutture) {
+      str.organizzazione = db.Organizzazione.findOne({id: str.organizzazione});
+      str.liste = db.Lista.find({struttura: str.id});
+    }
+
+    // Add struttura info to liste
+    for (const l of liste) {
+      l.struttura = l.struttura ? db.Struttura.findOne({id: l.struttura}) : null;
+    }
 
     // For DB output, include privateKey info (truncated) for debug
     const organizzazioniDebug = organizzazioni.map(o => ({
@@ -124,7 +136,7 @@ module.exports = {
     // 4. Cross-reference index — pre-build Maps for O(N+M) lookups
     const alByAssistito = new Map();
     for (const al of assistitiListe) {
-      const assId = typeof al.assistito === 'object' ? al.assistito.id : al.assistito;
+      const assId = al.assistito;
       if (!alByAssistito.has(assId)) alByAssistito.set(assId, []);
       alByAssistito.get(assId).push(al);
     }
@@ -154,7 +166,8 @@ module.exports = {
         };
       }),
       strutture: strutture.map(str => {
-        const entityId = str.organizzazione ? (typeof str.organizzazione === 'object' ? str.organizzazione.id : str.organizzazione) + '_' + str.id : str.id;
+        const orgId = str.organizzazione ? (typeof str.organizzazione === 'object' ? str.organizzazione.id : str.organizzazione) : null;
+        const entityId = orgId ? orgId + '_' + str.id : str.id;
         const strTxs = Array.isArray(blockchainTransactions[TransactionDataType.STRUTTURE_LISTE_DATA])
           ? blockchainTransactions[TransactionDataType.STRUTTURE_LISTE_DATA].filter(tx => String(tx.entityId) === String(entityId))
           : [];
@@ -165,7 +178,7 @@ module.exports = {
         return {
           id: str.id,
           denominazione: str.denominazione,
-          organizzazioneId: typeof str.organizzazione === 'object' ? str.organizzazione.id : str.organizzazione,
+          organizzazioneId: orgId,
           entityId: entityId,
           hasPublicKey: !!str.publicKey,
           hasPrivateKey: !!str.privateKey,
@@ -201,8 +214,8 @@ module.exports = {
           privateKeyOnChain: pkTxs.length > 0,
           listeAssegnate: assListe.map(al => ({
             id: al.id,
-            listaId: typeof al.lista === 'object' ? al.lista.id : al.lista,
-            listaDenominazione: typeof al.lista === 'object' ? al.lista.denominazione : null,
+            listaId: al.lista,
+            listaDenominazione: al.listaDenominazione || null,
             stato: al.stato,
             chiuso: al.chiuso,
             dataOraIngresso: al.dataOraIngresso,
@@ -228,11 +241,11 @@ module.exports = {
       meta: {
         timestamp: new Date().toISOString(),
         allTags,
-        totalOrg: await Organizzazione.count(),
-        totalStr: await Struttura.count(),
-        totalListe: await Lista.count(),
-        totalAss: await Assistito.count(),
-        totalAL: await AssistitiListe.count(),
+        totalOrg: db.Organizzazione.count(),
+        totalStr: db.Struttura.count(),
+        totalListe: db.Lista.count(),
+        totalAss: db.Assistito.count(),
+        totalAL: db.AssistitiListe.count(),
         limited: true,
         displayLimit: 'Primi 100-500 record per tipo. Cross-reference basato solo sui record mostrati.',
       },

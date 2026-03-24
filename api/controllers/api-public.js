@@ -1,4 +1,5 @@
 // L'anonId viene dal campo persistente nel modello Assistito
+const db = require('../utility/db');
 
 module.exports = {
 
@@ -13,30 +14,28 @@ module.exports = {
   },
 
   fn: async function (inputs, exits) {
-    // Trova tutte le liste con struttura e organizzazione
-    const liste = await Lista.find().populate('struttura');
+    // Trova tutte le liste con struttura
+    const liste = db.Lista.findWithStruttura();
 
     const result = [];
 
     for (const lista of liste) {
       // Popola organizzazione dalla struttura
       let organizzazione = null;
-      if (lista.struttura && lista.struttura.organizzazione) {
-        organizzazione = await Organizzazione.findOne({ id: lista.struttura.organizzazione });
+      if (lista.strOrganizzazione) {
+        organizzazione = db.Organizzazione.toJSON(db.Organizzazione.findOne({ id: lista.strOrganizzazione }));
       }
 
-      // Assistiti attualmente in coda (stato 1, non chiusi)
-      const inCoda = await AssistitiListe.find({
-        lista: lista.id,
-        stato: 1, // INSERITO_IN_CODA
-        chiuso: false,
-      }).populate('assistito').sort('dataOraIngresso ASC');
+      // Assistiti attualmente in coda (stato 1, non chiusi) with assistito details
+      const inCoda = db.AssistitiListe.findWithDetails(
+        {lista: lista.id, stato: 1, chiuso: false},
+        { sort: 'al.dataOraIngresso ASC' }
+      );
 
-      // Tutti i record usciti (stato != 1 oppure chiusi)
-      const usciti = await AssistitiListe.find({
-        lista: lista.id,
-        stato: { '!=': 1 },
-      });
+      // Tutti i record usciti (stato != 1)
+      const usciti = db.raw.prepare(
+        `SELECT * FROM assistiti_liste WHERE lista = ? AND stato != 1`
+      ).all(lista.id);
 
       // Calcola tempo medio di attesa per chi e uscito (in giorni)
       let tempoMedioGiorni = 0;
@@ -52,18 +51,19 @@ module.exports = {
       // Coda anonimizzata
       const codaAnonima = inCoda.map((al, i) => ({
         position: i + 1,
-        anonId: al.assistito?.anonId || '--------',
+        anonId: al.assAnonId || '--------',
         stato: al.stato,
         dataOraIngresso: al.dataOraIngresso,
       }));
 
       // Storico completo anonimizzato (tutti i movimenti, anche chiusi)
-      const tuttiMovimenti = await AssistitiListe.find({
-        lista: lista.id,
-      }).populate('assistito').sort('createdAt DESC');
+      const tuttiMovimenti = db.AssistitiListe.findWithDetails(
+        {lista: lista.id},
+        { sort: 'al.createdAt DESC' }
+      );
 
       const storicoAnonimo = tuttiMovimenti.map((al) => ({
-        anonId: al.assistito?.anonId || '--------',
+        anonId: al.assAnonId || '--------',
         stato: al.stato,
         chiuso: al.chiuso,
         dataOraIngresso: al.dataOraIngresso,
@@ -75,8 +75,8 @@ module.exports = {
         denominazione: lista.denominazione,
         aperta: lista.aperta,
         struttura: lista.struttura ? {
-          id: lista.struttura.id,
-          denominazione: lista.struttura.denominazione,
+          id: lista.struttura,
+          denominazione: lista.strDenominazione,
         } : null,
         organizzazione: organizzazione ? {
           id: organizzazione.id,

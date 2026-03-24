@@ -1,3 +1,5 @@
+const db = require('../utility/db');
+
 module.exports = {
 
   friendlyName: 'API Assistiti',
@@ -29,55 +31,56 @@ module.exports = {
 
   fn: async function (inputs, exits) {
     if (inputs.id) {
-      let assistito = await Assistito.findOne({id: inputs.id});
+      let assistito = db.Assistito.toJSON(db.Assistito.findOne({id: inputs.id}));
       if (!assistito) {
         return exits.notFound({error: 'Assistito non trovato.'});
       }
-      let listeAssistito = await AssistitiListe.find({assistito: inputs.id})
-        .populate('lista');
+      // Load liste with details
+      let listeAssistito = db.AssistitiListe.findWithDetails({assistito: inputs.id});
       assistito.listeAssistito = listeAssistito;
       return exits.success({assistito});
     }
 
     // Lista con ricerca opzionale
-    let criteria = {};
+    let assistiti;
     if (inputs.search) {
       const searchTerm = inputs.search.trim();
-      criteria = {
-        or: [
-          {nome: {contains: searchTerm}},
-          {cognome: {contains: searchTerm}},
-          {codiceFiscale: {contains: searchTerm.toUpperCase()}},
-        ]
-      };
+      const searchUpper = searchTerm.toUpperCase();
+      const likeTerm = `%${searchTerm}%`;
+      const likeTermUpper = `%${searchUpper}%`;
+      // Use raw SQL for LIKE search (db.js find doesn't support 'contains')
+      assistiti = db.raw.prepare(
+        `SELECT * FROM assistiti WHERE nome LIKE ? OR cognome LIKE ? OR codiceFiscale LIKE ? ORDER BY cognome ASC`
+      ).all(likeTerm, likeTerm, likeTermUpper);
+    } else {
+      assistiti = db.Assistito.find({}, { sort: 'cognome ASC' });
     }
-    let assistiti = await Assistito.find(criteria).sort('cognome ASC');
+
+    // Strip privateKey for response
+    assistiti = assistiti.map(a => db.Assistito.toJSON(a));
 
     // Per ogni assistito, carica le liste assegnate con posizione
     for (let i = 0; i < assistiti.length; i++) {
-      const listeAss = await AssistitiListe.find({
-        assistito: assistiti[i].id,
-        chiuso: false
-      }).populate('lista').sort('dataOraIngresso ASC');
+      const listeAss = db.AssistitiListe.findWithDetails(
+        {assistito: assistiti[i].id, chiuso: false},
+        { sort: 'al.dataOraIngresso ASC' }
+      );
 
       // Calcola posizione in ogni lista
       assistiti[i].listeAssegnate = [];
       for (const al of listeAss) {
         let posizione = null;
-        if (al.stato === 1 && al.lista) { // INSERITO_IN_CODA
+        if (al.stato === 1 && al.listaDenominazione) { // INSERITO_IN_CODA and lista exists
           // Conta quanti sono in coda in questa lista PRIMA di questo assistito
-          const precedenti = await AssistitiListe.count({
-            lista: typeof al.lista === 'object' ? al.lista.id : al.lista,
-            stato: 1,
-            chiuso: false,
-            dataOraIngresso: { '<=': al.dataOraIngresso },
-          });
-          posizione = precedenti;
+          const precedenti = db.raw.prepare(
+            `SELECT COUNT(*) as cnt FROM assistiti_liste WHERE lista = ? AND stato = 1 AND chiuso = 0 AND dataOraIngresso <= ?`
+          ).get(al.lista, al.dataOraIngresso);
+          posizione = precedenti.cnt;
         }
         assistiti[i].listeAssegnate.push({
           id: al.id,
-          listaId: typeof al.lista === 'object' ? al.lista.id : al.lista,
-          listaNome: typeof al.lista === 'object' ? al.lista.denominazione : null,
+          listaId: al.lista,
+          listaNome: al.listaDenominazione || null,
           stato: al.stato,
           posizione: posizione,
           dataOraIngresso: al.dataOraIngresso,
