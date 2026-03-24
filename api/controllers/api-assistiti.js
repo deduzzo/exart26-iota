@@ -2,7 +2,7 @@ module.exports = {
 
   friendlyName: 'API Assistiti',
 
-  description: 'Ritorna lista o dettaglio assistiti con le loro liste.',
+  description: 'Ritorna lista o dettaglio assistiti con le loro liste assegnate.',
 
   inputs: {
     id: {
@@ -33,7 +33,6 @@ module.exports = {
       if (!assistito) {
         return exits.notFound({error: 'Assistito non trovato.'});
       }
-      // Carica le liste in coda
       let listeAssistito = await AssistitiListe.find({assistito: inputs.id})
         .populate('lista');
       assistito.listeAssistito = listeAssistito;
@@ -53,6 +52,39 @@ module.exports = {
       };
     }
     let assistiti = await Assistito.find(criteria).sort('cognome ASC');
+
+    // Per ogni assistito, carica le liste assegnate con posizione
+    for (let i = 0; i < assistiti.length; i++) {
+      const listeAss = await AssistitiListe.find({
+        assistito: assistiti[i].id,
+        chiuso: false
+      }).populate('lista').sort('dataOraIngresso ASC');
+
+      // Calcola posizione in ogni lista
+      assistiti[i].listeAssegnate = [];
+      for (const al of listeAss) {
+        let posizione = null;
+        if (al.stato === 1 && al.lista) { // INSERITO_IN_CODA
+          // Conta quanti sono in coda in questa lista PRIMA di questo assistito
+          const precedenti = await AssistitiListe.count({
+            lista: typeof al.lista === 'object' ? al.lista.id : al.lista,
+            stato: 1,
+            chiuso: false,
+            dataOraIngresso: { '<=': al.dataOraIngresso },
+          });
+          posizione = precedenti;
+        }
+        assistiti[i].listeAssegnate.push({
+          id: al.id,
+          listaId: typeof al.lista === 'object' ? al.lista.id : al.lista,
+          listaNome: typeof al.lista === 'object' ? al.lista.denominazione : null,
+          stato: al.stato,
+          posizione: posizione,
+          dataOraIngresso: al.dataOraIngresso,
+        });
+      }
+    }
+
     return exits.success({assistiti});
   }
 };

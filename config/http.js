@@ -34,7 +34,7 @@ module.exports.http = {
 
     apiRateLimit: rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minuti
-      max: 100, // massimo 100 richieste per IP per finestra
+      max: 1000, // massimo 1000 richieste per IP per finestra (SPA fa molte chiamate)
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Troppe richieste da questo IP, riprova tra 15 minuti.' },

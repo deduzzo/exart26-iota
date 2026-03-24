@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus } from 'lucide-react';
+import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus, FileText } from 'lucide-react';
+import StatusBadge from '../components/StatusBadge';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -57,48 +58,56 @@ export default function Assistiti() {
     );
   });
 
+  const STATO_LABELS = {
+    1: 'In coda', 2: 'In assistenza', 3: 'Completato',
+    4: 'Cambio lista', 5: 'Rinuncia', 6: 'Annullato'
+  };
+
   const columns = [
     {
-      key: 'id',
-      label: 'ID',
-      render: (v) => <span className="text-slate-500 font-mono text-xs">#{v}</span>,
-    },
-    {
       key: 'cognome',
-      label: 'Cognome',
-      render: (v) => <span className="font-medium text-slate-100">{v}</span>,
-    },
-    {
-      key: 'nome',
-      label: 'Nome',
-      render: (v) => <span className="text-slate-200">{v}</span>,
-    },
-    {
-      key: 'codiceFiscale',
-      label: 'Codice Fiscale',
-      render: (v) => (
-        <span className="font-mono text-xs text-slate-400 flex items-center gap-1">
-          <CreditCard size={12} /> {v || '-'}
-        </span>
+      label: 'Assistito',
+      render: (v, row) => (
+        <div>
+          <span className="font-medium text-slate-100">{v} {row.nome}</span>
+          <div className="text-xs text-slate-500 font-mono mt-0.5">{row.codiceFiscale}</div>
+        </div>
       ),
     },
     {
-      key: 'email',
-      label: 'Email',
-      render: (v) => v ? (
-        <span className="text-xs text-slate-400 flex items-center gap-1">
-          <Mail size={12} /> {v}
-        </span>
-      ) : <span className="text-slate-600">-</span>,
+      key: 'listeAssegnate',
+      label: 'Liste / Posizione',
+      render: (liste) => {
+        if (!liste || liste.length === 0) {
+          return <span className="text-slate-600 text-xs">Nessuna lista</span>;
+        }
+        return (
+          <div className="space-y-1">
+            {liste.map((l, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs text-slate-300">{l.listaNome || `Lista #${l.listaId}`}</span>
+                {l.stato === 1 && l.posizione && (
+                  <span className="bg-neon-cyan/15 text-neon-cyan text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    #{l.posizione}
+                  </span>
+                )}
+                <StatusBadge status={l.stato} />
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     {
-      key: 'telefono',
-      label: 'Telefono',
-      render: (v) => v ? (
-        <span className="text-xs text-slate-400 flex items-center gap-1">
-          <Phone size={12} /> {v}
-        </span>
-      ) : <span className="text-slate-600">-</span>,
+      key: 'email',
+      label: 'Contatti',
+      render: (v, row) => (
+        <div className="text-xs text-slate-400 space-y-0.5">
+          {v && <div className="flex items-center gap-1"><Mail size={11} /> {v}</div>}
+          {row.telefono && <div className="flex items-center gap-1"><Phone size={11} /> {row.telefono}</div>}
+          {!v && !row.telefono && <span className="text-slate-600">-</span>}
+        </div>
+      ),
     },
     {
       key: '_actions',
@@ -114,7 +123,7 @@ export default function Assistiti() {
             className="text-xs text-neon-cyan hover:text-neon-cyan/80 flex items-center gap-1 transition-colors"
             title="Aggiungi a lista"
           >
-            <ListPlus size={14} />
+            <ListPlus size={14} /> Assegna
           </button>
         </div>
       ),
