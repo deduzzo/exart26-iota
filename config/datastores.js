@@ -50,6 +50,7 @@ module.exports.datastores = {
     ***************************************************************************/
 
     adapter: 'sails-disk',
+    inMemoryOnly: true, // Il DB locale e solo cache - i dati veri sono sulla blockchain IOTA
     //adapter: 'sails-mysql',
     //url: 'mysql://root:root@localhost:3306/exart26_iota',
 

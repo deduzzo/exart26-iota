@@ -27,8 +27,7 @@ module.exports = {
     anonId: {
       type: 'string',
       required: true,
-      unique: true,
-      description: 'ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica.',
+      description: 'ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica. Unicita garantita nel beforeCreate.',
       maxLength: 8,
     },
 
@@ -43,7 +42,6 @@ module.exports = {
     codiceFiscale: {
       type: 'string',
       required: true,
-      unique: true
     },
     dataNascita: {
       type: 'string',
