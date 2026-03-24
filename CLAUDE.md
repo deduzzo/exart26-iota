@@ -104,6 +104,7 @@ Organizzazione
 - **ListManager.js** - Logica business: gestione indice MAIN_DATA, sync blockchain->cache, CRUD con crittografia, backup Arweave automatico, recovery con fallback discovery
 - **CryptHelper.js** - Crittografia ibrida RSA+AES, firma digitale, HMAC
 - **ArweaveHelper.js** - Client Arweave: upload dati cifrati, query GraphQL per tag, download e recovery
+- **SyncCache.js** - Cache locale persistente su file `.tmp/sync-cache.json`. Al bootstrap carica dalla cache (istantaneo), poi sync blockchain in background. Ogni operazione CRUD aggiorna la cache (debounced 5 secondi)
 
 ### Interfaccia iota.js (funzioni esportate)
 - `loadSdk()` - Carica moduli ESM @iota/iota-sdk via dynamic import
@@ -134,12 +135,18 @@ Organizzazione
 4. Payload codificato come u64 split-coin amounts nel Programmable TX Block su IOTA 2.0
 5. Stesso payload duplicato su Arweave (backup non-bloccante)
 
-### Flusso Recupero Dati (Bootstrap Sync)
-1. Leggi indice MAIN_DATA dalla blockchain (start-point certificato)
-2. Per ogni entityId nell'indice, recupera la transazione dedicata per tag
-3. Se MAIN_DATA non esiste -> fallback: discovery scansionando tutte le TX per tag
-4. Ulteriore fallback -> recovery da Arweave via GraphQL
+### Flusso Recupero Dati (Bootstrap Sync con SyncCache)
+1. **Step 1**: Carica cache locale da `.tmp/sync-cache.json` (istantaneo)
+2. **Step 2**: Server lifta immediatamente con i dati dalla cache
+3. **Step 3**: Sync blockchain in background (non bloccante)
+   - Leggi indice MAIN_DATA dalla blockchain (start-point certificato)
+   - Per ogni entityId nell'indice, recupera la transazione dedicata per tag
+   - Se MAIN_DATA non esiste -> fallback: discovery scansionando tutte le TX per tag
+   - Ulteriore fallback -> recovery da Arweave via GraphQL
+4. **Step 4**: Salva cache aggiornata su disco
 5. Endpoint manuale `/api/v1/recover-from-arweave`
+6. `POST /api/v1/sync-reset` per cancellare cache e riforzare sync da blockchain
+7. `GET /api/v1/sync-status` per stato sync in tempo reale (syncing, progress)
 
 ### Enums (api/enums/)
 - **TransactionDataType**: MAIN_DATA, ORGANIZZAZIONE_DATA, STRUTTURE_LISTE_DATA, ASSISTITI_DATA, PRIVATE_KEY, LISTE_IN_CODA, ASSISTITI_IN_LISTA, MOVIMENTI_ASSISTITI_LISTA
@@ -154,12 +161,14 @@ Organizzazione
 - **socket.io-client** per feedback real-time WebSocket
 - **Lucide React** per icone
 - **react-force-graph-2d** per visualizzazione grafo
-- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, **Grafo**, **Pubblico**, **Debug**
+- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, **Grafo**, **Pubblico**, **Debug**, **Load Test**
 - **WalletInitModal**: componente globale in `Layout.jsx`, modale che appare su ogni pagina se il wallet non e inizializzato. Mostra pulsante init, poi mnemonic con copia, poi "continua"
+- **Banner sync**: barra progresso animata durante la sincronizzazione blockchain, con status, percentuale, contatori org/str/ass. Polling ogni 2 secondi, scompare automaticamente. Visibile su ogni pagina
 - Build di produzione: `cd frontend && npm run build` (output in `.tmp/public/`)
 - SPA catch-all: `GET /app/*` serve `index.html` dal backend
 
 ### Pagina Liste (/app/liste)
+- **Layout a 2 colonne** con filtro testuale per ricerca rapida
 - Cards per ogni lista con **statistiche** (in coda, usciti, media attesa giorni)
 - Vista **coda** con posizioni numerate (#1, #2...)
 - Bottone **"Chiama"** per il primo in coda (rimozione con stato IN_ASSISTENZA)
@@ -177,9 +186,15 @@ Organizzazione
 
 ### Pagina Grafo (/app/grafo)
 - Visualizzazione interattiva **force-directed** di tutte le entita
-- Nodi colorati per tipo: organizzazioni (viola), strutture (cyan), liste (verde), assistiti (arancione)
+- Nodi colorati per tipo: organizzazioni (viola), strutture (cyan), liste (verde), assistiti (arancione), **trattati (rosso)**
+- **Nodi Trattati**: pazienti usciti dalla lista, aggregati per lista
 - Pannello dettagli al hover con chiavi, indirizzi, timestamp
 - Dati caricati da `GET /api/v1/graph-data`
+
+### Pagina Load Test (/app/load-test)
+- Generazione dati di prova direttamente dall'UI
+- Log in tempo reale delle operazioni eseguite
+- Utile per test e demo del sistema
 
 ### Pagina Debug (/app/debug)
 - Mostra stato **wallet** (indirizzo, balance, rete)
@@ -196,6 +211,9 @@ NODE_ENV=production node app.js   # Produzione
 # Frontend - Sviluppo
 cd frontend && npm run dev        # Vite dev server (porta 5173)
 cd frontend && npm run build      # Build produzione (output: .tmp/public/)
+
+# Simulazione dati
+npm run simulate                  # Simulazione continua infinita con crescita proporzionale
 
 # Dipendenze
 npm install                       # Backend
@@ -236,6 +254,8 @@ npx eslint api/
 | POST | /api/v1/rimuovi-assistito-da-lista | Rimuove assistito da lista con stato: body `{ idAssistitoListe, stato }` (2=assistenza, 3=completato, 5=rinuncia, 6=annullato) |
 | POST | /api/v1/fetch-db-from-blockchain | Ricostruisce cache dalla blockchain (legge MAIN_DATA index) |
 | POST | /api/v1/recover-from-arweave | Recupera dati da Arweave (richiede wallet) |
+| POST | /api/v1/sync-reset | Cancella cache locale e riforza sync da blockchain |
+| GET | /api/v1/sync-status | Stato sync in tempo reale (syncing, progress, contatori) |
 | POST | /api/v1/wallet/init | Inizializza wallet: genera mnemonic, ritorna { success, mnemonic, address } |
 | POST | /api/v1/wallet/reset | Reset wallet: distrugge e ricrea wallet (doppia conferma UI) |
 | GET | /api/v1/wallet/get-info | Info wallet IOTA 2.0 (status, balance, address, network) |
@@ -276,6 +296,12 @@ npx eslint api/
 - **Pagina Pubblico**: `/app/pubblico` frontend anonimizzato per verifica posizione (hash SHA-256 del CF, zero dati personali)
 - **Pagina Grafo**: `/app/grafo` con react-force-graph-2d, dati da `GET /api/v1/graph-data`
 - **Pagina Debug**: `/app/debug` mostra wallet, transazioni blockchain con decrypt, DB locale, cross-references consistency
+- **Pagina Load Test**: `/app/load-test` per generazione dati di prova dall'UI con log in tempo reale
+- **`npm run simulate`**: script CLI per simulazione continua infinita con crescita proporzionale
+- **SyncCache**: cache locale persistente su `.tmp/sync-cache.json`, il server lifta subito con dati dalla cache senza aspettare la blockchain
+- **Banner sync UI**: barra progresso animata durante sincronizzazione blockchain, visibile su ogni pagina, polling ogni 2 secondi
+- **Pagina Liste a 2 colonne**: con filtro testuale per ricerca rapida
+- **Nodi Trattati nel grafo**: pazienti usciti aggregati per lista, visualizzati come nodi dedicati
 - **Wallet Reset**: `POST /api/v1/wallet/reset` per distruggere e ricreare il wallet (doppia conferma UI)
 - **Statistiche liste**: API strutture arricchita con stats per lista (inCoda, usciti, totale, tempoMedioGiorni)
 - **Assistiti con liste**: la tabella assistiti mostra le liste assegnate con posizione in coda (#1, #2...)

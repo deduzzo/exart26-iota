@@ -49,7 +49,7 @@ Il frontend e una **Single Page Application** moderna costruita con React, Vite 
 
 ## Architettura
 
-Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fonte di verita unica** (source of truth). Il database locale e una cache riscrivibile. I controller CRUD rispondono immediatamente al client dopo il salvataggio in cache; la pubblicazione sulla blockchain avviene in background (`setImmediate`), senza bloccare l'utente.
+Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fonte di verita unica** (source of truth). Il database locale e una cache riscrivibile. I controller CRUD rispondono immediatamente al client dopo il salvataggio in cache; la pubblicazione sulla blockchain avviene in background (`setImmediate`), senza bloccare l'utente. Il modulo **SyncCache** garantisce un avvio istantaneo del server caricando i dati dalla cache locale su file (`.tmp/sync-cache.json`), con sincronizzazione blockchain in background.
 
 ```
                         +---------------------------+
@@ -70,6 +70,7 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
                         |  | ListManager.js       |  |
                         |  | CryptHelper.js       |  |
                         |  | ArweaveHelper.js     |  |
+                        |  | SyncCache.js         |  |
                         |  +-----+-------+-------+  |
                         +--------+-------+----------+
                                  |       |
@@ -98,12 +99,20 @@ Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fo
 2. Il frontend invia una richiesta REST al backend Sails.js
 3. Il backend valida i dati, genera le chiavi crittografiche, salva nella cache locale
 4. **Il controller risponde immediatamente al client** (HTTP 200)
-5. In background (`setImmediate`):
+5. La **SyncCache** viene aggiornata (debounced 5 secondi)
+6. In background (`setImmediate`):
    - I dati vengono cifrati con il sistema ibrido RSA+AES+HMAC
    - Il payload cifrato viene codificato come u64 split-coin amounts e pubblicato su IOTA 2.0
    - L'indice MAIN_DATA viene aggiornato sulla blockchain
    - Una copia viene caricata su Arweave come backup permanente
-6. Il client riceve feedback in tempo reale via WebSocket durante le operazioni blockchain
+7. Il client riceve feedback in tempo reale via WebSocket durante le operazioni blockchain
+
+### Flusso di avvio (Bootstrap con SyncCache)
+
+1. **Step 1**: Carica cache locale da `.tmp/sync-cache.json` (istantaneo)
+2. **Step 2**: Il server lifta immediatamente con i dati dalla cache
+3. **Step 3**: Sync blockchain in background (non bloccante) - il frontend mostra un **banner animato** con barra di progresso
+4. **Step 4**: Salva cache aggiornata su disco
 
 ---
 
@@ -172,6 +181,7 @@ La funzione `_queryTransactionsFromChain` interroga il nodo IOTA con `queryTrans
 | **Blockchain** | @iota/iota-sdk | 1.10+ | IOTA 2.0 Rebased (Ed25519, Programmable TX) |
 | **Permaweb** | Arweave | 1.15.5 | Backup permanente e immutabile |
 | **Cache locale** | sails-disk | 3.0.1 | Cache ricostruibile (source of truth = blockchain) |
+| **SyncCache** | File JSON (.tmp/sync-cache.json) | - | Cache persistente per avvio istantaneo del server |
 | **Real-time** | Socket.io (sails-hook-sockets) | 2.0.0 | Feedback live operazioni blockchain |
 | **API Docs** | Swagger UI | 5.17.2 | Documentazione interattiva OpenAPI |
 | **Rate Limiting** | express-rate-limit | 7.1.0 | Disponibile ma disabilitato per compatibilita SPA |
@@ -289,7 +299,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 ### Gestione liste d'attesa
 - Creazione e gestione di **organizzazioni**, **strutture**, **liste** e **assistiti**
 - Inserimento e rimozione assistiti dalle liste con tracciamento dello **stato** e dei **timestamp**
-- **Pagina Liste dedicata** (`/app/liste`): cards per lista con statistiche (in coda, usciti, media attesa giorni), vista coda con posizioni, bottone "Chiama" per il primo in coda, toggle Coda/Storico
+- **Pagina Liste dedicata** (`/app/liste`): layout a **2 colonne** con **filtro testuale**, cards per lista con statistiche (in coda, usciti, media attesa giorni), vista coda con posizioni, bottone "Chiama" per il primo in coda, toggle Coda/Storico
 - **Rimozione assistiti**: selezione dello stato di uscita (in assistenza, completato, rinuncia, annullato)
 - **Statistiche liste**: API strutture arricchita con stats per lista (inCoda, usciti, totale, tempoMedioGiorni)
 - **Assistiti con liste**: la tabella assistiti mostra le liste assegnate con posizione in coda (#1, #2...)
@@ -301,8 +311,16 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - **MAIN_DATA come indice leggero**: contiene solo la lista di entityId per tipo, non l'intero dataset
 - Ogni entita ha la propria **transazione dedicata** sulla chain
 - Il DB locale (sails-disk) e una **cache ricostruibile** dalla blockchain in qualsiasi momento
-- **Sincronizzazione al bootstrap**: all'avvio l'app legge l'indice MAIN_DATA e ricostruisce la cache locale
 - **Controller non-bloccanti**: tutti i CRUD (inclusi add-assistito-in-lista e rimuovi-assistito-da-lista) rispondono immediatamente al client, pubblicazione blockchain in background via `setImmediate`
+
+### SyncCache - Avvio istantaneo
+- **Cache locale persistente** su file `.tmp/sync-cache.json`
+- Al bootstrap il server **lifta immediatamente** con i dati dalla cache, senza aspettare la blockchain
+- La sincronizzazione blockchain avviene **in background** (non bloccante)
+- Ogni operazione CRUD **aggiorna la cache** automaticamente (debounced 5 secondi)
+- **`POST /api/v1/sync-reset`**: cancella la cache e riforza la sync da blockchain
+- **`GET /api/v1/sync-status`**: stato sync in tempo reale (syncing, progress, contatori)
+- **Banner sync nell'UI**: barra di progresso animata visibile su ogni pagina durante la sincronizzazione, con status, percentuale e contatori (org/str/ass). Polling ogni 2 secondi, scompare automaticamente al completamento
 
 ### Backup permanente su Arweave
 - **Backup automatico** di ogni transazione sul permaweb Arweave
@@ -321,9 +339,14 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 
 ### Visualizzazione Grafo
 - Pagina `/app/grafo` con **grafo interattivo force-directed** (react-force-graph-2d)
-- Tutte le entita rappresentate come nodi con **codifica colore per tipo** (organizzazioni, strutture, liste, assistiti)
+- Tutte le entita rappresentate come nodi con **codifica colore per tipo** (organizzazioni, strutture, liste, assistiti, **trattati**)
+- **Nodi Trattati**: pazienti usciti dalla lista, aggregati per lista, visualizzati come nodi dedicati nel grafo
 - **Pannello dettagli** al hover con chiavi, indirizzi e timestamp
 - Controlli zoom e layout
+
+### Load Test e Simulazione
+- **Pagina Load Test** (`/app/load-test`): generazione dati di prova direttamente dall'UI con log in tempo reale delle operazioni eseguite
+- **`npm run simulate`**: script CLI per simulazione continua infinita con crescita proporzionale, utile per stress test e demo
 
 ### Pagina Debug
 - Pagina `/app/debug` per diagnostica e verifica del sistema
@@ -344,7 +367,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - **Single Page Application** con React 19 e React Router 7
 - Design futuristico **dark mode** con glassmorphism e neon gradients
 - Animazioni fluide con **Framer Motion**
-- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, Grafo, **Pubblico**, **Debug**
+- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, **Liste**, Wallet, Grafo, **Pubblico**, **Debug**, **Load Test**
 - **PWA ready** per supporto mobile
 - **Feedback WebSocket** durante le operazioni blockchain (progresso, conferme, errori)
 
@@ -510,6 +533,12 @@ npm run dev
 ```
 Il frontend sara disponibile su **http://localhost:5173** con proxy automatico verso il backend.
 
+**Simulazione dati (opzionale):**
+```bash
+npm run simulate
+```
+Avvia una simulazione continua infinita con crescita proporzionale (utile per test e demo).
+
 #### Produzione
 
 ```bash
@@ -527,12 +556,13 @@ In produzione il frontend compilato viene servito da Sails.js tramite la rotta c
 #### Primo avvio
 
 Al primo avvio, il sistema:
-1. Inizializza la cache locale (sails-disk)
-2. Verifica la connessione al nodo IOTA 2.0
-3. Se il wallet non e inizializzato, il **WalletInitModal** apparira nel frontend
-4. Dopo l'inizializzazione del wallet, il bootstrap sincronizza la cache leggendo l'indice MAIN_DATA dalla blockchain
-5. Se Arweave e configurato, verifica la connessione al gateway
-6. Genera la documentazione Swagger su `/docs`
+1. Carica la **SyncCache** da `.tmp/sync-cache.json` (istantaneo, se presente)
+2. **Il server lifta immediatamente** con i dati dalla cache
+3. Verifica la connessione al nodo IOTA 2.0
+4. Se il wallet non e inizializzato, il **WalletInitModal** apparira nel frontend
+5. La sincronizzazione blockchain avviene **in background** (non bloccante) - il frontend mostra un banner animato con progresso
+6. Se Arweave e configurato, verifica la connessione al gateway
+7. Genera la documentazione Swagger su `/docs`
 
 ### Risoluzione problemi
 
@@ -542,7 +572,7 @@ Al primo avvio, il sistema:
 | `ERR_REQUIRE_ESM` con @iota/iota-sdk | Normale: l'SDK usa ESM, il sistema lo gestisce con `dynamic import()`. Verificare che `iota.js` usi `loadSdk()` |
 | Errore Grunt `Cannot convert a Symbol value to a string` | Warning non bloccante con Node.js >= 20, task Grunt personalizzati risolvono il problema |
 | WalletInitModal non appare | Verificare che `config/private_iota_conf.js` esista. Il modale appare solo se il wallet non e inizializzato |
-| Dati non sincronizzati | Usare `POST /api/v1/fetch-db-from-blockchain` per ricostruire la cache dalla blockchain |
+| Dati non sincronizzati | Usare `POST /api/v1/sync-reset` per cancellare la cache e riforzare la sync, oppure `POST /api/v1/fetch-db-from-blockchain` per ricostruire la cache dalla blockchain |
 | Arweave non funziona | Verificare che il wallet JWK sia completo e che abbia fondi sufficienti |
 | Frontend non si connette al backend | Verificare che Sails.js sia in esecuzione sulla porta 1337 e che il proxy Vite sia configurato |
 | Transazione blockchain fallisce | Verificare il balance del wallet. Per testnet/devnet usare il faucet dalla pagina Wallet |
@@ -556,7 +586,7 @@ exart26-iota/
 |
 +-- frontend/                     # Frontend React SPA
 |   +-- src/
-|   |   +-- pages/                # Dashboard, Organizzazioni, Strutture, Assistiti, Liste, Wallet, Grafo, Pubblico, Debug
+|   |   +-- pages/                # Dashboard, Organizzazioni, Strutture, Assistiti, Liste, Wallet, Grafo, Pubblico, Debug, LoadTest
 |   |   +-- components/           # Layout, WalletInitModal, LoadingSpinner, ...
 |   |   +-- hooks/                # Custom React hooks (useApi, ...)
 |   |   +-- api/                  # Client API per comunicazione con backend
@@ -608,6 +638,7 @@ exart26-iota/
 |   |   +-- ListManager.js        # Logica business, MAIN_DATA index, sync blockchain->cache
 |   |   +-- CryptHelper.js        # Crittografia ibrida RSA+AES+HMAC
 |   |   +-- ArweaveHelper.js      # Backup e recovery da Arweave permaweb
+|   |   +-- SyncCache.js          # Cache locale persistente su file per avvio istantaneo
 |   |
 |   +-- helpers/                  # Sails.js helpers riutilizzabili
 |   +-- hooks/                    # Hook personalizzati
@@ -619,7 +650,7 @@ exart26-iota/
 |   +-- security.js               # CSRF, CORS
 |   +-- datastores.js             # Connessione database (sails-disk come cache)
 |   +-- custom.js                 # Parametri personalizzati (URL, email, token)
-|   +-- bootstrap.js              # Sync cache da blockchain all'avvio (legge MAIN_DATA index)
+|   +-- bootstrap.js              # Carica SyncCache, lifta server, sync blockchain in background
 |   +-- policies.js               # Mapping policy -> rotte (tutte pubbliche)
 |   +-- sample_private_iota_conf.js     # Template configurazione IOTA 2.0
 |   +-- sample_private_arweave_conf.js  # Template configurazione Arweave
@@ -665,6 +696,8 @@ exart26-iota/
 | `POST` | `/api/v1/rimuovi-assistito-da-lista` | Rimuove assistito da lista. Body: `{ idAssistitoListe, stato }`. Stati: 2=in assistenza, 3=completato, 5=rinuncia, 6=annullato |
 | `POST` | `/api/v1/fetch-db-from-blockchain` | Ricostruisce la cache locale dalla blockchain (richiede wallet) |
 | `POST` | `/api/v1/recover-from-arweave` | Recupera tutti i dati dal backup Arweave (richiede wallet) |
+| `POST` | `/api/v1/sync-reset` | Cancella la SyncCache e riforza la sincronizzazione da blockchain |
+| `GET` | `/api/v1/sync-status` | Stato sync in tempo reale: syncing, progress percentuale, contatori entita |
 
 ### API Wallet
 
@@ -702,6 +735,12 @@ exart26-iota/
 
 - [x] Implementazione completa della gestione movimenti tra liste (pagina Liste con coda, storico, rimozione con stato)
 - [x] Interfaccia pubblica per consultazione posizione in lista (anonimizzata con hash SHA-256 del CF)
+- [x] SyncCache per avvio istantaneo del server con sync blockchain in background
+- [x] Banner sync animato nell'UI con barra di progresso e contatori
+- [x] Pagina Load Test per generazione dati di prova dall'UI
+- [x] Script CLI di simulazione continua (`npm run simulate`)
+- [x] Pagina Liste a 2 colonne con filtro testuale
+- [x] Nodi Trattati nel grafo (pazienti usciti aggregati per lista)
 - [ ] Dashboard analitica avanzata con grafici temporali
 - [ ] Esportazione dati in formato PDF e CSV
 - [ ] Notifiche push per aggiornamenti di stato
