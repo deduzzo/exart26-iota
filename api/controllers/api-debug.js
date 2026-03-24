@@ -95,7 +95,7 @@ module.exports = {
     const liste = db.Lista.find({}, { limit: 200 });
     const assistiti = db.Assistito.find({}, { limit: 200 });
     const assistitiListe = db.AssistitiListe.findWithDetails({}, { limit: 500 });
-    const blockchainData = db.BlockchainData.find({}, { sort: 'createdAt DESC', limit: 500 });
+    const blockchainData = db.BlockchainData.find({}, { sort: 'timestamp DESC', limit: 500 });
 
     // Add org/liste info to strutture for display
     for (const str of strutture) {

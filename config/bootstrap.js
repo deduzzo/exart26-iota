@@ -13,7 +13,7 @@
 const path = require('path');
 const iota = require('../api/utility/iota');
 const ListManager = require('../api/utility/ListManager');
-const SyncCache = require('../api/utility/SyncCache');
+const db = require('../api/utility/db');
 const ArweaveHelper = require('../api/utility/ArweaveHelper');
 module.exports.bootstrap = async function () {
 
@@ -28,25 +28,21 @@ module.exports.bootstrap = async function () {
   // Inizializza ArweaveHelper (ArLocal in dev, client Arweave in prod)
   await ArweaveHelper.bootstrap();
 
-  // Registra shutdown handlers per ArweaveHelper
-  process.on('SIGTERM', async () => { await ArweaveHelper.shutdown(); process.exit(0); });
-  process.on('SIGINT', async () => { await ArweaveHelper.shutdown(); process.exit(0); });
+  // Registra shutdown handlers per ArweaveHelper e SQLite
+  process.on('SIGTERM', async () => { await ArweaveHelper.shutdown(); db.close(); process.exit(0); });
+  process.on('SIGINT', async () => { await ArweaveHelper.shutdown(); db.close(); process.exit(0); });
+
+  sails.log.info('[bootstrap] SQLite DB inizializzato: ' + (db.Organizzazione.count() || 0) + ' org, ' + (db.Assistito.count() || 0) + ' ass');
 
   if (walletReady) {
-    // STEP 1: Carica dalla cache locale (istantaneo)
-    const cached = SyncCache.load();
-    if (cached) {
-      sails.config.custom._syncInProgress = true;
-      sails.config.custom._syncProgress = { status: 'Caricamento cache locale...', total: 0, processed: 0 };
-      const imported = await SyncCache.importToDB(cached);
-      sails.log.info('[bootstrap] Cache caricata: ' + JSON.stringify(imported));
-      sails.config.custom._syncInProgress = false;
-      sails.config.custom._syncProgress = null;
-    }
+    // Check if we already have data in SQLite (from previous run)
+    const hasData = db.Organizzazione.count() > 0;
 
-    // STEP 2: Sync dalla blockchain in background (aggiorna/completa)
     sails.config.custom._syncInProgress = true;
-    sails.config.custom._syncProgress = { status: cached ? 'Aggiornamento dalla blockchain...' : 'Prima sincronizzazione dalla blockchain...', total: 0, processed: 0, org: 0, str: 0, ass: 0 };
+    sails.config.custom._syncProgress = {
+      status: hasData ? 'Sync incrementale...' : 'Prima sincronizzazione...',
+      total: 0, processed: 0, org: 0, str: 0, ass: 0
+    };
 
     // Non bloccante: la sync continua in background dopo il lift
     setImmediate(async () => {
@@ -57,8 +53,6 @@ module.exports.bootstrap = async function () {
         });
         if (result.success) {
           sails.log.info('[bootstrap] Sync blockchain completata: ' + JSON.stringify(result.data));
-          // Salva la cache aggiornata
-          await SyncCache.exportFromDB();
         }
       } catch (err) {
         sails.log.warn('[bootstrap] Sync blockchain fallita: ' + err.message);
