@@ -58,22 +58,176 @@ class ListManager {
     return null;
   }
 
+  /**
+   * Ricostruisce il DB locale leggendo direttamente dalla blockchain IOTA 2.0.
+   * Strategia: legge l'indice MAIN_DATA (lista entityId per tipo),
+   * poi recupera ogni entita dalla sua transazione dedicata.
+   * Se l'indice non esiste, fa discovery scansionando tutte le tx per tag.
+   */
   async updateDBfromBlockchain() {
-    let record = await iota.getLastDataByTag(MAIN_DATA);
-    if (record && record.payload) {
-      let data = record.payload;
-      let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
-      data.clearData = JSON.parse(clearData);
-      await this.syncDBFromJsonData(data.clearData);
-      return {success: true, data: data.clearData, source: 'iota'};
+    sails.log.info('[ListManager] Inizio sync da blockchain...');
+    let imported = { organizzazioni: 0, strutture: 0, liste: 0, assistiti: 0 };
+
+    try {
+      // Strategia 1: Leggi l'indice MAIN_DATA
+      let indexRecord = await iota.getLastDataByTag(MAIN_DATA);
+      let entityIndex = null;
+
+      if (indexRecord && indexRecord.payload) {
+        let decrypted = await CryptHelper.receiveAndDecrypt(indexRecord.payload, iota.GET_MAIN_KEYS().privateKey);
+        entityIndex = JSON.parse(decrypted);
+        sails.log.info(`[ListManager] Indice MAIN_DATA trovato: ${entityIndex.entities?.length || 0} entita`);
+      }
+
+      // Strategia 2: Se non c'e indice, discovery per tag
+      if (!entityIndex) {
+        sails.log.info('[ListManager] Nessun indice, discovery diretto per tag...');
+        entityIndex = { entities: [] };
+
+        // Cerca tutte le transazioni per ogni tipo
+        const orgRecords = await iota.getAllDataByTag(ORGANIZZAZIONE_DATA);
+        for (const r of orgRecords) {
+          entityIndex.entities.push({ type: 'ORG', entityId: r.entityId, digest: r.digest });
+        }
+        const strRecords = await iota.getAllDataByTag(STRUTTURE_LISTE_DATA);
+        for (const r of strRecords) {
+          entityIndex.entities.push({ type: 'STR', entityId: r.entityId, digest: r.digest });
+        }
+        const assRecords = await iota.getAllDataByTag(ASSISTITI_DATA);
+        for (const r of assRecords) {
+          entityIndex.entities.push({ type: 'ASS', entityId: r.entityId, digest: r.digest });
+        }
+        sails.log.info(`[ListManager] Discovery: trovate ${entityIndex.entities.length} entita`);
+      }
+
+      // Deduplicazione per entityId (tieni solo l'ultimo per tipo+entityId)
+      const seen = new Set();
+      const uniqueEntities = [];
+      for (const e of entityIndex.entities) {
+        const key = `${e.type}:${e.entityId}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueEntities.push(e);
+        }
+      }
+
+      // Recupera e importa ogni entita
+      for (const entity of uniqueEntities) {
+        try {
+          if (entity.type === 'ORG') {
+            const record = await iota.getLastDataByTag(ORGANIZZAZIONE_DATA, entity.entityId);
+            if (record && record.payload) {
+              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
+              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
+              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
+              await this._upsertOrganizzazione(clearData);
+              imported.organizzazioni++;
+            }
+          } else if (entity.type === 'STR') {
+            const record = await iota.getLastDataByTag(STRUTTURE_LISTE_DATA, entity.entityId);
+            if (record && record.payload) {
+              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
+              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
+              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
+              await this._upsertStruttura(clearData);
+              imported.strutture++;
+            }
+          } else if (entity.type === 'ASS') {
+            const record = await iota.getLastDataByTag(ASSISTITI_DATA, entity.entityId);
+            if (record && record.payload) {
+              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
+              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
+              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
+              await this._upsertAssistito(clearData);
+              imported.assistiti++;
+            }
+          }
+        } catch (entityErr) {
+          sails.log.warn(`[ListManager] Errore import ${entity.type}:${entity.entityId}: ${entityErr.message}`);
+        }
+      }
+
+      sails.log.info(`[ListManager] Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass`);
+      return { success: true, data: imported, source: 'iota' };
+    } catch (err) {
+      sails.log.warn('[ListManager] Sync fallita:', err.message);
+      return { success: false, data: [], error: err.message };
     }
-    // Fallback: cerca su Arweave
-    let arweaveData = await this._fallbackFromArweave(MAIN_DATA, null, iota.GET_MAIN_KEYS().privateKey);
-    if (arweaveData && arweaveData.clearData) {
-      await this.syncDBFromJsonData(arweaveData.clearData);
-      return {success: true, data: arweaveData.clearData, source: 'arweave'};
+  }
+
+  // --- Upsert helpers per ricostruzione DB ---
+
+  async _upsertOrganizzazione(data) {
+    const existing = await Organizzazione.findOne({ id: data.id });
+    const record = {
+      denominazione: data.denominazione,
+      publicKey: data.publicKey,
+      ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
+    };
+    if (existing) {
+      await Organizzazione.updateOne({ id: data.id }).set(record);
+    } else {
+      await Organizzazione.create({ id: data.id, ...record });
     }
-    return {success: false, data: []};
+  }
+
+  async _upsertStruttura(data) {
+    const existing = await Struttura.findOne({ id: data.id });
+    const record = {
+      denominazione: data.denominazione,
+      attiva: data.attiva,
+      indirizzo: data.indirizzo,
+      publicKey: data.publicKey,
+      ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
+      organizzazione: data.organizzazione,
+    };
+    if (existing) {
+      await Struttura.updateOne({ id: data.id }).set(record);
+    } else {
+      await Struttura.create({ id: data.id, ...record });
+    }
+    // Importa anche le liste se presenti nel payload
+    if (data.liste && Array.isArray(data.liste)) {
+      for (const lista of data.liste) {
+        await this._upsertLista(lista, data.id);
+      }
+    }
+  }
+
+  async _upsertLista(data, strutturaId) {
+    const existing = await Lista.findOne({ id: data.id });
+    const record = {
+      denominazione: data.denominazione,
+      aperta: data.aperta !== undefined ? data.aperta : true,
+      publicKey: data.publicKey,
+      ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
+      struttura: strutturaId || data.struttura,
+    };
+    if (existing) {
+      await Lista.updateOne({ id: data.id }).set(record);
+    } else {
+      await Lista.create({ id: data.id, ...record });
+    }
+  }
+
+  async _upsertAssistito(data) {
+    const existing = await Assistito.findOne({ id: data.id });
+    const record = {
+      nome: data.nome,
+      cognome: data.cognome,
+      codiceFiscale: data.codiceFiscale,
+      dataNascita: data.dataNascita,
+      email: data.email,
+      telefono: data.telefono,
+      indirizzo: data.indirizzo,
+      publicKey: data.publicKey,
+      ultimaVersioneSuBlockchain: data.ultimaVersioneSuBlockchain || 0,
+    };
+    if (existing) {
+      await Assistito.updateOne({ id: data.id }).set(record);
+    } else {
+      await Assistito.create({ id: data.id, ...record });
+    }
   }
 
   async updateListeAssistitiFromBlockchain(idLista) {
@@ -285,21 +439,46 @@ class ListManager {
     return null;
   }
 
+  /**
+   * Pubblica un indice leggero MAIN_DATA sulla blockchain.
+   * Contiene solo la lista di entityId per tipo + digest dell'ultima tx.
+   * Serve come start-point certificato per il recovery.
+   * Dimensione fissa ~50 bytes per entita → scala a migliaia di entita.
+   */
   async updateOrganizzazioniStruttureListeToBlockchain() {
     let lastData = await this.getOrganizzazioniFromBlockchain();
-    let organizzazioni = await Organizzazione.find().populate('strutture');
-    let dataToStore = [];
-    for (let organizzazione of organizzazioni) {
-      for (let struttura of organizzazione.strutture) {
-        delete struttura.privateKey;
-        let liste = await Lista.find({struttura: struttura.id});
-        struttura.liste = liste;
-      }
-      delete organizzazione.privateKey;
-      dataToStore.push(organizzazione);
-    }
     let newVersion = lastData ? (lastData.version + 1) : 0;
-    let data2 = await CryptHelper.encryptAndSend(JSON.stringify(dataToStore), newVersion, iota.GET_MAIN_KEYS().publicKey);
+
+    // Costruisci l'indice leggero
+    let entities = [];
+
+    let organizzazioni = await Organizzazione.find().select(['id']);
+    for (let org of organizzazioni) {
+      let entityId = await Organizzazione.getWalletIdOrganizzazione({id: org.id});
+      entities.push({ type: 'ORG', entityId, id: org.id });
+    }
+
+    let strutture = await Struttura.find().select(['id']);
+    for (let str of strutture) {
+      let entityId = await Struttura.getWalletIdStruttura({id: str.id});
+      entities.push({ type: 'STR', entityId, id: str.id });
+    }
+
+    let liste = await Lista.find().select(['id']);
+    for (let lst of liste) {
+      let entityId = await Lista.getWalletIdLista({id: lst.id});
+      entities.push({ type: 'LST', entityId, id: lst.id });
+    }
+
+    let assistiti = await Assistito.find().select(['id']);
+    for (let ass of assistiti) {
+      entities.push({ type: 'ASS', entityId: 'ASS#' + ass.id, id: ass.id });
+    }
+
+    const indexData = { entities, version: newVersion, updatedAt: Date.now() };
+    sails.log.info(`[ListManager] MAIN_DATA index: ${entities.length} entita, v${newVersion}`);
+
+    let data2 = await CryptHelper.encryptAndSend(JSON.stringify(indexData), newVersion, iota.GET_MAIN_KEYS().publicKey);
     let res = await iota.publishData(MAIN_DATA, data2.data, null, newVersion);
     if (res.success) {
       this._backupToArweave(MAIN_DATA, data2.data, null, newVersion);
