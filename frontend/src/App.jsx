@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Organizzazioni from './pages/Organizzazioni';
 import Strutture from './pages/Strutture';
 import Assistiti from './pages/Assistiti';
+import Wallet from './pages/Wallet';
 
 // Placeholder pages
 const Placeholder = ({ title }) => (
@@ -22,7 +23,7 @@ function App() {
           <Route path="organizzazioni" element={<Organizzazioni />} />
           <Route path="strutture" element={<Strutture />} />
           <Route path="assistiti" element={<Assistiti />} />
-          <Route path="wallet" element={<Placeholder title="Wallet" />} />
+          <Route path="wallet" element={<Wallet />} />
         </Route>
       </Routes>
     </BrowserRouter>
