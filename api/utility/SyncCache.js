@@ -134,11 +134,10 @@ class SyncCache {
   /**
    * Salvataggio debounced - salva al massimo ogni 5 secondi.
    */
-  static _saveTimer = null;
   static scheduleSave() {
-    if (this._saveTimer) return; // gia schedulato
-    this._saveTimer = setTimeout(async () => {
-      this._saveTimer = null;
+    if (SyncCache._timer) return;
+    SyncCache._timer = setTimeout(async () => {
+      SyncCache._timer = null;
       try {
         await this.exportFromDB();
       } catch (e) {
@@ -147,5 +146,7 @@ class SyncCache {
     }, 5000);
   }
 }
+
+SyncCache._timer = null;
 
 module.exports = SyncCache;
