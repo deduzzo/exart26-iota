@@ -72,6 +72,13 @@ module.exports.routes = {
   'POST /api/v1/sync-reset':             { action: 'api-sync-reset' },
   'POST /api/v1/load-test':               { action: 'inizializza-dati-di-prova' },
 
+  // --- Arweave ---
+  'GET    /api/v1/arweave/status':        { action: 'arweave/status' },
+  'POST   /api/v1/arweave/switch-mode':   { action: 'arweave/switch-mode' },
+  'GET    /api/v1/arweave/transactions':  { action: 'arweave/transactions' },
+  'POST   /api/v1/arweave/test-upload':   { action: 'arweave/test-upload' },
+  'POST   /api/v1/arweave/test-verify':   { action: 'arweave/test-verify' },
+  'GET    /api/v1/arweave/consistency':   { action: 'arweave/consistency' },
 
 
 

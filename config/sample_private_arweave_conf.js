@@ -18,4 +18,5 @@ module.exports = {
   ARWEAVE_PORT: 443,
   ARWEAVE_PROTOCOL: 'https',
   ARWEAVE_WALLET_JWK: null, // Inserire qui il contenuto del file JWK (oggetto JSON)
+  ARWEAVE_LOCAL_PORT: 1984, // Porta per ArLocal in modalita test (opzionale, default 1984)
 };

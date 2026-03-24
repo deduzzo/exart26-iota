@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bug, Wallet, Database, Link2, ChevronDown, ChevronRight,
-  ExternalLink, CheckCircle, AlertTriangle, XCircle, RefreshCw, Copy
+  ExternalLink, CheckCircle, AlertTriangle, XCircle, RefreshCw, Copy, Cloud
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useApi } from '../hooks/useApi';
-import { getDebugData } from '../api/endpoints';
+import { getDebugData, getArweaveStatus, getArweaveTransactions, getArweaveConsistency, arweaveTestUpload, arweaveTestVerify } from '../api/endpoints';
 import { truncateAddress } from '../utils/formatters';
 
 function StatusBadge({ status }) {
@@ -177,6 +177,99 @@ function DataTable({ columns, rows }) {
 export default function Debug() {
   const { data, loading, error, reload } = useApi(getDebugData);
   const [copiedDigest, setCopiedDigest] = useState(null);
+
+  // Arweave state
+  const [arweaveStatus, setArweaveStatus] = useState(null);
+  const [arweaveStatusLoading, setArweaveStatusLoading] = useState(false);
+  const [arweaveTxType, setArweaveTxType] = useState('MAIN_DATA');
+  const [arweaveTxs, setArweaveTxs] = useState([]);
+  const [arweaveTxsLoading, setArweaveTxsLoading] = useState(false);
+  const [arweaveConsistency, setArweaveConsistency] = useState(null);
+  const [arweaveConsistencyLoading, setArweaveConsistencyLoading] = useState(false);
+  const [arweaveTestTxId, setArweaveTestTxId] = useState(null);
+  const [arweaveTestLogs, setArweaveTestLogs] = useState([]);
+  const [arweaveTestUploading, setArweaveTestUploading] = useState(false);
+  const [arweaveTestVerifying, setArweaveTestVerifying] = useState(false);
+
+  const addTestLog = useCallback((msg, success = null) => {
+    const prefix = success === true ? '\u2713' : success === false ? '\u2717' : '\u2022';
+    setArweaveTestLogs(prev => [...prev, `[${new Date().toLocaleTimeString('it-IT')}] ${prefix} ${msg}`]);
+  }, []);
+
+  const loadArweaveStatus = useCallback(async () => {
+    setArweaveStatusLoading(true);
+    try {
+      const res = await getArweaveStatus();
+      setArweaveStatus(res);
+    } catch (e) {
+      setArweaveStatus({ error: e.message });
+    } finally {
+      setArweaveStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadArweaveStatus();
+  }, [loadArweaveStatus]);
+
+  const loadArweaveTxs = async () => {
+    setArweaveTxsLoading(true);
+    try {
+      const res = await getArweaveTransactions(arweaveTxType, 20);
+      setArweaveTxs(res.transactions || res || []);
+    } catch (e) {
+      setArweaveTxs([]);
+    } finally {
+      setArweaveTxsLoading(false);
+    }
+  };
+
+  const loadArweaveConsistency = async () => {
+    setArweaveConsistencyLoading(true);
+    try {
+      const res = await getArweaveConsistency();
+      setArweaveConsistency(res);
+    } catch (e) {
+      setArweaveConsistency({ error: e.message });
+    } finally {
+      setArweaveConsistencyLoading(false);
+    }
+  };
+
+  const handleTestUpload = async () => {
+    setArweaveTestUploading(true);
+    setArweaveTestLogs([]);
+    setArweaveTestTxId(null);
+    addTestLog('Avvio test upload su Arweave...');
+    try {
+      const res = await arweaveTestUpload();
+      const txId = res.txId || res.id;
+      setArweaveTestTxId(txId);
+      addTestLog(`Upload OK - txId: ${txId}`, true);
+    } catch (e) {
+      addTestLog(`Upload fallito: ${e.message}`, false);
+    } finally {
+      setArweaveTestUploading(false);
+    }
+  };
+
+  const handleTestVerify = async () => {
+    if (!arweaveTestTxId) return;
+    setArweaveTestVerifying(true);
+    addTestLog(`Verifica transazione ${arweaveTestTxId}...`);
+    try {
+      const res = await arweaveTestVerify(arweaveTestTxId);
+      if (res.queryFound !== undefined) addTestLog(res.queryFound ? 'Query trovata' : 'Query non trovata', res.queryFound);
+      if (res.downloadOk !== undefined) addTestLog(res.downloadOk ? 'Download OK' : 'Download fallito', res.downloadOk);
+      if (res.payloadMatch !== undefined) addTestLog(res.payloadMatch ? 'Payload verificato' : 'Payload non corrisponde', res.payloadMatch);
+      const allOk = res.queryFound && res.downloadOk && res.payloadMatch;
+      addTestLog(allOk ? 'Test completato con successo' : 'Test completato con errori', allOk);
+    } catch (e) {
+      addTestLog(`Verifica fallita: ${e.message}`, false);
+    } finally {
+      setArweaveTestVerifying(false);
+    }
+  };
 
   const copyText = (text) => {
     navigator.clipboard.writeText(text);
@@ -569,6 +662,237 @@ export default function Debug() {
                 )}
               </div>
             ))}
+          </div>
+        </CollapsibleSection>
+
+        {/* 5. ARWEAVE */}
+        <CollapsibleSection title="Arweave" icon={Cloud} iconColor="text-orange-400">
+          {/* 5a. Stato Arweave */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-slate-300">Stato Arweave</h4>
+              <button
+                onClick={loadArweaveStatus}
+                disabled={arweaveStatusLoading}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <RefreshCw size={12} className={arweaveStatusLoading ? 'animate-spin' : ''} /> Aggiorna
+              </button>
+            </div>
+            {arweaveStatusLoading && !arweaveStatus ? (
+              <LoadingSpinner size={24} />
+            ) : arweaveStatus?.error ? (
+              <p className="text-xs text-red-400">Errore: {arweaveStatus.error}</p>
+            ) : arweaveStatus ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="glass-static rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Modalita</p>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                    arweaveStatus.mode === 'arlocal' ? 'bg-blue-500/10 text-blue-400' :
+                    arweaveStatus.mode === 'mainnet' ? 'bg-neon-emerald/10 text-neon-emerald' :
+                    'bg-slate-500/10 text-slate-400'
+                  }`}>
+                    {arweaveStatus.mode || '-'}
+                  </span>
+                </div>
+                <div className="glass-static rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Abilitato</p>
+                  <p className={`text-sm font-bold ${arweaveStatus.enabled ? 'text-neon-emerald' : 'text-red-400'}`}>
+                    {arweaveStatus.enabled ? 'Si' : 'No'}
+                  </p>
+                </div>
+                <div className="glass-static rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Indirizzo</p>
+                  <p className="text-xs font-mono text-slate-200 break-all">{arweaveStatus.address || '-'}</p>
+                </div>
+                <div className="glass-static rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Saldo</p>
+                  <p className="text-sm font-mono text-orange-400">{arweaveStatus.balance || '0'}</p>
+                </div>
+                {arweaveStatus.arLocalRunning !== undefined && (
+                  <div className="glass-static rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">ArLocal</p>
+                    <p className={`text-sm font-bold ${arweaveStatus.arLocalRunning ? 'text-neon-emerald' : 'text-slate-500'}`}>
+                      {arweaveStatus.arLocalRunning ? 'Running' : 'Offline'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          {/* 5b. Transazioni Arweave */}
+          <div className="mb-6 border-t border-white/5 pt-4">
+            <h4 className="text-sm font-semibold text-slate-300 mb-3">Transazioni Arweave</h4>
+            <div className="flex items-center gap-3 mb-3">
+              <select
+                value={arweaveTxType}
+                onChange={(e) => setArweaveTxType(e.target.value)}
+                className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-400/50"
+              >
+                <option value="MAIN_DATA">MAIN_DATA</option>
+                <option value="ORGANIZZAZIONE_DATA">ORGANIZZAZIONE_DATA</option>
+                <option value="STRUTTURE_LISTE_DATA">STRUTTURE_LISTE_DATA</option>
+                <option value="ASSISTITI_DATA">ASSISTITI_DATA</option>
+                <option value="PRIVATE_KEY">PRIVATE_KEY</option>
+              </select>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={loadArweaveTxs}
+                disabled={arweaveTxsLoading}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-xl transition-colors disabled:opacity-50"
+              >
+                {arweaveTxsLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Carica'}
+              </motion.button>
+            </div>
+            {arweaveTxsLoading ? (
+              <LoadingSpinner size={24} />
+            ) : arweaveTxs.length === 0 ? (
+              <p className="text-xs text-slate-600 italic">Nessuna transazione caricata. Seleziona un tipo e clicca Carica.</p>
+            ) : (
+              <div className="space-y-2">
+                {arweaveTxs.map((tx, i) => (
+                  <div key={tx.txId || tx.id || i} className="glass-static rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-orange-400">{truncateAddress(tx.txId || tx.id || '-', 12)}</span>
+                        <button
+                          onClick={() => copyText(tx.txId || tx.id)}
+                          className="p-1 rounded hover:bg-white/10 transition-colors"
+                        >
+                          {copiedDigest === (tx.txId || tx.id) ? <CheckCircle size={12} className="text-neon-emerald" /> : <Copy size={12} className="text-slate-400" />}
+                        </button>
+                      </div>
+                      <span className="text-xs text-slate-500">{tx.timestamp ? new Date(tx.timestamp).toLocaleString('it-IT') : '-'}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      {tx.entityId && (
+                        <span className="text-slate-400">Entity: <span className="text-slate-200 font-mono">{tx.entityId}</span></span>
+                      )}
+                      {tx.version !== null && tx.version !== undefined && (
+                        <span className="text-slate-400">v{tx.version}</span>
+                      )}
+                    </div>
+                    {tx.payload && <JsonBlock data={tx.payload} />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 5c. Consistency Check */}
+          <div className="mb-6 border-t border-white/5 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-slate-300">Consistency Check</h4>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={loadArweaveConsistency}
+                disabled={arweaveConsistencyLoading}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-xl transition-colors disabled:opacity-50"
+              >
+                {arweaveConsistencyLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Verifica Consistency'}
+              </motion.button>
+            </div>
+            {arweaveConsistencyLoading ? (
+              <LoadingSpinner size={24} />
+            ) : arweaveConsistency?.error ? (
+              <p className="text-xs text-red-400">Errore: {arweaveConsistency.error}</p>
+            ) : arweaveConsistency?.results ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Tipo</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">EntityId</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Su IOTA</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Su Arweave</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Versione IOTA</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Versione Arweave</th>
+                      <th className="text-left py-2 px-2 text-slate-500 uppercase tracking-wider font-medium">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {arweaveConsistency.results.map((row, i) => (
+                      <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-2 px-2 text-slate-300 font-mono">{row.type || '-'}</td>
+                        <td className="py-2 px-2 text-slate-300 font-mono">{row.entityId ?? '-'}</td>
+                        <td className="py-2 px-2">
+                          {row.onIota ? <CheckCircle size={14} className="text-neon-emerald" /> : <XCircle size={14} className="text-red-400" />}
+                        </td>
+                        <td className="py-2 px-2">
+                          {row.onArweave ? <CheckCircle size={14} className="text-neon-emerald" /> : <XCircle size={14} className="text-red-400" />}
+                        </td>
+                        <td className="py-2 px-2 text-slate-300 font-mono">{row.versionIota ?? '-'}</td>
+                        <td className="py-2 px-2 text-slate-300 font-mono">{row.versionArweave ?? '-'}</td>
+                        <td className="py-2 px-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            row.status === 'consistent' ? 'bg-neon-emerald/10 text-neon-emerald' :
+                            row.status === 'version_mismatch' ? 'bg-amber-500/10 text-amber-500' :
+                            row.status === 'missing_on_arweave' ? 'bg-red-500/10 text-red-400' :
+                            row.status === 'missing_on_iota' ? 'bg-red-500/10 text-red-400' :
+                            'bg-slate-500/10 text-slate-400'
+                          }`}>
+                            {row.status === 'consistent' && <CheckCircle size={12} />}
+                            {row.status === 'version_mismatch' && <AlertTriangle size={12} />}
+                            {(row.status === 'missing_on_arweave' || row.status === 'missing_on_iota') && <XCircle size={12} />}
+                            {row.status || '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600 italic">Clicca il pulsante per verificare la consistency tra IOTA e Arweave.</p>
+            )}
+          </div>
+
+          {/* 5d. Test Interattivo */}
+          <div className="border-t border-white/5 pt-4">
+            <h4 className="text-sm font-semibold text-slate-300 mb-3">Test Interattivo</h4>
+            <div className="flex items-center gap-3 mb-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleTestUpload}
+                disabled={arweaveTestUploading}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-xl transition-colors disabled:opacity-50"
+              >
+                {arweaveTestUploading ? <RefreshCw size={14} className="animate-spin inline mr-1" /> : null}
+                Test Upload
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleTestVerify}
+                disabled={!arweaveTestTxId || arweaveTestVerifying}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {arweaveTestVerifying ? <RefreshCw size={14} className="animate-spin inline mr-1" /> : null}
+                Verifica
+              </motion.button>
+              {arweaveTestTxId && (
+                <span className="text-xs text-slate-400">
+                  txId: <span className="font-mono text-orange-400">{truncateAddress(arweaveTestTxId, 12)}</span>
+                </span>
+              )}
+            </div>
+            {arweaveTestLogs.length > 0 && (
+              <div className="bg-black/30 rounded-xl p-4 max-h-60 overflow-y-auto font-mono text-xs space-y-1">
+                {arweaveTestLogs.map((log, i) => (
+                  <div key={i} className={
+                    log.includes('\u2713') ? 'text-neon-emerald' :
+                    log.includes('\u2717') ? 'text-red-400' :
+                    'text-slate-300'
+                  }>
+                    {log}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </CollapsibleSection>
       </div>

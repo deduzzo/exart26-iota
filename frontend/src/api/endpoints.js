@@ -65,3 +65,15 @@ export const resetSync = () => api('/api/v1/sync-reset', { method: 'POST' });
 
 // Debug
 export const getDebugData = () => api('/api/v1/debug');
+
+// Arweave
+export const getArweaveStatus = () => api('/api/v1/arweave/status');
+export const switchArweaveMode = (mode) =>
+  api('/api/v1/arweave/switch-mode', { method: 'POST', body: { mode } });
+export const getArweaveTransactions = (dataType, limit = 20) =>
+  api(`/api/v1/arweave/transactions?dataType=${dataType}&limit=${limit}`);
+export const arweaveTestUpload = () =>
+  api('/api/v1/arweave/test-upload', { method: 'POST' });
+export const arweaveTestVerify = (txId) =>
+  api('/api/v1/arweave/test-verify', { method: 'POST', body: { txId } });
+export const getArweaveConsistency = () => api('/api/v1/arweave/consistency');
