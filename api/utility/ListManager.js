@@ -125,16 +125,23 @@ class ListManager {
       }
 
       // Recupera e importa ogni entita
+      const total = uniqueEntities.length;
+      let processed = 0;
       for (const entity of uniqueEntities) {
+        processed++;
         try {
           const tag = entity.type === 'ORG' ? ORGANIZZAZIONE_DATA :
                       entity.type === 'STR' ? STRUTTURE_LISTE_DATA :
                       entity.type === 'ASS' ? ASSISTITI_DATA : null;
           if (!tag) continue;
 
+          if (processed % 10 === 0 || processed === 1 || processed === total) {
+            sails.log.info(`[ListManager] Sync ${processed}/${total}: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass...`);
+          }
+
           const record = await iota.getLastDataByTag(tag, entity.entityId);
           if (!record || !record.payload) {
-            sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: nessun record trovato sulla blockchain`);
+            sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: nessun record sulla blockchain`);
             continue;
           }
 
