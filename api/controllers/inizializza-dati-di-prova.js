@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
 function generateAnonId(cf) {
@@ -35,7 +35,7 @@ function rndDate(y1, y2) {
 
 module.exports = {
   friendlyName: 'Inizializza dati di prova',
-  description: 'Crea dati massivi per test UI. Solo DB in-memory + MAIN_DATA su blockchain.',
+  description: 'Crea dati massivi per test UI. Solo DB locale + MAIN_DATA su blockchain.',
   inputs: {},
   exits: { success: {} },
 
@@ -47,64 +47,65 @@ module.exports = {
     sails.log.info(`[load] Start: ${NUM_ORG} org, ${STR_PER_ORG} str/org, ${LISTE_PER_STR} lst/str, ${NUM_ASS} ass`);
 
     // Svuota DB esistente prima di generare nuovi dati
-    await AssistitiListe.destroy({});
-    await Assistito.destroy({});
-    await Lista.destroy({});
-    await Struttura.destroy({});
-    await Organizzazione.destroy({});
+    db.raw.exec('DELETE FROM assistiti_liste; DELETE FROM assistiti; DELETE FROM liste; DELETE FROM strutture; DELETE FROM organizzazioni;');
     sails.log.info('[load] DB svuotato');
 
     // --- Genera UNA coppia di chiavi RSA e riusala (la generazione e lenta) ---
     sails.log.info('[load] Generazione chiave RSA condivisa per test...');
     const sharedKP = await CryptHelper.RSAGenerateKeyPair();
 
-    // 1. Organizzazioni (save only IDs)
+    // 1. Organizzazioni
     const orgIds = [];
-    for (let i = 0; i < NUM_ORG; i++) {
-      const org = await Organizzazione.create({
-        denominazione: `ASL ${pick(CITTA)} ${i + 1}`,
-        publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
-        ultimaVersioneSuBlockchain: 0,
-      }).fetch();
-      orgIds.push(org.id);
-      S.org++;
-    }
-    sails.log.info(`[load] ${S.org} organizzazioni (${Math.round((Date.now()-T0)/1000)}s)`);
-
-    // 2. Strutture (save only {id, organizzazione})
-    const strRefs = [];
-    for (const orgId of orgIds) {
-      for (let j = 0; j < STR_PER_ORG; j++) {
-        const str = await Struttura.create({
-          denominazione: `${pick(TIPI_STR)} ${pick(COGNOMI)} ${j+1}`,
-          indirizzo: `Via ${pick(COGNOMI)} ${Math.floor(Math.random()*200)+1}, ${pick(CITTA)}`,
-          attiva: Math.random() > 0.05,
+    db.transaction(() => {
+      for (let i = 0; i < NUM_ORG; i++) {
+        const org = db.Organizzazione.create({
+          denominazione: `ASL ${pick(CITTA)} ${i + 1}`,
           publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
           ultimaVersioneSuBlockchain: 0,
-          organizzazione: orgId,
-        }).fetch();
-        strRefs.push({ id: str.id, organizzazione: orgId });
-        S.str++;
+        });
+        orgIds.push(org.id);
+        S.org++;
       }
-      if (S.str % 100 === 0) sails.log.info(`[load] Strutture: ${S.str} (${Math.round((Date.now()-T0)/1000)}s)`);
-    }
+    });
+    sails.log.info(`[load] ${S.org} organizzazioni (${Math.round((Date.now()-T0)/1000)}s)`);
 
-    // 3. Liste (save only IDs)
-    const lstIds = [];
-    for (const strRef of strRefs) {
-      for (let k = 0; k < LISTE_PER_STR; k++) {
-        const cat = pick(CATEGORIE);
-        const lst = await Lista.create({
-          denominazione: `${cat.replace(/_/g,' ')} ${k+1}`,
-          tag: cat, aperta: Math.random() > 0.1,
-          publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
-          struttura: strRef.id, ultimaVersioneSuBlockchain: 0,
-        }).fetch();
-        lstIds.push(lst.id);
-        S.liste++;
+    // 2. Strutture
+    const strRefs = [];
+    db.transaction(() => {
+      for (const orgId of orgIds) {
+        for (let j = 0; j < STR_PER_ORG; j++) {
+          const str = db.Struttura.create({
+            denominazione: `${pick(TIPI_STR)} ${pick(COGNOMI)} ${j+1}`,
+            indirizzo: `Via ${pick(COGNOMI)} ${Math.floor(Math.random()*200)+1}, ${pick(CITTA)}`,
+            attiva: Math.random() > 0.05,
+            publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
+            ultimaVersioneSuBlockchain: 0,
+            organizzazione: orgId,
+          });
+          strRefs.push({ id: str.id, organizzazione: orgId });
+          S.str++;
+        }
       }
-      if (S.liste % 1000 === 0) sails.log.info(`[load] Liste: ${S.liste} (${Math.round((Date.now()-T0)/1000)}s)`);
-    }
+    });
+    sails.log.info(`[load] ${S.str} strutture (${Math.round((Date.now()-T0)/1000)}s)`);
+
+    // 3. Liste
+    const lstIds = [];
+    db.transaction(() => {
+      for (const strRef of strRefs) {
+        for (let k = 0; k < LISTE_PER_STR; k++) {
+          const cat = pick(CATEGORIE);
+          const lst = db.Lista.create({
+            denominazione: `${cat.replace(/_/g,' ')} ${k+1}`,
+            tag: cat, aperta: Math.random() > 0.1,
+            publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
+            struttura: strRef.id, ultimaVersioneSuBlockchain: 0,
+          });
+          lstIds.push(lst.id);
+          S.liste++;
+        }
+      }
+    });
 
     sails.log.info(`[load] Base: ${S.org} org, ${S.str} str, ${S.liste} liste in ${Math.round((Date.now()-T0)/1000)}s`);
     sails.log.info(`[load] Creazione ${NUM_ASS} assistiti + movimenti...`);
@@ -116,46 +117,48 @@ module.exports = {
 
     for (let batch = 0; batch < NUM_ASS; batch += BATCH) {
       const batchEnd = Math.min(batch + BATCH, NUM_ASS);
-      for (let a = batch; a < batchEnd; a++) {
-        let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
-        const isMale = Math.random() > 0.5;
+      db.transaction(() => {
+        for (let a = batch; a < batchEnd; a++) {
+          let cf; do { cf = randomCF(); } while (cfSet.has(cf)); cfSet.add(cf);
+          const isMale = Math.random() > 0.5;
 
-        const ass = await Assistito.create({
-          anonId: generateAnonId(cf),
-          nome: pick(isMale ? NOMI_M : NOMI_F),
-          cognome: pick(COGNOMI),
-          codiceFiscale: cf,
-          email: Math.random() > 0.3 ? `user${a}@test.it` : '',
-          telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : '',
-          publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
-          ultimaVersioneSuBlockchain: 0,
-        }).fetch();
-        S.ass++;
+          const ass = db.Assistito.create({
+            anonId: generateAnonId(cf),
+            nome: pick(isMale ? NOMI_M : NOMI_F),
+            cognome: pick(COGNOMI),
+            codiceFiscale: cf,
+            email: Math.random() > 0.3 ? `user${a}@test.it` : '',
+            telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : '',
+            publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
+            ultimaVersioneSuBlockchain: 0,
+          });
+          S.ass++;
 
-        // 1-3 inserimenti in liste random
-        const numMov = Math.floor(Math.random() * 3) + 1;
-        for (let m = 0; m < numMov; m++) {
-          const lstId = pick(lstIds);
-          const ingresso = rndDate(2024, 2026);
-          const al = await AssistitiListe.create({
-            assistito: ass.id, lista: lstId,
-            stato: INSERITO_IN_CODA, dataOraIngresso: ingresso, chiuso: false,
-          }).fetch();
-          S.mov++;
-
-          // 60% esce
-          if (Math.random() > 0.4) {
-            await AssistitiListe.updateOne({id: al.id}).set({
-              stato: pick(STATI_USCITA), chiuso: true,
-              dataOraUscita: ingresso + Math.floor(Math.random() * 180 * 86400000),
+          // 1-3 inserimenti in liste random
+          const numMov = Math.floor(Math.random() * 3) + 1;
+          for (let m = 0; m < numMov; m++) {
+            const lstId = pick(lstIds);
+            const ingresso = rndDate(2024, 2026);
+            const al = db.AssistitiListe.create({
+              assistito: ass.id, lista: lstId,
+              stato: INSERITO_IN_CODA, dataOraIngresso: ingresso, chiuso: false,
             });
+            S.mov++;
+
+            // 60% esce
+            if (Math.random() > 0.4) {
+              db.AssistitiListe.updateOne({id: al.id}).set({
+                stato: pick(STATI_USCITA), chiuso: true,
+                dataOraUscita: ingresso + Math.floor(Math.random() * 180 * 86400000),
+              });
+            }
           }
         }
+      });
 
-        if ((a+1) % 2000 === 0) sails.log.info(`[load] Assistiti: ${S.ass} mov: ${S.mov} (${Math.round((Date.now()-T0)/1000)}s)`);
+      if ((batch + BATCH) % 2000 === 0 || batch + BATCH >= NUM_ASS) {
+        sails.log.info(`[load] Assistiti: ${S.ass} mov: ${S.mov} (${Math.round((Date.now()-T0)/1000)}s)`);
       }
-      // Force GC hint between batches
-      if (global.gc) global.gc();
     }
 
     const elapsed = Math.round((Date.now()-T0)/1000);
@@ -170,9 +173,6 @@ module.exports = {
     } catch (e) {
       sails.log.warn(`[load] MAIN_DATA: ${e.message}`);
     }
-
-    ['Organizzazione', 'Struttura', 'Lista', 'Assistito', 'AssistitiListe']
-      .forEach(m => SyncCache.markDirty(m));
 
     return exits.success({ stats: S, elapsed: elapsed + 's' });
   }

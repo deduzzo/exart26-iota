@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const iota = require('../../utility/iota');
+const db = require('../../utility/db');
 
 module.exports = {
 
@@ -28,15 +29,7 @@ module.exports = {
       sails.log.info('[reset-wallet] Mnemonic rimosso dal config');
 
       // 2. Svuota il DB locale (cache)
-      if (sails.models.blockchaindata) {
-        await sails.models.blockchaindata.destroy({});
-        sails.log.info('[reset-wallet] BlockchainData svuotato');
-      }
-      await Organizzazione.destroy({});
-      await Struttura.destroy({});
-      await Lista.destroy({});
-      await Assistito.destroy({});
-      await AssistitiListe.destroy({});
+      db.raw.exec('DELETE FROM blockchain_data; DELETE FROM sync_state; DELETE FROM assistiti_liste; DELETE FROM assistiti; DELETE FROM liste; DELETE FROM strutture; DELETE FROM organizzazioni;');
       sails.log.info('[reset-wallet] DB locale svuotato');
 
       // 3. Reset stato runtime di iota.js

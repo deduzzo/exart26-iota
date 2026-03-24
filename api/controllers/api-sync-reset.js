@@ -1,4 +1,4 @@
-const SyncCache = require('../utility/SyncCache');
+const db = require('../utility/db');
 const ListManager = require('../utility/ListManager');
 
 module.exports = {
@@ -9,17 +9,10 @@ module.exports = {
   fn: async function () {
     sails.log.info('[sync-reset] Reset cache e risync...');
 
-    // 1. Cancella cache
-    SyncCache.reset();
+    // 1. Svuota DB locale
+    db.raw.exec('DELETE FROM blockchain_data; DELETE FROM sync_state; DELETE FROM assistiti_liste; DELETE FROM assistiti; DELETE FROM liste; DELETE FROM strutture; DELETE FROM organizzazioni;');
 
-    // 2. Svuota DB in-memory
-    await Organizzazione.destroy({});
-    await Struttura.destroy({});
-    await Lista.destroy({});
-    await Assistito.destroy({});
-    await AssistitiListe.destroy({});
-
-    // 3. Risync dalla blockchain
+    // 2. Risync dalla blockchain
     sails.config.custom._syncInProgress = true;
     sails.config.custom._syncProgress = { status: 'Reset: risincronizzazione dalla blockchain...', total: 0, processed: 0 };
 
@@ -30,7 +23,6 @@ module.exports = {
           sails.config.custom._syncProgress = progress;
         });
         if (result.success) {
-          await SyncCache.exportFromDB();
           sails.log.info('[sync-reset] Risync completata');
         }
       } catch (err) {
