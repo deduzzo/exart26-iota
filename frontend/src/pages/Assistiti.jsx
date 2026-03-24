@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus, FileText } from 'lucide-react';
+import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus, FileText, Printer } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import VoucherPrint from '../components/VoucherPrint';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -20,6 +21,7 @@ export default function Assistiti() {
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [voucherAssistito, setVoucherAssistito] = useState(null);
 
   // Strutture data for "add to list" modal
   const { data: struttureData } = useApi(getStrutture);
@@ -427,6 +429,14 @@ export default function Assistiti() {
       <Modal open={detailModalOpen} onClose={() => { setDetailModalOpen(false); setSelectedAssistito(null); }} title="Dettagli Assistito" wide>
         {selectedAssistito && (
           <div className="space-y-4">
+            {/* ID Anonimo prominente */}
+            {selectedAssistito.anonId && (
+              <div className="glass-static rounded-xl p-4 text-center border border-neon-cyan/20">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">ID Anonimo</p>
+                <p className="text-2xl font-bold font-mono tracking-[6px] text-neon-cyan">{selectedAssistito.anonId}</p>
+                <p className="text-[10px] text-slate-600 mt-1">Da comunicare all'assistito per la verifica pubblica</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Nome</p>
@@ -478,7 +488,16 @@ export default function Assistiti() {
               </div>
             )}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-between items-center pt-2">
+              <button
+                onClick={() => {
+                  setVoucherAssistito(selectedAssistito);
+                  setTimeout(() => window.print(), 300);
+                }}
+                className="flex items-center gap-2 text-sm text-neon-purple hover:text-neon-purple/80 transition-colors"
+              >
+                <Printer size={16} /> Stampa Voucher
+              </button>
               <button
                 onClick={() => {
                   setDetailModalOpen(false);
@@ -492,6 +511,16 @@ export default function Assistiti() {
           </div>
         )}
       </Modal>
+
+      {/* Voucher nascosto per stampa */}
+      {voucherAssistito && (
+        <div style={{position: 'fixed', left: '-9999px', top: 0}}>
+          <VoucherPrint
+            assistito={voucherAssistito}
+            liste={voucherAssistito.listeAssegnate || []}
+          />
+        </div>
+      )}
     </div>
   );
 }

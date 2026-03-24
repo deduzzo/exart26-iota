@@ -26,6 +26,7 @@ module.exports = {
 
     anonId: {
       type: 'string',
+      unique: true,
       description: 'ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica.',
       maxLength: 8,
     },
@@ -90,10 +91,19 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
-  // Genera anonId prima della creazione
-  beforeCreate: function (valuesToSet, proceed) {
+  // Genera anonId univoco prima della creazione
+  beforeCreate: async function (valuesToSet, proceed) {
     if (valuesToSet.codiceFiscale && !valuesToSet.anonId) {
-      valuesToSet.anonId = generateAnonId(valuesToSet.codiceFiscale);
+      let candidate = generateAnonId(valuesToSet.codiceFiscale);
+      // Verifica unicita - in caso di collisione (improbabile), aggiungi salt
+      let salt = 0;
+      while (await Assistito.findOne({ anonId: candidate })) {
+        salt++;
+        candidate = crypto.createHash('sha256')
+          .update(valuesToSet.codiceFiscale.toUpperCase().trim() + ':' + salt)
+          .digest('hex').substring(0, 8).toUpperCase();
+      }
+      valuesToSet.anonId = candidate;
     }
     return proceed();
   },
