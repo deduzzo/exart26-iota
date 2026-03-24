@@ -1,7 +1,12 @@
+const crypto = require('crypto');
 const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
 const SyncCache = require('../utility/SyncCache');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
+
+function generateAnonId(cf) {
+  return crypto.createHash('sha256').update(cf.toUpperCase().trim()).digest('hex').substring(0, 8).toUpperCase();
+}
 
 const NOMI_M = ['Marco','Luca','Alessandro','Andrea','Matteo','Lorenzo','Giuseppe','Francesco','Antonio','Giovanni','Roberto','Davide','Stefano','Paolo','Massimo','Simone','Fabio','Michele','Claudio','Riccardo','Salvatore','Alberto','Daniele','Vincenzo','Enrico','Nicola','Emanuele','Filippo','Giorgio','Tommaso'];
 const NOMI_F = ['Maria','Anna','Francesca','Laura','Valentina','Chiara','Sara','Giulia','Silvia','Paola','Elena','Alessandra','Roberta','Monica','Federica','Elisa','Simona','Daniela','Cristina','Marta','Barbara','Claudia','Ilaria','Serena','Lucia','Giorgia','Teresa','Patrizia','Rosa','Angela'];
@@ -40,6 +45,14 @@ module.exports = {
     const NUM_ORG = 10, STR_PER_ORG = 50, LISTE_PER_STR = 10, NUM_ASS = 10000;
 
     sails.log.info(`[load] Start: ${NUM_ORG} org, ${STR_PER_ORG} str/org, ${LISTE_PER_STR} lst/str, ${NUM_ASS} ass`);
+
+    // Svuota DB esistente prima di generare nuovi dati
+    await AssistitiListe.destroy({});
+    await Assistito.destroy({});
+    await Lista.destroy({});
+    await Struttura.destroy({});
+    await Organizzazione.destroy({});
+    sails.log.info('[load] DB svuotato');
 
     // --- Genera UNA coppia di chiavi RSA e riusala (la generazione e lenta) ---
     sails.log.info('[load] Generazione chiave RSA condivisa per test...');
@@ -108,11 +121,12 @@ module.exports = {
         const isMale = Math.random() > 0.5;
 
         const ass = await Assistito.create({
+          anonId: generateAnonId(cf),
           nome: pick(isMale ? NOMI_M : NOMI_F),
           cognome: pick(COGNOMI),
           codiceFiscale: cf,
-          email: Math.random() > 0.3 ? `user${a}@test.it` : null,
-          telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : null,
+          email: Math.random() > 0.3 ? `user${a}@test.it` : '',
+          telefono: Math.random() > 0.4 ? `+39 3${Math.floor(Math.random()*900000000+100000000)}` : '',
           publicKey: sharedKP.publicKey, privateKey: sharedKP.privateKey,
           ultimaVersioneSuBlockchain: 0,
         }).fetch();

@@ -25,6 +25,7 @@
     "swagger-ui-dist": "^5.17.2"
   },
   "devDependencies": {
+    "arlocal": "^1.1.66",
     "eslint": "^9.0.0",
     "grunt": "^1.6.1",
     "grunt-contrib-clean": "^2.0.1",
