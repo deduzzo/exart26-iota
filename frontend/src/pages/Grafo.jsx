@@ -38,6 +38,13 @@ const NODE_TYPES = {
     label: 'Assistito',
     icon: Users,
   },
+  trattati: {
+    color: '#64748b',
+    glowColor: 'rgba(100, 116, 139, 0.4)',
+    size: 5,
+    label: 'Trattati',
+    icon: Users,
+  },
 };
 
 function buildGraphData(data) {
@@ -110,8 +117,9 @@ function buildGraphData(data) {
 
   // Add assistiti from assistitiListe links
   if (assistitiListe) {
-    // Raggruppa per assistito per ottenere tutte le liste in cui si trova
-    const assistitoListeMap = new Map(); // assId -> [{ lista, stato, dataOraIngresso }]
+    const assistitoListeMap = new Map();
+    // Conta trattati per lista (usciti con stato != 1)
+    const trattatiPerLista = new Map(); // listaId -> count
 
     for (const al of assistitiListe) {
       const assistito = al.assistito;
@@ -123,30 +131,56 @@ function buildGraphData(data) {
       const listaNome = typeof lista === 'object' ? lista.denominazione : `Lista #${listaId}`;
       const nodeAssId = `ass-${assId}`;
       const nodeListaId = `lista-${listaId}`;
+      const isInCoda = al.stato === 1 && !al.chiuso;
 
       if (!assistitoListeMap.has(assId)) assistitoListeMap.set(assId, []);
       assistitoListeMap.get(assId).push({
         listaId, listaNome, stato: al.stato, dataOraIngresso: al.dataOraIngresso
       });
 
-      if (!nodeIds.has(nodeAssId) && typeof assistito === 'object') {
-        nodeIds.add(nodeAssId);
-        nodes.push({
-          id: nodeAssId,
-          type: 'assistito',
-          label: assistito.cognome
-            ? `${assistito.cognome} ${assistito.nome || ''}`
-            : `Assistito #${assId}`,
-          data: { ...assistito, listeAssegnate: assistitoListeMap.get(assId) },
-        });
-      }
-
-      if (nodeIds.has(nodeListaId) && nodeIds.has(nodeAssId)) {
-        links.push({ source: nodeListaId, target: nodeAssId });
+      if (isInCoda) {
+        // Assistito in coda -> collegato alla lista
+        if (!nodeIds.has(nodeAssId) && typeof assistito === 'object') {
+          nodeIds.add(nodeAssId);
+          nodes.push({
+            id: nodeAssId,
+            type: 'assistito',
+            label: assistito.cognome ? `${assistito.cognome} ${assistito.nome || ''}` : `#${assId}`,
+            data: { ...assistito, listeAssegnate: assistitoListeMap.get(assId) },
+          });
+        }
+        if (nodeIds.has(nodeListaId) && nodeIds.has(nodeAssId)) {
+          links.push({ source: nodeListaId, target: nodeAssId });
+        }
+      } else {
+        // Assistito uscito -> incrementa contatore trattati per questa lista
+        trattatiPerLista.set(listaId, (trattatiPerLista.get(listaId) || 0) + 1);
       }
     }
 
-    // Aggiorna i nodi assistiti gia creati con le liste assegnate
+    // Crea nodi "Trattati" per ogni lista che ha pazienti usciti
+    for (const [listaId, count] of trattatiPerLista) {
+      const trattatiNodeId = `trattati-${listaId}`;
+      const nodeListaId = `lista-${listaId}`;
+      // Trova il nome della lista
+      const listaNode = nodes.find(n => n.id === nodeListaId);
+      const listaNome = listaNode?.label || `Lista #${listaId}`;
+
+      if (!nodeIds.has(trattatiNodeId)) {
+        nodeIds.add(trattatiNodeId);
+        nodes.push({
+          id: trattatiNodeId,
+          type: 'trattati',
+          label: `${listaNome} (${count} trattati)`,
+          data: { count, listaNome, listaId },
+        });
+      }
+      if (nodeIds.has(nodeListaId)) {
+        links.push({ source: nodeListaId, target: trattatiNodeId });
+      }
+    }
+
+    // Aggiorna listeAssegnate sui nodi assistiti
     for (const node of nodes) {
       if (node.type === 'assistito' && assistitoListeMap.has(node.data?.id)) {
         node.data.listeAssegnate = assistitoListeMap.get(node.data.id);
@@ -328,6 +362,13 @@ function HoverPanel({ node, position }) {
                     : '-'
                 }
               />
+            )}
+
+            {node.type === 'trattati' && (
+              <>
+                <InfoRow label="Pazienti trattati" value={<span className="text-slate-200 font-bold">{d.count}</span>} />
+                <InfoRow label="Lista di origine" value={d.listaNome} />
+              </>
             )}
           </div>
         </div>
