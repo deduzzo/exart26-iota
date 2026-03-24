@@ -35,6 +35,9 @@ export const addAssistito = (data) =>
 export const addAssistitoInLista = (idAssistito, idLista) =>
   api('/api/v1/add-assistito-in-lista', { method: 'POST', body: { idAssistito, idLista } });
 
+// Graph
+export const getGraphData = () => api('/api/v1/graph-data');
+
 // Admin
 export const fetchDbFromBlockchain = () =>
   api('/api/v1/fetch-db-from-blockchain', { method: 'POST' });

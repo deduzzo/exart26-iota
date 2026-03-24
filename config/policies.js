@@ -33,4 +33,5 @@ module.exports.policies = {
   'api-organizzazioni': 'is-logged-in',
   'api-strutture': 'is-logged-in',
   'api-assistiti': 'is-logged-in',
+  'api-graph-data': 'is-logged-in',
 };

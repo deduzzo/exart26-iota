@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Hospital, Users, Wallet,
-  ChevronLeft, ChevronRight
+  Network, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/organizzazioni', icon: Building2, label: 'Organizzazioni', group: 'Gestione' },
   { to: '/strutture', icon: Hospital, label: 'Strutture', group: 'Gestione' },
   { to: '/assistiti', icon: Users, label: 'Assistiti', group: 'Gestione' },
+  { to: '/grafo', icon: Network, label: 'Grafo', group: 'Visualizzazione' },
   { to: '/wallet', icon: Wallet, label: 'Wallet', group: 'Blockchain' },
 ];
 
