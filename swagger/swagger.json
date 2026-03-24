@@ -34,7 +34,7 @@
       "name": "Observe my session"
     },
     {
-      "name": "Get transaction by acountName and transactionId"
+      "name": "Get transaction by digest"
     },
     {
       "name": "Add organizzazione"
@@ -58,7 +58,22 @@
       "name": "Recover from Arweave"
     },
     {
+      "name": "API Dashboard"
+    },
+    {
+      "name": "API Strutture"
+    },
+    {
       "name": "Get wallet info"
+    },
+    {
+      "name": "Init wallet"
+    },
+    {
+      "name": "API Organizzazioni"
+    },
+    {
+      "name": "API Assistiti"
     },
     {
       "name": "View organizzazioni"
@@ -210,6 +225,70 @@
             "items": {
               "$ref": "#/components/schemas/lista"
             }
+          }
+        }
+      },
+      "blockchaindata": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/blockchaindata-without-required-constraint"
+          },
+          {
+            "required": [
+              "digest",
+              "tag",
+              "payload",
+              "timestamp"
+            ]
+          }
+        ]
+      },
+      "blockchaindata-without-required-constraint": {
+        "type": "object",
+        "description": "Sails ORM Model **BlockchainData**",
+        "properties": {
+          "createdAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "uniqueItems": true,
+            "description": "Note Sails special attributes: autoIncrement"
+          },
+          "digest": {
+            "type": "string",
+            "description": "Transaction digest (hash) sulla blockchain IOTA"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Tipo di dato (TransactionDataType)"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true,
+            "description": "ID entita associata (opzionale)"
+          },
+          "version": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "description": "Numero versione del dato"
+          },
+          "payload": {
+            "type": "string",
+            "description": "Payload JSON completo (cifrato)"
+          },
+          "timestamp": {
+            "type": "number",
+            "format": "double",
+            "description": "Timestamp di pubblicazione"
           }
         }
       },
@@ -568,15 +647,25 @@
     },
     "/api/v1/get-transaction": {
       "get": {
-        "summary": "Get transaction by acountName and transactionId",
+        "summary": "Get transaction by digest",
+        "description": "Recupera una transazione dalla cache locale BlockchainData tramite digest.",
         "tags": [
-          "Get transaction by acountName and transactionId"
+          "Get transaction by digest"
         ],
         "parameters": [
           {
             "in": "query",
-            "name": "accountName",
+            "name": "digest",
             "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Transaction digest (hash) sulla blockchain IOTA"
+          },
+          {
+            "in": "query",
+            "name": "accountName",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -584,7 +673,7 @@
           {
             "in": "query",
             "name": "transactionId",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -860,11 +949,11 @@
                   "oneOf": [
                     {
                       "type": "string",
-                      "description": "Assistito aggiunta con successo."
+                      "description": "Assistito aggiunto con successo."
                     },
                     {
                       "type": "string",
-                      "description": "I dati forniti non sono validi o l'assistito è già presente."
+                      "description": "I dati forniti non sono validi o l'assistito e gia presente."
                     }
                   ]
                 }
@@ -955,11 +1044,11 @@
                   "oneOf": [
                     {
                       "type": "string",
-                      "description": "Assistito aggiunta con successo."
+                      "description": "Assistito aggiunto con successo."
                     },
                     {
                       "type": "string",
-                      "description": "I dati forniti non sono validi o l'assistito è già presente."
+                      "description": "I dati forniti non sono validi o l'assistito e gia presente."
                     }
                   ]
                 }
@@ -1108,6 +1197,69 @@
         }
       }
     },
+    "/api/v1/dashboard": {
+      "get": {
+        "summary": "API Dashboard",
+        "description": "Ritorna dati JSON per la dashboard: statistiche, stato wallet, stato Arweave, ultime operazioni.",
+        "tags": [
+          "API Dashboard"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Dati dashboard."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/strutture": {
+      "get": {
+        "summary": "API Strutture",
+        "description": "Ritorna strutture filtrabili per organizzazione.",
+        "tags": [
+          "API Strutture"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organizzazione",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Filtra per ID organizzazione"
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "ID struttura per dettaglio"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dati strutture."
+          },
+          "404": {
+            "description": "Struttura non trovata."
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/api/v1/wallet/get-info": {
       "get": {
         "summary": "Get wallet info",
@@ -1122,6 +1274,100 @@
           },
           "404": {
             "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/wallet/init": {
+      "post": {
+        "summary": "Init wallet",
+        "description": "Inizializza il wallet IOTA 2.0 (genera mnemonic, richiede faucet).",
+        "tags": [
+          "Init wallet"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/organizzazioni/{id}": {
+      "get": {
+        "summary": "API Organizzazioni",
+        "description": "Ritorna lista o dettaglio organizzazione con strutture.",
+        "tags": [
+          "API Organizzazioni"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "ID organizzazione per dettaglio"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dati organizzazioni."
+          },
+          "404": {
+            "description": "Organizzazione non trovata."
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/assistiti/{id}": {
+      "get": {
+        "summary": "API Assistiti",
+        "description": "Ritorna lista o dettaglio assistiti con le loro liste.",
+        "tags": [
+          "API Assistiti"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "ID assistito per dettaglio"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ricerca per nome, cognome o codice fiscale"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dati assistiti."
+          },
+          "404": {
+            "description": "Assistito non trovato."
           },
           "500": {
             "description": "Internal server error"
