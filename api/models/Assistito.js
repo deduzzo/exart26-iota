@@ -5,15 +5,30 @@
  * @docs        :: https://sailsjs.com/docs/concepts/models-and-orm/models
  */
 
+const crypto = require('crypto');
 const iota = require('../utility/iota');
+
+/**
+ * Genera un ID anonimo univoco di 8 caratteri dal codice fiscale.
+ * SHA-256(CF) troncato a 8 hex uppercase. Deterministico: stesso CF = stesso ID.
+ */
+function generateAnonId(codiceFiscale) {
+  return crypto.createHash('sha256')
+    .update(codiceFiscale.toUpperCase().trim())
+    .digest('hex')
+    .substring(0, 8)
+    .toUpperCase();
+}
 
 module.exports = {
 
   attributes: {
 
-    //  ╔═╗╦═╗╦╔╦╗╦╔╦╗╦╦  ╦╔═╗╔═╗
-    //  ╠═╝╠╦╝║║║║║ ║ ║╚╗╔╝║╣ ╚═╗
-    //  ╩  ╩╚═╩╩ ╩╩ ╩ ╩ ╚╝ ╚═╝╚═╝
+    anonId: {
+      type: 'string',
+      description: 'ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica.',
+      maxLength: 8,
+    },
 
     nome: {
       type: 'string',
@@ -75,7 +90,17 @@ module.exports = {
     //  ╩ ╩╚═╝╚═╝╚═╝╚═╝╩╩ ╩ ╩ ╩╚═╝╝╚╝╚═╝
 
   },
+  // Genera anonId prima della creazione
+  beforeCreate: function (valuesToSet, proceed) {
+    if (valuesToSet.codiceFiscale && !valuesToSet.anonId) {
+      valuesToSet.anonId = generateAnonId(valuesToSet.codiceFiscale);
+    }
+    return proceed();
+  },
+
   // METODI
+  generateAnonId: generateAnonId,
+
   getWalletIdAssistito: async function (opts) {
     let assistito = await Assistito.findOne({id: opts.id});
     if (assistito) {

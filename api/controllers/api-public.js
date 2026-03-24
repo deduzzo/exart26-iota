@@ -1,8 +1,4 @@
-const crypto = require('crypto');
-
-function generateAnonId(codiceFiscale) {
-  return crypto.createHash('sha256').update(codiceFiscale.toUpperCase()).digest('hex').substring(0, 8).toUpperCase();
-}
+// L'anonId viene dal campo persistente nel modello Assistito
 
 module.exports = {
 
@@ -56,9 +52,7 @@ module.exports = {
       // Coda anonimizzata
       const codaAnonima = inCoda.map((al, i) => ({
         position: i + 1,
-        anonId: al.assistito && al.assistito.codiceFiscale
-          ? generateAnonId(al.assistito.codiceFiscale)
-          : '--------',
+        anonId: al.assistito?.anonId || '--------',
         stato: al.stato,
         dataOraIngresso: al.dataOraIngresso,
       }));
@@ -69,9 +63,7 @@ module.exports = {
       }).populate('assistito').sort('createdAt DESC');
 
       const storicoAnonimo = tuttiMovimenti.map((al) => ({
-        anonId: al.assistito && al.assistito.codiceFiscale
-          ? generateAnonId(al.assistito.codiceFiscale)
-          : '--------',
+        anonId: al.assistito?.anonId || '--------',
         stato: al.stato,
         chiuso: al.chiuso,
         dataOraIngresso: al.dataOraIngresso,

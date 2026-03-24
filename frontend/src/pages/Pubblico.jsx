@@ -23,40 +23,19 @@ const item = {
 
 export default function Pubblico() {
   const { data: liste, loading, error } = useApi(getPublicListe);
-  const [cfInput, setCfInput] = useState('');
+  const [anonIdInput, setAnonIdInput] = useState('');
   const [anonId, setAnonId] = useState(null);
-  const [searching, setSearching] = useState(false);
   const [expandedListe, setExpandedListe] = useState({});
   const [showStorico, setShowStorico] = useState({});
 
-  // Hash CF client-side using SubtleCrypto
-  const computeAnonId = async (cf) => {
-    if (!cf || cf.trim().length === 0) {
-      setAnonId(null);
-      return;
-    }
-    setSearching(true);
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(cf.trim().toUpperCase());
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      setAnonId(hashHex.substring(0, 8).toUpperCase());
-    } catch {
-      setAnonId(null);
-    } finally {
-      setSearching(false);
-    }
-  };
-
   const handleSearch = (e) => {
     e.preventDefault();
-    computeAnonId(cfInput);
+    const val = anonIdInput.trim().toUpperCase();
+    setAnonId(val.length > 0 ? val : null);
   };
 
   const handleClear = () => {
-    setCfInput('');
+    setAnonIdInput('');
     setAnonId(null);
   };
 
@@ -107,6 +86,7 @@ export default function Pubblico() {
         </div>
         <h1 className="text-3xl font-bold mb-2">Verifica Lista d&apos;Attesa</h1>
         <p className="text-slate-400">Consulta lo stato delle liste d&apos;attesa per la riabilitazione sanitaria</p>
+        <p className="text-xs text-slate-500 mt-2">Ogni assistito ha un ID anonimo univoco che viene comunicato al momento dell&apos;iscrizione</p>
       </motion.div>
 
       {/* Search */}
@@ -121,19 +101,19 @@ export default function Pubblico() {
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
-              value={cfInput}
-              onChange={(e) => setCfInput(e.target.value.toUpperCase())}
-              placeholder="Inserisci il tuo Codice Fiscale per verificare la tua posizione..."
-              maxLength={16}
+              value={anonIdInput}
+              onChange={(e) => setAnonIdInput(e.target.value.toUpperCase())}
+              placeholder="Inserisci il tuo ID anonimo (es. A3F2B1C0)..."
+              maxLength={8}
               className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all font-mono tracking-wider"
             />
           </div>
           <button
             type="submit"
-            disabled={!cfInput.trim() || searching}
+            disabled={!anonIdInput.trim()}
             className="px-6 py-3 bg-gradient-to-r from-neon-cyan to-neon-purple rounded-xl font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            {searching ? 'Ricerca...' : 'Cerca'}
+            Cerca
           </button>
           {anonId && (
             <button
@@ -157,7 +137,7 @@ export default function Pubblico() {
             >
               <div className={`rounded-xl p-4 ${foundInLists.length > 0 ? 'bg-neon-cyan/10 border border-neon-cyan/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
                 <p className="text-sm">
-                  <span className="text-slate-400">Il tuo ID anonimo: </span>
+                  <span className="text-slate-400">Ricerca ID: </span>
                   <span className="font-mono font-bold text-neon-cyan text-lg">{anonId}</span>
                 </p>
                 {foundInLists.length > 0 ? (
