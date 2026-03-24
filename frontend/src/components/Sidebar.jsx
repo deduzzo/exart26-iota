@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Hospital, Users, Wallet,
-  Network, ChevronLeft, ChevronRight, FileText
+  Network, ChevronLeft, ChevronRight, FileText, Bug
 } from 'lucide-react';
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/assistiti', icon: Users, label: 'Assistiti', group: 'Gestione' },
   { to: '/grafo', icon: Network, label: 'Grafo', group: 'Visualizzazione' },
   { to: '/wallet', icon: Wallet, label: 'Wallet', group: 'Blockchain' },
+  { to: '/debug', icon: Bug, label: 'Debug', group: 'Sviluppo' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {

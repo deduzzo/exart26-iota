@@ -51,3 +51,6 @@ export const fetchDbFromBlockchain = () =>
   api('/api/v1/fetch-db-from-blockchain', { method: 'POST' });
 export const recoverFromArweave = () =>
   api('/api/v1/recover-from-arweave', { method: 'POST' });
+
+// Debug
+export const getDebugData = () => api('/api/v1/debug');

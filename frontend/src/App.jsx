@@ -7,6 +7,7 @@ import Assistiti from './pages/Assistiti';
 import Liste from './pages/Liste';
 import Wallet from './pages/Wallet';
 import Grafo from './pages/Grafo';
+import Debug from './pages/Debug';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="liste" element={<Liste />} />
           <Route path="wallet" element={<Wallet />} />
           <Route path="grafo" element={<Grafo />} />
+          <Route path="debug" element={<Debug />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
