@@ -12,6 +12,7 @@
     "@sailshq/socket.io-redis": "^5.2.0",
     "@scure/bip39": "^2.0.1",
     "arweave": "^1.15.5",
+    "better-sqlite3": "^12.8.0",
     "bootstrap": "^5.3.3",
     "express-rate-limit": "^7.1.0",
     "moment": "^2.30.1",
