@@ -63,6 +63,21 @@ module.exports = {
         dataOraIngresso: al.dataOraIngresso,
       }));
 
+      // Storico completo anonimizzato (tutti i movimenti, anche chiusi)
+      const tuttiMovimenti = await AssistitiListe.find({
+        lista: lista.id,
+      }).populate('assistito').sort('createdAt DESC');
+
+      const storicoAnonimo = tuttiMovimenti.map((al) => ({
+        anonId: al.assistito && al.assistito.codiceFiscale
+          ? generateAnonId(al.assistito.codiceFiscale)
+          : '--------',
+        stato: al.stato,
+        chiuso: al.chiuso,
+        dataOraIngresso: al.dataOraIngresso,
+        dataOraUscita: al.dataOraUscita || null,
+      }));
+
       result.push({
         id: lista.id,
         denominazione: lista.denominazione,
@@ -78,9 +93,11 @@ module.exports = {
         stats: {
           inCoda: inCoda.length,
           usciti: usciti.length,
+          totale: tuttiMovimenti.length,
           tempoMedioGiorni,
         },
         coda: codaAnonima,
+        storico: storicoAnonimo,
       });
     }
 

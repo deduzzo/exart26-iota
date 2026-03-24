@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Users, UserCheck, Clock, Shield, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Users, UserCheck, Clock, Shield, ExternalLink, ChevronDown, ChevronUp, History } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StatusBadge from '../components/StatusBadge';
 import { useApi } from '../hooks/useApi';
@@ -27,6 +27,7 @@ export default function Pubblico() {
   const [anonId, setAnonId] = useState(null);
   const [searching, setSearching] = useState(false);
   const [expandedListe, setExpandedListe] = useState({});
+  const [showStorico, setShowStorico] = useState({});
 
   // Hash CF client-side using SubtleCrypto
   const computeAnonId = async (cf) => {
@@ -272,7 +273,65 @@ export default function Pubblico() {
                     className="overflow-hidden"
                   >
                     <div className="border-t border-white/5">
-                      {lista.coda.length === 0 ? (
+                      {/* Toggle Coda / Storico */}
+                      <div className="flex gap-2 px-5 pt-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowStorico(prev => ({...prev, [lista.id]: false})); }}
+                          className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${!showStorico[lista.id] ? 'bg-neon-cyan/15 text-neon-cyan' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          <Users size={12} className="inline mr-1" />Coda ({lista.stats.inCoda})
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowStorico(prev => ({...prev, [lista.id]: true})); }}
+                          className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${showStorico[lista.id] ? 'bg-neon-purple/15 text-neon-purple' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          <History size={12} className="inline mr-1" />Storico ({lista.stats.totale || 0})
+                        </button>
+                      </div>
+
+                      {showStorico[lista.id] ? (
+                        /* STORICO */
+                        lista.storico && lista.storico.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-white/5">
+                                  <th className="text-left px-5 py-3 text-xs uppercase tracking-wider text-slate-500 font-medium">ID Anonimo</th>
+                                  <th className="text-left px-5 py-3 text-xs uppercase tracking-wider text-slate-500 font-medium">Stato</th>
+                                  <th className="text-left px-5 py-3 text-xs uppercase tracking-wider text-slate-500 font-medium">Ingresso</th>
+                                  <th className="text-left px-5 py-3 text-xs uppercase tracking-wider text-slate-500 font-medium">Uscita</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lista.storico.map((entry, idx) => {
+                                  const isUser = anonId && entry.anonId === anonId;
+                                  return (
+                                    <tr key={idx} className={`border-b border-white/5 ${isUser ? 'bg-neon-cyan/10' : 'hover:bg-white/5'}`}>
+                                      <td className="px-5 py-3">
+                                        <span className={`font-mono text-sm tracking-wider ${isUser ? 'text-neon-cyan font-bold' : 'text-slate-300'}`}>
+                                          {entry.anonId}
+                                        </span>
+                                        {isUser && <span className="ml-2 text-xs text-neon-cyan">(tu)</span>}
+                                      </td>
+                                      <td className="px-5 py-3"><StatusBadge status={entry.stato} /></td>
+                                      <td className="px-5 py-3 text-slate-400">
+                                        {entry.dataOraIngresso ? new Date(entry.dataOraIngresso).toLocaleDateString('it-IT') : '-'}
+                                      </td>
+                                      <td className="px-5 py-3 text-slate-400">
+                                        {entry.dataOraUscita ? new Date(entry.dataOraUscita).toLocaleDateString('it-IT') : '-'}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="p-5 text-center text-slate-500 text-sm">Nessun movimento registrato</p>
+                        )
+                      ) : (
+                      /* CODA */
+                      lista.coda.length === 0 ? (
                         <p className="p-5 text-center text-slate-500 text-sm">Nessun assistito in coda</p>
                       ) : (
                         <div className="overflow-x-auto">
@@ -328,7 +387,7 @@ export default function Pubblico() {
                             </tbody>
                           </table>
                         </div>
-                      )}
+                      ))}
                     </div>
                   </motion.div>
                 )}
