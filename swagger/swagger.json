@@ -58,16 +58,46 @@
       "name": "Recover from Arweave"
     },
     {
+      "name": "API Liste Dettaglio"
+    },
+    {
+      "name": "Rimuovi assistito da lista"
+    },
+    {
+      "name": "Update lista tag"
+    },
+    {
       "name": "API Dashboard"
     },
     {
       "name": "API Strutture"
     },
     {
+      "name": "API Graph Data"
+    },
+    {
+      "name": "API Debug"
+    },
+    {
+      "name": "API Sync Status"
+    },
+    {
+      "name": "Reset Sync Cache"
+    },
+    {
+      "name": "Inizializza dati di prova"
+    },
+    {
       "name": "Get wallet info"
     },
     {
       "name": "Init wallet"
+    },
+    {
+      "name": "Reset wallet"
+    },
+    {
+      "name": "API Pubblico Liste"
     },
     {
       "name": "API Organizzazioni"
@@ -160,6 +190,7 @@
           },
           {
             "required": [
+              "anonId",
               "nome",
               "cognome",
               "codiceFiscale"
@@ -185,6 +216,11 @@
             "uniqueItems": true,
             "description": "Note Sails special attributes: autoIncrement"
           },
+          "anonId": {
+            "type": "string",
+            "description": "ID anonimo univoco (8 char hex da SHA-256 del CF). Usato nella vista pubblica. Unicita garantita nel beforeCreate.",
+            "maxLength": 8
+          },
           "nome": {
             "type": "string"
           },
@@ -192,8 +228,7 @@
             "type": "string"
           },
           "codiceFiscale": {
-            "type": "string",
-            "uniqueItems": true
+            "type": "string"
           },
           "dataNascita": {
             "type": "string",
@@ -325,6 +360,11 @@
           },
           "denominazione": {
             "type": "string"
+          },
+          "tag": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tag per categorizzare la lista (es. riabilitazioneA, fisioterapia, logopedia). Ricercabile e filtrabile."
           },
           "aperta": {
             "type": "boolean",
@@ -695,7 +735,7 @@
     "/api/v1/add-organizzazione": {
       "post": {
         "summary": "Add organizzazione",
-        "description": "Aggiunge una nuova organizzazione al database",
+        "description": "Aggiunge una nuova organizzazione al database e pubblica su blockchain.",
         "tags": [
           "Add organizzazione"
         ],
@@ -743,6 +783,7 @@
     "/api/v1/add-struttura": {
       "post": {
         "summary": "Add struttura",
+        "description": "Aggiunge una nuova struttura e pubblica su blockchain.",
         "tags": [
           "Add struttura"
         ],
@@ -818,7 +859,7 @@
     "/api/v1/add-lista": {
       "post": {
         "summary": "Add lista",
-        "description": "Aggiunge una nuova lista al database",
+        "description": "Aggiunge una nuova lista al database e pubblica su blockchain.",
         "tags": [
           "Add lista"
         ],
@@ -840,6 +881,15 @@
             "schema": {
               "type": "number",
               "format": "double"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
             }
           }
         ],
@@ -875,6 +925,7 @@
     "/api/v1/add-assistito": {
       "post": {
         "summary": "Add assistito",
+        "description": "Crea un assistito e pubblica su blockchain.",
         "tags": [
           "Add assistito"
         ],
@@ -902,8 +953,7 @@
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z]{6}[0-9]{2}[A-Za-z][0-9]{2}[A-Za-z][0-9]{3}[A-Za-z]$"
-            },
-            "description": "Codice Fiscale italiano (16 caratteri)"
+            }
           },
           {
             "in": "query",
@@ -911,8 +961,7 @@
             "required": false,
             "schema": {
               "type": "string"
-            },
-            "description": "Formato: YYYY-MM-DD"
+            }
           },
           {
             "in": "query",
@@ -953,7 +1002,7 @@
                     },
                     {
                       "type": "string",
-                      "description": "I dati forniti non sono validi o l'assistito e gia presente."
+                      "description": "Success"
                     }
                   ]
                 }
@@ -970,6 +1019,7 @@
       },
       "get": {
         "summary": "Add assistito",
+        "description": "Crea un assistito e pubblica su blockchain.",
         "tags": [
           "Add assistito"
         ],
@@ -997,8 +1047,7 @@
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z]{6}[0-9]{2}[A-Za-z][0-9]{2}[A-Za-z][0-9]{3}[A-Za-z]$"
-            },
-            "description": "Codice Fiscale italiano (16 caratteri)"
+            }
           },
           {
             "in": "query",
@@ -1006,8 +1055,7 @@
             "required": false,
             "schema": {
               "type": "string"
-            },
-            "description": "Formato: YYYY-MM-DD"
+            }
           },
           {
             "in": "query",
@@ -1048,7 +1096,7 @@
                     },
                     {
                       "type": "string",
-                      "description": "I dati forniti non sono validi o l'assistito e gia presente."
+                      "description": "Success"
                     }
                   ]
                 }
@@ -1067,7 +1115,7 @@
     "/api/v1/fetch-db-from-blockchain": {
       "post": {
         "summary": "Aggiorna db da blockchain",
-        "description": "Aggiorna il database locale con i dati presenti sulla blockchain.",
+        "description": "Aggiorna il database locale con i dati presenti nella cache blockchain.",
         "tags": [
           "Aggiorna db da blockchain"
         ],
@@ -1197,6 +1245,142 @@
         }
       }
     },
+    "/api/v1/liste-dettaglio": {
+      "get": {
+        "summary": "API Liste Dettaglio",
+        "description": "Ritorna il dettaglio di una lista con assistiti in coda (con posizione) e storico movimenti.",
+        "tags": [
+          "API Liste Dettaglio"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "idLista",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dettaglio lista."
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/rimuovi-assistito-da-lista": {
+      "post": {
+        "summary": "Rimuovi assistito da lista",
+        "description": "Rimuove un assistito dalla lista con gestione multi-lista.",
+        "tags": [
+          "Rimuovi assistito da lista"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "idAssistitoListe",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "ID del record AssistitiListe principale da aggiornare"
+          },
+          {
+            "in": "query",
+            "name": "stato",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "Nuovo stato: 2=in assistenza, 3=completato, 4=cambio lista, 5=rinuncia, 6=annullato"
+          },
+          {
+            "in": "query",
+            "name": "azioniAltreListe",
+            "required": false,
+            "schema": {},
+            "description": "Array di azioni per le altre liste: [{ idAssistitoListe, azione: \"mantieni\"|\"rimuovi\", statoRimozione? }]"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Assistito rimosso dalla lista."
+                    },
+                    {
+                      "type": "string",
+                      "description": "Success"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/update-lista-tag": {
+      "put": {
+        "summary": "Update lista tag",
+        "description": "Aggiorna il tag di una lista esistente.",
+        "tags": [
+          "Update lista tag"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag aggiornato."
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/api/v1/dashboard": {
       "get": {
         "summary": "API Dashboard",
@@ -1260,6 +1444,111 @@
         }
       }
     },
+    "/api/v1/graph-data": {
+      "get": {
+        "summary": "API Graph Data",
+        "description": "Ritorna tutti i dati necessari per il grafo interattivo: entita e relazioni.",
+        "tags": [
+          "API Graph Data"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Dati per il grafo."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/debug": {
+      "get": {
+        "summary": "API Debug",
+        "description": "Ritorna tutti i dati del sistema: wallet, transazioni blockchain (con decryption), DB locale, cross-references.",
+        "tags": [
+          "API Debug"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Dati debug completi."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/sync-status": {
+      "get": {
+        "summary": "API Sync Status",
+        "description": "Ritorna lo stato della sincronizzazione blockchain.",
+        "tags": [
+          "API Sync Status"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/sync-reset": {
+      "post": {
+        "summary": "Reset Sync Cache",
+        "description": "Cancella la cache locale e riforza la sync dalla blockchain.",
+        "tags": [
+          "Reset Sync Cache"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/load-test": {
+      "post": {
+        "summary": "Inizializza dati di prova",
+        "description": "Crea dati massivi per test UI. Solo DB in-memory + MAIN_DATA su blockchain.",
+        "tags": [
+          "Inizializza dati di prova"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/api/v1/wallet/get-info": {
       "get": {
         "summary": "Get wallet info",
@@ -1292,6 +1581,48 @@
         "responses": {
           "200": {
             "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/wallet/reset": {
+      "post": {
+        "summary": "Reset wallet",
+        "description": "Distrugge il wallet corrente e ne crea uno nuovo. Operazione irreversibile.",
+        "tags": [
+          "Reset wallet"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The requested resource"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/public/liste": {
+      "get": {
+        "summary": "API Pubblico Liste",
+        "description": "Ritorna tutte le liste con statistiche e coda anonimizzata. Endpoint pubblico senza autenticazione.",
+        "tags": [
+          "API Pubblico Liste"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Liste pubbliche con statistiche."
           },
           "404": {
             "description": "Resource not found"
@@ -1337,7 +1668,7 @@
     "/api/v1/assistiti/{id}": {
       "get": {
         "summary": "API Assistiti",
-        "description": "Ritorna lista o dettaglio assistiti con le loro liste.",
+        "description": "Ritorna lista o dettaglio assistiti con le loro liste assegnate.",
         "tags": [
           "API Assistiti"
         ],
