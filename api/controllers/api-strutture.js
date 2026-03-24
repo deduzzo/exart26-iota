@@ -28,6 +28,28 @@ module.exports = {
   },
 
   fn: async function (inputs, exits) {
+    // Pre-aggregate all AssistitiListe stats in a single query (eliminates N+1)
+    const allAssistitiListe = await AssistitiListe.find();
+    const statsByLista = {};
+    for (const al of allAssistitiListe) {
+      const lid = al.lista;
+      if (!statsByLista[lid]) {
+        statsByLista[lid] = { inCoda: 0, usciti: 0, totale: 0, tempoTotaleMs: 0, tempoCount: 0 };
+      }
+      const s = statsByLista[lid];
+      s.totale++;
+      if (al.stato === 1 && !al.chiuso) {
+        s.inCoda++;
+      }
+      if (al.chiuso) {
+        s.usciti++;
+        if (al.dataOraIngresso && al.dataOraUscita) {
+          s.tempoTotaleMs += new Date(al.dataOraUscita) - new Date(al.dataOraIngresso);
+          s.tempoCount++;
+        }
+      }
+    }
+
     if (inputs.id) {
       let struttura = await Struttura.findOne({id: inputs.id})
         .populate('organizzazione')
@@ -35,9 +57,8 @@ module.exports = {
       if (!struttura) {
         return exits.notFound({error: 'Struttura non trovata.'});
       }
-      // Per ogni lista, carica il conteggio assistiti in coda
       for (let lista of struttura.liste) {
-        lista.assistitiInCoda = await AssistitiListe.count({lista: lista.id, stato: 1, chiuso: false});
+        lista.assistitiInCoda = (statsByLista[lista.id] || {}).inCoda || 0;
       }
       return exits.success({struttura});
     }
@@ -50,26 +71,12 @@ module.exports = {
     let strutture = await Struttura.find(criteria).populate('organizzazione').populate('liste');
     for (let str of strutture) {
       for (let lista of str.liste) {
-        const inCoda = await AssistitiListe.count({lista: lista.id, stato: 1, chiuso: false});
-        const usciti = await AssistitiListe.count({lista: lista.id, chiuso: true});
-        const totale = await AssistitiListe.count({lista: lista.id});
-
-        // Tempo medio in lista (per chi e uscito con dataOraUscita)
+        const raw = statsByLista[lista.id] || { inCoda: 0, usciti: 0, totale: 0, tempoTotaleMs: 0, tempoCount: 0 };
         let tempoMedioGiorni = null;
-        const completati = await AssistitiListe.find({lista: lista.id, chiuso: true})
-          .select(['dataOraIngresso', 'dataOraUscita']);
-        if (completati.length > 0) {
-          let sommaMs = 0, count = 0;
-          for (const c of completati) {
-            if (c.dataOraIngresso && c.dataOraUscita) {
-              sommaMs += (c.dataOraUscita - c.dataOraIngresso);
-              count++;
-            }
-          }
-          if (count > 0) tempoMedioGiorni = Math.round((sommaMs / count) / (1000 * 60 * 60 * 24) * 10) / 10;
+        if (raw.tempoCount > 0) {
+          tempoMedioGiorni = Math.round((raw.tempoTotaleMs / raw.tempoCount) / 86400000 * 10) / 10;
         }
-
-        lista.stats = { inCoda, usciti, totale, tempoMedioGiorni };
+        lista.stats = { inCoda: raw.inCoda, usciti: raw.usciti, totale: raw.totale, tempoMedioGiorni };
       }
     }
     return exits.success({strutture});
