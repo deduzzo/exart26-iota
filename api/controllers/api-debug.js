@@ -88,13 +88,13 @@ module.exports = {
       }
     }
 
-    // 3. Local DB state - fetch all records with relationships
-    const organizzazioni = await Organizzazione.find().populate('strutture');
-    const strutture = await Struttura.find().populate('organizzazione').populate('liste');
-    const liste = await Lista.find().populate('struttura');
-    const assistiti = await Assistito.find();
-    const assistitiListe = await AssistitiListe.find().populate('assistito').populate('lista');
-    const blockchainData = await BlockchainData.find().sort('createdAt DESC');
+    // 3. Local DB state - fetch records with relationships (limited for performance)
+    const organizzazioni = await Organizzazione.find().limit(100).populate('strutture');
+    const strutture = await Struttura.find().limit(200).populate('organizzazione').populate('liste');
+    const liste = await Lista.find().limit(200).populate('struttura');
+    const assistiti = await Assistito.find().limit(200);
+    const assistitiListe = await AssistitiListe.find().limit(500).populate('assistito').populate('lista');
+    const blockchainData = await BlockchainData.find().sort('createdAt DESC').limit(500);
 
     // For DB output, include privateKey info (truncated) for debug
     const organizzazioniDebug = organizzazioni.map(o => ({
@@ -121,7 +121,14 @@ module.exports = {
       privateKeyTruncated: a.privateKey ? a.privateKey.substring(0, 60) + '...' : null,
     }));
 
-    // 4. Cross-reference index
+    // 4. Cross-reference index — pre-build Maps for O(N+M) lookups
+    const alByAssistito = new Map();
+    for (const al of assistitiListe) {
+      const assId = typeof al.assistito === 'object' ? al.assistito.id : al.assistito;
+      if (!alByAssistito.has(assId)) alByAssistito.set(assId, []);
+      alByAssistito.get(assId).push(al);
+    }
+
     const crossReferences = {
       organizzazioni: organizzazioni.map(org => {
         const orgTxs = Array.isArray(blockchainTransactions[TransactionDataType.ORGANIZZAZIONE_DATA])
@@ -178,10 +185,7 @@ module.exports = {
         const pkTxs = Array.isArray(blockchainTransactions[TransactionDataType.PRIVATE_KEY])
           ? blockchainTransactions[TransactionDataType.PRIVATE_KEY].filter(tx => String(tx.entityId) === String(entityId))
           : [];
-        const assListe = assistitiListe.filter(al => {
-          const assId = typeof al.assistito === 'object' ? al.assistito.id : al.assistito;
-          return assId === ass.id;
-        });
+        const assListe = alByAssistito.get(ass.id) || [];
 
         return {
           id: ass.id,
@@ -222,8 +226,15 @@ module.exports = {
       },
       crossReferences,
       meta: {
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
         allTags,
+        totalOrg: await Organizzazione.count(),
+        totalStr: await Struttura.count(),
+        totalListe: await Lista.count(),
+        totalAss: await Assistito.count(),
+        totalAL: await AssistitiListe.count(),
+        limited: true,
+        displayLimit: 'Primi 100-500 record per tipo. Cross-reference basato solo sui record mostrati.',
       },
     };
   }
