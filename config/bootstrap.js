@@ -18,13 +18,24 @@ module.exports.bootstrap = async function () {
   //let keys = await CryptHelper.RSAGenerateKeyPair();
   // console.log(keys);
 
-  if (await iota.isWalletInitialized()) {
+  sails.log.info('[bootstrap] Verifica wallet...');
+  const walletReady = await iota.isWalletInitialized();
+  sails.log.info('[bootstrap] Wallet inizializzato: ' + walletReady);
+  if (walletReady) {
     try {
+      sails.log.info('[bootstrap] Avvio sync DB da BlockchainData cache...');
       const manager = new ListManager();
-      await manager.updateDBfromBlockchain();
+      const result = await manager.updateDBfromBlockchain();
+      if (result.success) {
+        sails.log.info('[bootstrap] Sync completata da ' + result.source + ', organizzazioni: ' + (result.data ? result.data.length : 0));
+      } else {
+        sails.log.info('[bootstrap] Nessun dato trovato nella cache locale. Il DB partira vuoto.');
+      }
     } catch (err) {
-      sails.log.warn('Blockchain sync failed during bootstrap, the app will continue without synced data. Error: ' + err.message);
+      sails.log.warn('[bootstrap] Sync fallita: ' + err.message);
     }
+  } else {
+    sails.log.info('[bootstrap] Wallet non inizializzato, skip sync.');
   }
 
   // This bootstrap version indicates what version of fake data we're dealing with here.

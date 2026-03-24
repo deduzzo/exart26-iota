@@ -2,18 +2,9 @@ const CryptHelper = require('../utility/CryptHelper');
 const ListManager = require('../utility/ListManager');
 module.exports = {
 
-
   friendlyName: 'Add struttura',
 
-
   description: '',
-
-  example: {
-    denominazione: 'string',
-    indirizzo: 'string',
-    attiva: 'boolean',
-    organizzazione: 'number'
-  },
 
   inputs: {
     denominazione: {
@@ -38,7 +29,6 @@ module.exports = {
     },
   },
 
-
   exits: {
     success: {
       description: 'Struttura aggiunta con successo.'
@@ -48,7 +38,6 @@ module.exports = {
       description: 'I dati forniti non sono validi.'
     }
   },
-
 
   fn: async function (inputs, exits) {
     let keyPairStr = await CryptHelper.RSAGenerateKeyPair();
@@ -66,35 +55,37 @@ module.exports = {
         ultimaVersioneSuBlockchain: -1,
         organizzazione: inputs.organizzazione
       }).fetch();
-      let manager = new ListManager();
-      let res1 = await manager.updateDatiStrutturaToBlockchain(nuovaStruttura.id);
-      let res2 = await manager.updatePrivateKey(await Struttura.getWalletIdStruttura({id: nuovaStruttura.id}), keyPairStr.privateKey);
-      let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-      if (res1.success && res2.success && res3.success) {
-        nuovaStruttura.ultimaVersioneSuBlockchain = nuovaStruttura.ultimaVersioneSuBlockchain + 1;
-        return exits.success(
-          {
-            organizzazione: {...nuovaStruttura, privateKey: keyPairStr.privateKey},
-            transactions: {
-              STRUTTURA_DATA: {...res1},
-              PRIVATE_KEY: {...res2},
-              MAIN_DATA: {...res3}
-            },
-          error: null
-          });
-      } else {
-        return exits.invalid({
-          error: 'Errore durante la scrittura dei dati sulla blockchain.',
-          transactions: {
-            STRUTTURA_DATA: {...res1},
-            PRIVATE_KEY: {...res2},
-            MAIN_DATA: {...res3}
-          }
-        });
-      }
+
+      // Blockchain publish in background (non-bloccante)
+      const strutturaId = nuovaStruttura.id;
+      setImmediate(async () => {
+        try {
+          const manager = new ListManager();
+          const res1 = await manager.updateDatiStrutturaToBlockchain(strutturaId);
+          if (res1.success) sails.log.info('Blockchain: STRUTTURA_DATA OK');
+          else sails.log.warn('Blockchain: STRUTTURA_DATA failed', res1.error);
+
+          const walletId = await Struttura.getWalletIdStruttura({id: strutturaId});
+          const res2 = await manager.updatePrivateKey(walletId, keyPairStr.privateKey);
+          if (res2.success) sails.log.info('Blockchain: PRIVATE_KEY OK');
+          else sails.log.warn('Blockchain: PRIVATE_KEY failed', res2.error);
+
+          const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
+          if (res3.success) sails.log.info('Blockchain: MAIN_DATA OK');
+          else sails.log.warn('Blockchain: MAIN_DATA failed', res3.error);
+        } catch (err) {
+          sails.log.warn('Blockchain publish error (struttura):', err.message || err);
+        }
+      });
+
+      return exits.success({
+        struttura: {...nuovaStruttura, privateKey: undefined},
+        blockchainStatus: 'publishing',
+        error: null
+      });
     } catch (err) {
       return exits.invalid({
-        error: JSON.stringify(err),
+        error: err.message || JSON.stringify(err),
       });
     }
   }

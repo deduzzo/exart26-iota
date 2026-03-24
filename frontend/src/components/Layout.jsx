@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Toast from './Toast';
+import WalletInitModal from './WalletInitModal';
 import { getWalletInfo } from '../api/endpoints';
 
 // Toast context - simple global state
@@ -29,13 +30,32 @@ export function useToast() {
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [wallet, setWallet] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [showWalletInit, setShowWalletInit] = useState(false);
   const { toasts, addToast, dismissToast } = useToast();
 
-  useEffect(() => {
+  const loadWallet = () => {
+    setWalletLoading(true);
     getWalletInfo()
-      .then(setWallet)
-      .catch(() => setWallet({ status: 'Offline', balance: '0', address: null }));
-  }, []);
+      .then((data) => {
+        setWallet(data);
+        setShowWalletInit(data.status === 'WALLET non inizializzato');
+        setWalletLoading(false);
+      })
+      .catch(() => {
+        setWallet({ status: 'Offline', balance: '0', address: null });
+        setShowWalletInit(false);
+        setWalletLoading(false);
+      });
+  };
+
+  useEffect(() => { loadWallet(); }, []);
+
+  const handleWalletInitialized = () => {
+    setShowWalletInit(false);
+    loadWallet();
+    addToast('Wallet inizializzato con successo!', 'success');
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -67,6 +87,12 @@ export default function Layout() {
         {/* Page content */}
         <Outlet context={{ addToast }} />
       </motion.main>
+
+      {/* Wallet init modal - shown on every page if wallet not initialized */}
+      <WalletInitModal
+        open={!walletLoading && showWalletInit}
+        onInitialized={handleWalletInitialized}
+      />
 
       {/* Toast notifications */}
       <Toast toasts={toasts} onDismiss={dismissToast} />

@@ -2,7 +2,7 @@ import { api } from './client';
 
 // Wallet
 export const getWalletInfo = () => api('/api/v1/wallet/get-info');
-export const initWallet = () => api('/wallet/verifica?initWallet=true');
+export const initWallet = () => api('/api/v1/wallet/init', { method: 'POST' });
 
 // Dashboard data
 export const getDashboardData = () => api('/api/v1/dashboard');

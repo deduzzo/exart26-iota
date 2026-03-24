@@ -158,7 +158,7 @@ async function getOrInitWallet() {
 
   // Genera nuovo mnemonic
   const { generateMnemonic } = await import('@scure/bip39');
-  const { wordlist } = await import('@scure/bip39/wordlists/english');
+  const { wordlist } = await import('@scure/bip39/wordlists/english.js');
   const mnemonic = generateMnemonic(wordlist);
 
   const kp = sdk.Ed25519Keypair.deriveKeypair(mnemonic);
@@ -235,10 +235,47 @@ async function getStatusAndBalance() {
 
 // --- Pubblicazione dati ---
 
+// --- Encoding/Decoding payload in transazioni ---
+// I dati vengono codificati come u64 split-coin amounts nella transazione.
+// Ogni chunk: 1 byte indice + 7 bytes dati = 8 bytes = 1 u64
+// Il primo split ha amount = 1 (marker), il secondo = lunghezza payload.
+// I successivi contengono i chunks del payload codificati.
+
+const CHUNK_DATA_SIZE = 7;
+
+function _encodePayloadToChunks(payloadStr) {
+  const payloadBytes = Buffer.from(payloadStr);
+  const chunks = [];
+  for (let i = 0; i < payloadBytes.length; i += CHUNK_DATA_SIZE) {
+    const chunk = payloadBytes.subarray(i, i + CHUNK_DATA_SIZE);
+    const buf = Buffer.alloc(8, 0);
+    buf[0] = Math.floor(i / CHUNK_DATA_SIZE); // chunk index
+    chunk.copy(buf, 1);
+    chunks.push(BigInt('0x' + buf.toString('hex')));
+  }
+  return { chunks, length: payloadBytes.length };
+}
+
+function _decodeChunksToPayload(u64Values, payloadLength) {
+  const buffers = u64Values.map(val => {
+    const hex = BigInt(val).toString(16).padStart(16, '0');
+    return Buffer.from(hex, 'hex');
+  });
+  buffers.sort((a, b) => a[0] - b[0]);
+  const combined = Buffer.concat(buffers.map(b => b.subarray(1)));
+  return combined.subarray(0, payloadLength).toString();
+}
+
 /**
- * Pubblica dati cifrati sulla blockchain come transazione con metadata.
- * I dati vengono salvati nel DB locale (BlockchainData) e un transfer
- * minimo a se stessi viene eseguito come proof-of-existence.
+ * Pubblica dati cifrati sulla blockchain IOTA 2.0.
+ * Il payload viene codificato interamente negli amounts delle split-coin
+ * della transazione. ZERO database locale - tutto on-chain.
+ *
+ * Struttura transazione:
+ *  - split[0] amount=1 (marker exart26)
+ *  - split[1] amount=payloadLength
+ *  - split[2..N] amount=chunk (7 bytes dati + 1 byte indice)
+ *  - Tutti trasferiti a se stessi
  *
  * @param {string} tag - Tipo di dato (es. 'MAIN_DATA', 'ORGANIZZAZIONE_DATA')
  * @param {object} dataObject - Payload (gia cifrato da CryptHelper)
@@ -254,7 +291,6 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
     const address = await getAddress();
     const config = _getConfig();
 
-    // Prepara il payload come stringa JSON
     const payload = JSON.stringify({
       app: APP_TAG,
       tag: tag,
@@ -264,41 +300,35 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
       timestamp: Date.now(),
     });
 
+    const { chunks, length: payloadLength } = _encodePayloadToChunks(payload);
+
     const tx = new sdk.Transaction();
 
-    // Split coin per creare una moneta da inviare a se stessi come "carrier"
-    const [coin] = tx.splitCoins(tx.gas, [1]);
-    tx.transferObjects([coin], address);
+    // Amounts: [1 (marker), payloadLength, ...dataChunks]
+    const allAmounts = [BigInt(1), BigInt(payloadLength), ...chunks];
+    const coins = tx.splitCoins(tx.gas, allAmounts.map(a => tx.pure.u64(a)));
 
-    // Imposta gas budget
-    tx.setGasBudget(10000000);
+    // Trasferisci tutti a noi stessi
+    for (let i = 0; i < allAmounts.length; i++) {
+      tx.transferObjects([coins[i]], address);
+    }
+
+    // Gas budget proporzionale alla dimensione dei dati
+    tx.setGasBudget(Math.max(10000000, chunks.length * 500000));
+
+    sails.log.info(`[iota] publishData: tag=${tag} entityId=${entityId} payload=${payloadLength}bytes chunks=${chunks.length}`);
 
     const result = await client.signAndExecuteTransaction({
       signer: keypair,
       transaction: tx,
-      options: {
-        showInput: true,
-        showEffects: true,
-      },
+      options: { showInput: true, showEffects: true },
     });
 
-    // Salva payload nel DB locale per query future
-    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
-      try {
-        await sails.models.blockchaindata.create({
-          digest: result.digest,
-          tag: tag,
-          entityId: entityId ? String(entityId) : null,
-          version: version,
-          payload: payload,
-          timestamp: Date.now(),
-        }).fetch();
-      } catch (dbErr) {
-        console.error('BlockchainData save error:', dbErr.message);
-      }
-    }
+    // Aspetta conferma
+    await client.waitForTransaction({ digest: result.digest });
 
     const explorerUrl = (config.IOTA_EXPLORER_URL || 'https://explorer.rebased.iota.org') + '/txblock/' + result.digest;
+    sails.log.info(`[iota] publishData OK: digest=${result.digest}`);
     if (typeof sails !== 'undefined') {
       sails.helpers.consoleSocket(`TX: ${explorerUrl}`, _socketId);
     }
@@ -310,64 +340,92 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
       error: null,
     };
   } catch (e) {
-    console.error('publishData error:', e);
+    console.error('[iota] publishData error:', e.message || e);
     return { success: false, digest: null, error: e.message || String(e) };
   }
 }
 
-// --- Lettura dati ---
+// --- Lettura dati dalla blockchain ---
 
 /**
- * Recupera l'ultimo dato pubblicato con un certo tag.
+ * Decodifica il payload da una transazione IOTA 2.0.
+ * Legge gli input u64 della transazione e ricostruisce il JSON.
  */
-async function getLastDataByTag(tag, entityId = null) {
+function _decodeTransactionPayload(txDetail) {
   try {
-    // Cerca nel DB locale (cache)
-    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
-      const criteria = { tag: tag };
-      if (entityId !== null && entityId !== undefined) criteria.entityId = String(entityId);
-      const record = await sails.models.blockchaindata.findOne(criteria).sort('timestamp DESC');
-      if (record) {
-        const parsed = JSON.parse(record.payload);
-        return {
-          payload: parsed.data,
-          version: parsed.version,
-          timestamp: parsed.timestamp,
-          digest: record.digest,
-        };
-      }
-    }
-    return null;
+    const inputs = txDetail.transaction?.data?.transaction?.inputs || [];
+    const u64Inputs = inputs.filter(i => i.valueType === 'u64').map(i => BigInt(i.value));
+
+    // Verifica marker (primo u64 deve essere 1)
+    if (u64Inputs.length < 3 || u64Inputs[0] !== BigInt(1)) return null;
+
+    const payloadLength = Number(u64Inputs[1]);
+    const dataChunks = u64Inputs.slice(2);
+
+    const payloadStr = _decodeChunksToPayload(dataChunks, payloadLength);
+    const parsed = JSON.parse(payloadStr);
+
+    // Verifica che sia una nostra transazione
+    if (parsed.app !== APP_TAG) return null;
+
+    return parsed;
   } catch (e) {
-    console.error('getLastDataByTag error:', e);
     return null;
   }
 }
 
 /**
- * Recupera tutti i dati pubblicati con un certo tag.
+ * Recupera tutte le transazioni exart26 dalla blockchain per il nostro indirizzo.
+ * Filtra per tag e entityId.
  */
-async function getAllDataByTag(tag, entityId = null) {
+async function _queryTransactionsFromChain(tag = null, entityId = null, limit = 50) {
   try {
-    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
-      const criteria = { tag: tag };
-      if (entityId !== null && entityId !== undefined) criteria.entityId = String(entityId);
-      const records = await sails.models.blockchaindata.find(criteria).sort('timestamp DESC');
-      return records.map(r => {
-        const parsed = JSON.parse(r.payload);
-        return {
-          payload: parsed.data,
-          version: parsed.version,
-          timestamp: parsed.timestamp,
-          digest: r.digest,
-        };
+    const client = await getClient();
+    const address = await getAddress();
+
+    const txBlocks = await client.queryTransactionBlocks({
+      filter: { FromAddress: address },
+      options: { showInput: true },
+      limit: limit,
+      order: 'descending',
+    });
+
+    const results = [];
+    for (const tx of txBlocks.data) {
+      const decoded = _decodeTransactionPayload(tx);
+      if (!decoded) continue;
+      if (tag && decoded.tag !== tag) continue;
+      if (entityId !== null && entityId !== undefined && String(decoded.entityId) !== String(entityId)) continue;
+      results.push({
+        payload: decoded.data,
+        version: decoded.version,
+        timestamp: decoded.timestamp,
+        digest: tx.digest,
+        tag: decoded.tag,
+        entityId: decoded.entityId,
       });
     }
-    return [];
+    return results;
   } catch (e) {
-    console.error('getAllDataByTag error:', e);
+    console.error('[iota] _queryTransactionsFromChain error:', e.message);
     return [];
   }
+}
+
+/**
+ * Recupera l'ultimo dato pubblicato con un certo tag dalla blockchain.
+ * ZERO database locale - legge direttamente dalla chain.
+ */
+async function getLastDataByTag(tag, entityId = null) {
+  const results = await _queryTransactionsFromChain(tag, entityId, 50);
+  return results.length > 0 ? results[0] : null;
+}
+
+/**
+ * Recupera tutti i dati pubblicati con un certo tag dalla blockchain.
+ */
+async function getAllDataByTag(tag, entityId = null) {
+  return await _queryTransactionsFromChain(tag, entityId, 100);
 }
 
 // --- Request faucet ---

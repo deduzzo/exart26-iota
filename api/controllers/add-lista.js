@@ -2,12 +2,9 @@ const ListManager = require('../utility/ListManager');
 const CryptHelper = require('../utility/CryptHelper');
 module.exports = {
 
-
   friendlyName: 'Add lista',
 
-
   description: 'Aggiunge una nuova lista al database',
-
 
   inputs: {
     denominazione: {
@@ -22,7 +19,6 @@ module.exports = {
     },
   },
 
-
   exits: {
     success: {
       description: 'Lista aggiunta con successo.'
@@ -33,8 +29,8 @@ module.exports = {
     }
   },
 
-
   fn: async function (inputs, exits) {
+    sails.log.info(`[add-lista] Creazione lista "${inputs.denominazione}" per struttura #${inputs.struttura}`);
     let keyPairList = await CryptHelper.RSAGenerateKeyPair();
     try {
       let nuovaLista = await Lista.create({
@@ -44,42 +40,42 @@ module.exports = {
         struttura: inputs.struttura,
         ultimaVersioneSuBlockchain: 0
       }).fetch();
-      let manager = new ListManager();
-      let res1 = await manager.updatePrivateKey(await Lista.getWalletIdLista({id: nuovaLista.id}), keyPairList.privateKey);
-      let res2 = await manager.updateDatiStrutturaToBlockchain(nuovaLista.struttura);
-      let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-      if (res1.success && res2.success && res3.success) {
-        return exits.success(
-          {
-            lista: {...nuovaLista, privateKey: keyPairList.privateKey},
-            transactions: {
-              LISTA_DATA: {...res1},
-              PRIVATE_KEY: {...res2},
-              MAIN_DATA: {...res3},
-            },
-            error: null
-          });
-      } else {
-        return exits.invalid({
-          error: 'Errore durante la scrittura dei dati sulla blockchain.',
-          transactions: {
-            LISTA_DATA: {...res1},
-            PRIVATE_KEY: {...res2},
-            MAIN_DATA: {...res3},
-          }
-        });
-      }
-    } catch (err) {
-      return exits.invalid({
-        error: 'Errore durante la scrittura dei dati sul database.',
-        transactions: {
-          LISTA_DATA: null,
-          PRIVATE_KEY: null,
-          MAIN_DATA: null
+      sails.log.info(`[add-lista] Lista #${nuovaLista.id} creata nel DB`);
+
+      // Blockchain publish in background (non-bloccante)
+      const listaId = nuovaLista.id;
+      const strutturaId = nuovaLista.struttura;
+      setImmediate(async () => {
+        try {
+          const manager = new ListManager();
+          sails.log.info(`[add-lista] Blockchain: pubblicazione PRIVATE_KEY per lista #${listaId}...`);
+          const walletId = await Lista.getWalletIdLista({id: listaId});
+          const res1 = await manager.updatePrivateKey(walletId, keyPairList.privateKey);
+          sails.log.info(`[add-lista] Blockchain: PRIVATE_KEY ${res1.success ? 'OK' : 'FAILED'}`);
+
+          sails.log.info(`[add-lista] Blockchain: pubblicazione STRUTTURA_DATA per struttura #${strutturaId}...`);
+          const res2 = await manager.updateDatiStrutturaToBlockchain(strutturaId);
+          sails.log.info(`[add-lista] Blockchain: STRUTTURA_DATA ${res2.success ? 'OK' : 'FAILED'}`);
+
+          sails.log.info(`[add-lista] Blockchain: pubblicazione MAIN_DATA...`);
+          const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
+          sails.log.info(`[add-lista] Blockchain: MAIN_DATA ${res3.success ? 'OK' : 'FAILED'}`);
+        } catch (err) {
+          sails.log.warn('[add-lista] Blockchain publish error:', err.message || err);
         }
+      });
+
+      return exits.success({
+        lista: {...nuovaLista, privateKey: undefined},
+        blockchainStatus: 'publishing',
+        error: null
+      });
+    } catch (err) {
+      sails.log.error('[add-lista] DB error:', err.message || err);
+      return exits.invalid({
+        error: 'Errore durante la creazione della lista.',
       });
     }
   }
-
 
 };

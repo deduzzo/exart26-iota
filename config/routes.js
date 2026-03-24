@@ -43,6 +43,7 @@ module.exports.routes = {
   'POST  /api/v1/observe-my-session':                 { action: 'observe-my-session', hasSocketFeatures: true },
   'GET /csrfToken':                       { action: 'security/grant-csrf-token' },
   'GET /api/v1/wallet/get-info':          { action: 'wallet/get-info' },
+  'POST /api/v1/wallet/init':             { action: 'wallet/init-wallet' },
   'GET /api/v1/get-transaction':          { action: 'get-transaction' },
   'POST /api/v1/add-organizzazione':      { action: 'add-organizzazione' },
   'POST /api/v1/add-struttura':           { action: 'add-struttura' },

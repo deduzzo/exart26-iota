@@ -36,44 +36,38 @@ module.exports = {
         privateKey: keyPairOrg.privateKey,
         ultimaVersioneSuBlockchain: -1
       }).fetch();
-      let manager = new ListManager();
-      let res1 = await manager.updateDatiOrganizzazioneToBlockchain(nuovaOrganizzazione.id);
-      let res2 = await manager.updatePrivateKey(await Organizzazione.getWalletIdOrganizzazione({id: nuovaOrganizzazione.id}), keyPairOrg.privateKey);
-      let res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
-      if (res1.success && res2.success && res3.success) {
-        nuovaOrganizzazione.ultimaVersioneSuBlockchain = nuovaOrganizzazione.ultimaVersioneSuBlockchain + 1;
-        return exits.success(
-          {
-            organizzazione: {...nuovaOrganizzazione, privateKey: keyPairOrg.privateKey},
-            transactions: {
-              ORGANIZZAZIONE_DATA: {...res1},
-              PRIVATE_KEY: {...res2},
-              MAIN_DATA: {...res3},
-            },
-            error: null
-          });
-      } else {
-        // console to sails all the invalid res
-        if (!res1.success)
-          sails.log.error(res1);
-        if (!res2.success)
-          sails.log.error(res2);
-        if (!res3.success)
-          sails.log.error(res3);
-        return exits.invalid({
-          error: 'Errore durante la scrittura dei dati sulla blockchain.',
-          transactions: {
-            ORGANIZZAZIONE_DATA: {...res1},
-            PRIVATE_KEY: {...res2},
-            MAIN_DATA: {...res3}
-          }
-        });
-      }
+
+      // Blockchain publish in background (non-bloccante)
+      const manager = new ListManager();
+      const orgId = nuovaOrganizzazione.id;
+      setImmediate(async () => {
+        try {
+          const res1 = await manager.updateDatiOrganizzazioneToBlockchain(orgId);
+          if (res1.success) sails.log.info('Blockchain: ORGANIZZAZIONE_DATA OK');
+          else sails.log.warn('Blockchain: ORGANIZZAZIONE_DATA failed', res1.error);
+
+          const walletId = await Organizzazione.getWalletIdOrganizzazione({id: orgId});
+          const res2 = await manager.updatePrivateKey(walletId, keyPairOrg.privateKey);
+          if (res2.success) sails.log.info('Blockchain: PRIVATE_KEY OK');
+          else sails.log.warn('Blockchain: PRIVATE_KEY failed', res2.error);
+
+          const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
+          if (res3.success) sails.log.info('Blockchain: MAIN_DATA OK');
+          else sails.log.warn('Blockchain: MAIN_DATA failed', res3.error);
+        } catch (err) {
+          sails.log.warn('Blockchain publish error (organizzazione):', err.message || err);
+        }
+      });
+
+      return exits.success({
+        organizzazione: {...nuovaOrganizzazione, privateKey: undefined},
+        blockchainStatus: 'publishing',
+        error: null
+      });
     } catch (err) {
-      //log error to sails console
       sails.log.error(err);
       return exits.invalid({
-        error: err.error,
+        error: err.message || err.error,
       });
     }
   }
