@@ -14,6 +14,7 @@ const path = require('path');
 const iota = require('../api/utility/iota');
 const ListManager = require('../api/utility/ListManager');
 const SyncCache = require('../api/utility/SyncCache');
+const ArweaveHelper = require('../api/utility/ArweaveHelper');
 module.exports.bootstrap = async function () {
 
   // Stato sync accessibile via API
@@ -23,6 +24,13 @@ module.exports.bootstrap = async function () {
   sails.log.info('[bootstrap] Verifica wallet...');
   const walletReady = await iota.isWalletInitialized();
   sails.log.info('[bootstrap] Wallet inizializzato: ' + walletReady);
+
+  // Inizializza ArweaveHelper (ArLocal in dev, client Arweave in prod)
+  await ArweaveHelper.bootstrap();
+
+  // Registra shutdown handlers per ArweaveHelper
+  process.on('SIGTERM', async () => { await ArweaveHelper.shutdown(); process.exit(0); });
+  process.on('SIGINT', async () => { await ArweaveHelper.shutdown(); process.exit(0); });
 
   if (walletReady) {
     // STEP 1: Carica dalla cache locale (istantaneo)
