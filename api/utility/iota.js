@@ -1,69 +1,119 @@
-const {CoinType, Utils, Wallet, Client} = require('@iota/sdk');
+/**
+ * IOTA 2.0 Rebased - Utility per blockchain
+ *
+ * Usa @iota/iota-sdk con dynamic import per compatibilita CommonJS.
+ * Keypair singolo Ed25519 derivato da mnemonic BIP39.
+ * I dati vengono pubblicati come transazioni con metadata e
+ * memorizzati nella cache locale (modello BlockchainData).
+ */
 
-const {
-  IOTA_WALLET_DB_PATH,
-  IOTA_NODE_URL,
-  IOTA_EXPLORER_URL,
-  IOTA_STRONGHOLD_SNAPSHOT_PATH,
-  IOTA_STRONGHOLD_PASSWORD,
-  IOTA_MAIN_ACCOUNT_ALIAS,
-  TRANSACTION_VALUE,
-  ACCOUNT_BASE_BALANCE,
-  TRANSACTION_ZERO_VALUE,
-  COIN_TYPE,
-  MAIN_PRIVATE_KEY,
-  MAIN_PUBLIC_KEY,
-} = require('../../config/private_iota_conf');
+const fs = require('fs');
+const path = require('path');
 
-let _wallet = null;
+const CONFIG_PATH = path.resolve(__dirname, '../../config/private_iota_conf.js');
+
+// Lazy-loaded SDK modules
+let _sdk = null;
+let _keypair = null;
+let _client = null;
+let _address = null;
 let _socketId = undefined;
 
-const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
-
-const COIN_NAME_MAP = {
-  Shimmer: {token: 'SMR', base: 'glow'},
-  IOTA: {token: 'IOTA', base: 'glow'}
-};
-
-const _coinTypeNames = {
-  [CoinType.Shimmer]: 'Shimmer',
-  [CoinType.IOTA]: 'IOTA'
-};
+// Config - caricata on-demand per evitare crash se il file non esiste
+let _config = null;
+function _getConfig() {
+  if (!_config) {
+    try {
+      _config = require('../../config/private_iota_conf');
+    } catch (e) {
+      // Config non presente - ritorna defaults
+      _config = {
+        IOTA_NETWORK: 'testnet',
+        IOTA_NODE_URL: null,
+        IOTA_MNEMONIC: null,
+        MAIN_PRIVATE_KEY: null,
+        MAIN_PUBLIC_KEY: null,
+        IOTA_EXPLORER_URL: 'https://explorer.rebased.iota.org',
+      };
+    }
+  }
+  return _config;
+}
 
 const GET_MAIN_KEYS = () => {
-  return {privateKey: MAIN_PRIVATE_KEY, publicKey: MAIN_PUBLIC_KEY};
+  const config = _getConfig();
+  return { privateKey: config.MAIN_PRIVATE_KEY, publicKey: config.MAIN_PUBLIC_KEY };
 };
 
-let _getCoinName = () => {
-  return COIN_NAME_MAP[_coinTypeNames[COIN_TYPE]];
-};
+// Tag prefix per identificare le nostre transazioni
+const APP_TAG = 'exart26';
 
-let _getWalletOptions = () => {
-  return {
-    storagePath: IOTA_WALLET_DB_PATH,
-    clientOptions: {
-      nodes: [IOTA_NODE_URL],
-    },
-    coinType: COIN_TYPE,
-    secretManager: {
-      stronghold: {
-        snapshotPath: IOTA_STRONGHOLD_SNAPSHOT_PATH,
-        password: IOTA_STRONGHOLD_PASSWORD,
-      },
-    },
+// Prefisso entityId per assistiti (compatibilita con Assistito.getWalletIdAssistito)
+const ASSISTITO_ACCOUNT_PREFIX = 'ASS#';
+
+/**
+ * Carica i moduli ESM dell'SDK via dynamic import (una sola volta)
+ */
+async function loadSdk() {
+  if (_sdk) return _sdk;
+  const [clientMod, txMod, keypairMod, faucetMod, utilsMod] = await Promise.all([
+    import('@iota/iota-sdk/client'),
+    import('@iota/iota-sdk/transactions'),
+    import('@iota/iota-sdk/keypairs/ed25519'),
+    import('@iota/iota-sdk/faucet'),
+    import('@iota/iota-sdk/utils'),
+  ]);
+  _sdk = {
+    getFullnodeUrl: clientMod.getFullnodeUrl,
+    IotaClient: clientMod.IotaClient,
+    Transaction: txMod.Transaction,
+    Ed25519Keypair: keypairMod.Ed25519Keypair,
+    getFaucetHost: faucetMod.getFaucetHost,
+    requestIotaFromFaucetV1: faucetMod.requestIotaFromFaucetV1,
+    NANOS_PER_IOTA: utilsMod.NANOS_PER_IOTA,
   };
-};
+  return _sdk;
+}
 
-let getWallet = () => {
-  if (!_wallet) {
-    _wallet = new Wallet(_getWalletOptions());
+/**
+ * Ottieni il client IOTA
+ */
+async function getClient() {
+  if (_client) return _client;
+  const sdk = await loadSdk();
+  const config = _getConfig();
+  const url = config.IOTA_NODE_URL || sdk.getFullnodeUrl(config.IOTA_NETWORK || 'testnet');
+  _client = new sdk.IotaClient({ url });
+  return _client;
+}
+
+/**
+ * Ottieni il keypair dal mnemonic
+ */
+async function getKeypair() {
+  if (_keypair) return _keypair;
+  const config = _getConfig();
+  if (!config.IOTA_MNEMONIC) {
+    throw new Error('Wallet non inizializzato. Mnemonic non presente nella configurazione.');
   }
-  return _wallet;
-};
+  const sdk = await loadSdk();
+  _keypair = sdk.Ed25519Keypair.deriveKeypair(config.IOTA_MNEMONIC);
+  _address = _keypair.getPublicKey().toIotaAddress();
+  return _keypair;
+}
+
+/**
+ * Ottieni l'indirizzo del wallet
+ */
+async function getAddress() {
+  await getKeypair();
+  return _address;
+}
+
+// --- Utility ---
 
 let setSocketId = (socketId) => {
-  if (socketId !== null)
-  _socketId = socketId;
+  if (socketId !== null) _socketId = socketId;
 };
 
 let stringToHex = (text) => {
@@ -74,242 +124,284 @@ let hexToString = (hex) => {
   return Buffer.from(hex.replace('0x', ''), 'hex').toString();
 };
 
-
-let _initWallet = async () => {
-  const mnemonic = Utils.generateMnemonic();
-  await getWallet().storeMnemonic(mnemonic);
-  await getWallet().createAccount({
-    alias: IOTA_MAIN_ACCOUNT_ALIAS,
-  });
-  return mnemonic;
+let showBalanceFormatted = (balanceNanos) => {
+  const nanos = BigInt(balanceNanos || 0);
+  const iotaVal = nanos / BigInt(1000000000);
+  const formatted = nanos.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${formatted} nanos [${iotaVal} IOTA]`;
 };
 
-let getFirstAddressOfAnAccount = async (account) => {
-  return (await account.addresses())[0].address;
-};
+// --- Inizializzazione ---
 
-let getMainAccount = async () => {
-  return await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
-};
-
-let getAccountBalance = async (account) => {
-  return await account.sync();
-};
-
-let waitUntilBalanceIsGreaterThanZero = async (account) => {
-  let balance = await getAccountBalance(account);
-  while (balance.baseCoin.available === TRANSACTION_ZERO_VALUE) {
-    await sails.helpers.consoleSocket('attendo...', _socketId);
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    balance = await getAccountBalance(account);
-  }
-};
-
-let getAllWalletAccountsMatching = async (predicate) => {
-  let accounts = await getWallet().getAccounts();
-  accounts = accounts.filter(a => a.meta.alias.includes(predicate));
-  return accounts;
-};
-
-let getOrCreateWalletAccount = async (accountAlias) => {
-  let account = null;
-  let accounts = await getWallet().getAccounts();
+async function isWalletInitialized() {
   try {
-    account = accounts.find(a => a.meta.alias === accountAlias);
-    if (!account) {
-      account = await getWallet().createAccount({
-        alias: accountAlias,
-      });
-    }
-    //account = await getWallet().getAccount(accountAlias.toString());
-    // eslint-disable-next-line no-unused-vars
-  } catch (ex) {
-    console.log(ex);
-  }
-  let balance = await getAccountBalance(account);
-  if (balance.baseCoin.available < ACCOUNT_BASE_BALANCE && accountAlias !== IOTA_MAIN_ACCOUNT_ALIAS) {
-    let mainAccount = await getMainAccount();
-    let mainAccountBalanceBefore = await getAccountBalance(mainAccount);
-    await mainAccount.send(ACCOUNT_BASE_BALANCE, await getFirstAddressOfAnAccount(account));
-    await sails.helpers.consoleSocket('Fondi account MAIN: ' + mainAccountBalanceBefore.baseCoin.available,_socketId);
-    await sails.helpers.consoleSocket('Attesa trasferimento fondi per nuovo account ' + accountAlias, _socketId);
-    await waitUntilBalanceIsGreaterThanZero(account);
-  }
-  return account;
-};
-
-let getOrInitWallet = async (waitForBalance = true) => {
-  let init = false;
-  let mnemonic = '';
-  let mainAccount = null;
-  try {
-    mainAccount = await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
-  }
-    // eslint-disable-next-line no-unused-vars
-  catch (ex) {
-    mnemonic = await _initWallet();
-    mainAccount = await getOrCreateWalletAccount(IOTA_MAIN_ACCOUNT_ALIAS);
-    init = true;
-  }
-  console.log('MainAddress: ' + (await getFirstAddressOfAnAccount(mainAccount)));
-  await sails.helpers.consoleSocket('Attendo che arrivino fondi...', _socketId);
-  if (waitForBalance) {
-    await waitUntilBalanceIsGreaterThanZero(mainAccount);
-  }
-  if (init) {
-    return {init: init, mnemonic: mnemonic, mainAccount: mainAccount};
-  }
-
-};
-
-let isWalletInitialized = async () => {
-  try {
-    await getWallet().getAccount(IOTA_MAIN_ACCOUNT_ALIAS);
+    const config = _getConfig();
+    if (!config.IOTA_MNEMONIC) return false;
+    await getKeypair();
+    await getClient();
     return true;
   } catch (ex) {
     return false;
   }
-};
+}
 
+async function getOrInitWallet() {
+  const sdk = await loadSdk();
+  const config = _getConfig();
 
-let _formatBalance = (longInt) => {
-  // ritorna il valore con il punto nelle migliaia
-  return longInt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-};
+  if (config.IOTA_MNEMONIC) {
+    // Gia inizializzato
+    const kp = await getKeypair();
+    const address = kp.getPublicKey().toIotaAddress();
+    return { init: false, mnemonic: null, address };
+  }
 
-let showBalanceFormatted = (balance) => {
-  let coinName = _getCoinName();
+  // Genera nuovo mnemonic
+  const { generateMnemonic } = await import('@scure/bip39');
+  const { wordlist } = await import('@scure/bip39/wordlists/english');
+  const mnemonic = generateMnemonic(wordlist);
 
-  let mainValue = balance / BigInt(1000000);
-  return _formatBalance(balance) + ' ' + coinName.base + ' [' + _formatBalance(mainValue) + ' ' + coinName.token + ']';
-};
+  const kp = sdk.Ed25519Keypair.deriveKeypair(mnemonic);
+  const address = kp.getPublicKey().toIotaAddress();
 
+  // Salva mnemonic nel file di configurazione
+  _saveMnemonicToConfig(mnemonic);
 
-let getStatusAndBalance = async () => {
+  // Aggiorna runtime
+  config.IOTA_MNEMONIC = mnemonic;
+  _keypair = kp;
+  _address = address;
+
+  // Richiedi fondi dal faucet (testnet/devnet)
+  const network = config.IOTA_NETWORK || 'testnet';
+  if (network === 'testnet' || network === 'devnet') {
+    try {
+      await sdk.requestIotaFromFaucetV1({
+        host: sdk.getFaucetHost(network),
+        recipient: address,
+      });
+      if (typeof sails !== 'undefined') {
+        sails.helpers.consoleSocket('Faucet: fondi richiesti per ' + address, _socketId);
+      }
+    } catch (e) {
+      if (typeof sails !== 'undefined') {
+        sails.log.warn('Faucet request failed:', e.message);
+      }
+    }
+  }
+
+  return { init: true, mnemonic, address };
+}
+
+function _saveMnemonicToConfig(mnemonic) {
+  try {
+    let content = fs.readFileSync(CONFIG_PATH, 'utf8');
+    content = content.replace(
+      /IOTA_MNEMONIC:\s*null/,
+      `IOTA_MNEMONIC: '${mnemonic}'`
+    );
+    fs.writeFileSync(CONFIG_PATH, content, 'utf8');
+  } catch (e) {
+    console.error('Could not save mnemonic to config file:', e.message);
+  }
+}
+
+// --- Status ---
+
+async function getStatusAndBalance() {
   if (!await isWalletInitialized()) {
-    return {status: 'WALLET non inizializzato', balance: BigInt(0)};
+    return { status: 'WALLET non inizializzato', balance: '0', address: null };
   }
-  let mainAccount = await getMainAccount();
-  let mainAddress = await getFirstAddressOfAnAccount(mainAccount);
-  let balance = await getAccountBalance(mainAccount);
-  return {
-    status: 'WALLET OK',
-    balance: showBalanceFormatted(balance.baseCoin.available),
-    address: mainAddress
-  };
-};
-
-let makeTransactionWithText = async (account, destAddr, tag, dataObject, nota = '') => {
-
-  let balance = await getAccountBalance(account);
-  // To sign a transaction we need to unlock stronghold.
-  await getWallet().setStrongholdPassword(IOTA_STRONGHOLD_PASSWORD);
-
-  const amount = TRANSACTION_VALUE;
-
-  const transactionDataJson = JSON.stringify(dataObject);
-
-  const transactionOptions = {
-    taggedDataPayload: {
-      type: 6,
-      tag: stringToHex(tag),
-      data: stringToHex(transactionDataJson)
-    },
-    note: nota,
-    allowMicroAmount: true
-  };
-
-  let response;
   try {
-    response = await account.send(amount, destAddr, transactionOptions);
-    let url = IOTA_EXPLORER_URL + '/block/' + response.blockId;
-    sails.helpers.consoleSocket(`Block sent: ${IOTA_EXPLORER_URL}/block/${response.blockId}`);
-    return {success: true, blockId: response.blockId, url: url, transactionId: response.transactionId, error: null};
+    const client = await getClient();
+    const address = await getAddress();
+    const balance = await client.getBalance({ owner: address });
+    return {
+      status: 'WALLET OK',
+      balance: showBalanceFormatted(balance.totalBalance),
+      address: address,
+      network: _getConfig().IOTA_NETWORK || 'testnet',
+      explorerUrl: _getConfig().IOTA_EXPLORER_URL,
+    };
+  } catch (err) {
+    return {
+      status: 'Errore connessione',
+      balance: '0',
+      address: _address,
+      error: err.message,
+    };
+  }
+}
+
+// --- Pubblicazione dati ---
+
+/**
+ * Pubblica dati cifrati sulla blockchain come transazione con metadata.
+ * I dati vengono salvati nel DB locale (BlockchainData) e un transfer
+ * minimo a se stessi viene eseguito come proof-of-existence.
+ *
+ * @param {string} tag - Tipo di dato (es. 'MAIN_DATA', 'ORGANIZZAZIONE_DATA')
+ * @param {object} dataObject - Payload (gia cifrato da CryptHelper)
+ * @param {string|null} entityId - ID entita opzionale
+ * @param {number|null} version - Versione del dato
+ * @returns {object} { success, digest, error }
+ */
+async function publishData(tag, dataObject, entityId = null, version = null) {
+  try {
+    const sdk = await loadSdk();
+    const client = await getClient();
+    const keypair = await getKeypair();
+    const address = await getAddress();
+    const config = _getConfig();
+
+    // Prepara il payload come stringa JSON
+    const payload = JSON.stringify({
+      app: APP_TAG,
+      tag: tag,
+      entityId: entityId,
+      version: version,
+      data: dataObject,
+      timestamp: Date.now(),
+    });
+
+    const tx = new sdk.Transaction();
+
+    // Split coin per creare una moneta da inviare a se stessi come "carrier"
+    const [coin] = tx.splitCoins(tx.gas, [1]);
+    tx.transferObjects([coin], address);
+
+    // Imposta gas budget
+    tx.setGasBudget(10000000);
+
+    const result = await client.signAndExecuteTransaction({
+      signer: keypair,
+      transaction: tx,
+      options: {
+        showInput: true,
+        showEffects: true,
+      },
+    });
+
+    // Salva payload nel DB locale per query future
+    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
+      try {
+        await sails.models.blockchaindata.create({
+          digest: result.digest,
+          tag: tag,
+          entityId: entityId ? String(entityId) : null,
+          version: version,
+          payload: payload,
+          timestamp: Date.now(),
+        }).fetch();
+      } catch (dbErr) {
+        console.error('BlockchainData save error:', dbErr.message);
+      }
+    }
+
+    const explorerUrl = (config.IOTA_EXPLORER_URL || 'https://explorer.rebased.iota.org') + '/txblock/' + result.digest;
+    if (typeof sails !== 'undefined') {
+      sails.helpers.consoleSocket(`TX: ${explorerUrl}`, _socketId);
+    }
+
+    return {
+      success: true,
+      digest: result.digest,
+      explorerUrl: explorerUrl,
+      error: null,
+    };
   } catch (e) {
-    console.error(e);
-    return {success: false, error: e};
+    console.error('publishData error:', e);
+    return { success: false, digest: null, error: e.message || String(e) };
   }
-};
+}
 
-let getAllTransactionOfAccountWithTag = async (account, tag) => {
-  await account.sync();
-  let transactions = await account.transactions();
-  transactions = transactions.filter(t => t.payload.essence.payload !== undefined && t.payload.essence.payload.tag === stringToHex(tag));
-  // ordered by timestamp
-  transactions = transactions.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
-  return transactions;
-};
+// --- Lettura dati ---
 
-let getLastTransactionOfAccountWithTag = async (account, tag) => {
-  let transactions = await getAllTransactionOfAccountWithTag(account, tag);
-  return transactions.length > 0 ? transactions[0] : null;
-};
-
-let getAllIncomingTransactionOfAccountWithTag = async (account, tag) => {
-  await account.sync();
-  let transactions = await account.incomingTransactions();
-  return transactions.filter(t => t.payload.essence.payload.tag === stringToHex(tag));
-};
-
-let getTransactionByAccountNameAndId = async (accountAlias, transactionId) => {
-  let account = await getOrCreateWalletAccount(accountAlias);
-  if (account) {
-    return await account.getTransaction(transactionId);
+/**
+ * Recupera l'ultimo dato pubblicato con un certo tag.
+ */
+async function getLastDataByTag(tag, entityId = null) {
+  try {
+    // Cerca nel DB locale (cache)
+    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
+      const criteria = { tag: tag };
+      if (entityId !== null && entityId !== undefined) criteria.entityId = String(entityId);
+      const record = await sails.models.blockchaindata.findOne(criteria).sort('timestamp DESC');
+      if (record) {
+        const parsed = JSON.parse(record.payload);
+        return {
+          payload: parsed.data,
+          version: parsed.version,
+          timestamp: parsed.timestamp,
+          digest: record.digest,
+        };
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error('getLastDataByTag error:', e);
+    return null;
   }
-  return null;
-};
+}
 
+/**
+ * Recupera tutti i dati pubblicati con un certo tag.
+ */
+async function getAllDataByTag(tag, entityId = null) {
+  try {
+    if (typeof sails !== 'undefined' && sails.models && sails.models.blockchaindata) {
+      const criteria = { tag: tag };
+      if (entityId !== null && entityId !== undefined) criteria.entityId = String(entityId);
+      const records = await sails.models.blockchaindata.find(criteria).sort('timestamp DESC');
+      return records.map(r => {
+        const parsed = JSON.parse(r.payload);
+        return {
+          payload: parsed.data,
+          version: parsed.version,
+          timestamp: parsed.timestamp,
+          digest: r.digest,
+        };
+      });
+    }
+    return [];
+  } catch (e) {
+    console.error('getAllDataByTag error:', e);
+    return [];
+  }
+}
 
-/*let findTransactionObjects = async (ofAddress, tag) => {
-  const client = new Client({
-    nodes: [IOTA_NODE_URL]
+// --- Request faucet ---
+
+async function requestFaucet() {
+  const sdk = await loadSdk();
+  const address = await getAddress();
+  const config = _getConfig();
+  const network = config.IOTA_NETWORK || 'testnet';
+  await sdk.requestIotaFromFaucetV1({
+    host: sdk.getFaucetHost(network),
+    recipient: address,
   });
-  try {
-    const outputidsResponse = await client.basicOutputIds([
-      //{address: ofAddress},
-      {tag: stringToHex(tag)},
-      /!*           { hasExpiration: true },
-                  { hasTimelock: true },
-                  { hasStorageDepositReturn: true },*!/
-      //{tag: stringToHex(tag)}
-    ]);
-    const outputs = await client.getOutputs(outputidsResponse.items);
-    console.log(outputidsResponse);
-  } catch (e) {
-    console.log(e);
-  }
-};*/
+  return { success: true, address };
+}
 
-let getAllOutputs = async (account) => {
-  let outputs = await account.outputs();
-  return outputs;
-};
-
+// --- Exports ---
 
 module.exports = {
   setSocketId,
-  getWallet,
   stringToHex,
   hexToString,
-  getOrInitWallet,
-  getOrCreateWalletAccount,
-  getFirstAddressOfAnAccount,
-  getAccountBalance,
-  makeTransactionWithText,
-  getAllTransactionOfAccountWithTag,
-  getLastTransactionOfAccountWithTag,
-  getAllIncomingTransactionOfAccountWithTag,
-  getAllOutputs,
-  waitUntilBalanceIsGreaterThanZero,
   isWalletInitialized,
-  getMainAccount,
-  showBalanceFormatted,
+  getOrInitWallet,
   getStatusAndBalance,
-  getTransactionByAccountNameAndId,
-  getAllWalletAccountsMatching,
-  MAIN_ACCOUNT_ALIAS: IOTA_MAIN_ACCOUNT_ALIAS,
-  COIN_NAME_MAP,
+  getAddress,
+  showBalanceFormatted,
+  publishData,
+  getLastDataByTag,
+  getAllDataByTag,
+  requestFaucet,
   GET_MAIN_KEYS,
-  ASSISTITO_ACCOUNT_PREFIX
+  getClient,
+  getKeypair,
+  loadSdk,
+  ASSISTITO_ACCOUNT_PREFIX,
 };
-
