@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import {
   FileText, Users, ChevronRight, Clock, CheckCircle, UserPlus,
-  UserMinus, History, ArrowRightCircle, XCircle, Ban, Tag, Edit3
+  UserMinus, History, ArrowRightCircle, XCircle, Ban, Tag, Edit3, Search
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -36,6 +36,7 @@ export default function Liste() {
   const [showStorico, setShowStorico] = useState(false);
   const [editingTag, setEditingTag] = useState(null);
   const [tagInput, setTagInput] = useState('');
+  const [filterText, setFilterText] = useState('');
 
   const strutture = struttureData?.strutture || struttureData || [];
   const assistiti = assistitiData?.assistiti || assistitiData || [];
@@ -158,8 +159,28 @@ export default function Liste() {
       ) : (
         <div className="flex gap-6">
         {/* Colonna sinistra: card liste (scrollabile) */}
-        <div className="w-80 shrink-0 max-h-[calc(100vh-200px)] overflow-y-auto space-y-3 pr-2">
-          {listeFlat.map((lista, i) => (
+        <div className="w-80 shrink-0 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
+          <div className="glass-static rounded-xl flex items-center gap-2 px-3 py-2 mb-3 sticky top-0 z-10">
+            <Search size={14} className="text-slate-500 shrink-0" />
+            <input
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder="Filtra per nome, tag, struttura..."
+              className="bg-transparent border-none outline-none text-xs text-slate-200 placeholder-slate-500 flex-1"
+            />
+            {filterText && (
+              <button onClick={() => setFilterText('')} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
+            )}
+          </div>
+          <div className="space-y-3">
+          {listeFlat.filter(l => {
+            if (!filterText) return true;
+            const q = filterText.toLowerCase();
+            return (l.denominazione?.toLowerCase().includes(q) ||
+                    l.tag?.toLowerCase().includes(q) ||
+                    l.strutturaNome?.toLowerCase().includes(q));
+          }).map((lista, i) => (
             <motion.div
               key={`${lista.id}`}
               initial={{ opacity: 0, y: 20 }}
@@ -213,6 +234,7 @@ export default function Liste() {
               </div>
             </motion.div>
           ))}
+          </div>
         </div>
 
         {/* Colonna destra: dettaglio lista (sticky) */}
