@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Building2, Hospital, Users, Wallet,
-  Network, ChevronLeft, ChevronRight, FileText, Bug, Globe
+  Network, ChevronLeft, ChevronRight, FileText, Bug, Globe, Zap
 } from 'lucide-react';
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/assistiti', icon: Users, label: 'Assistiti', group: 'Gestione' },
   { to: '/grafo', icon: Network, label: 'Grafo', group: 'Visualizzazione' },
   { to: '/wallet', icon: Wallet, label: 'Wallet', group: 'Blockchain' },
+  { to: '/load-test', icon: Zap, label: 'Load Test', group: 'Sviluppo' },
   { to: '/debug', icon: Bug, label: 'Debug', group: 'Sviluppo' },
 ];
 

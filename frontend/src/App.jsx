@@ -9,6 +9,7 @@ import Wallet from './pages/Wallet';
 import Grafo from './pages/Grafo';
 import Debug from './pages/Debug';
 import Pubblico from './pages/Pubblico';
+import LoadTest from './pages/LoadTest';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="grafo" element={<Grafo />} />
           <Route path="debug" element={<Debug />} />
           <Route path="pubblico" element={<Pubblico />} />
+          <Route path="load-test" element={<LoadTest />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
