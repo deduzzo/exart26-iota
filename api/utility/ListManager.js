@@ -114,33 +114,54 @@ class ListManager {
       // Recupera e importa ogni entita
       for (const entity of uniqueEntities) {
         try {
+          const tag = entity.type === 'ORG' ? ORGANIZZAZIONE_DATA :
+                      entity.type === 'STR' ? STRUTTURE_LISTE_DATA :
+                      entity.type === 'ASS' ? ASSISTITI_DATA : null;
+          if (!tag) continue;
+
+          const record = await iota.getLastDataByTag(tag, entity.entityId);
+          if (!record || !record.payload) {
+            sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: nessun record trovato sulla blockchain`);
+            continue;
+          }
+
+          // Tenta decrittazione con diverse chiavi in ordine:
+          // 1. Chiave privata dell'entita (dal PRIVATE_KEY record)
+          // 2. Chiave MAIN (fallback)
+          let clearData = null;
+          const keysToTry = [];
+
+          const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
+          if (pkRecord?.clearData?.privateKey) {
+            keysToTry.push({ name: 'entity', key: pkRecord.clearData.privateKey });
+          }
+          keysToTry.push({ name: 'MAIN', key: iota.GET_MAIN_KEYS().privateKey });
+
+          for (const { name, key } of keysToTry) {
+            try {
+              const decrypted = await CryptHelper.receiveAndDecrypt(record.payload, key);
+              clearData = JSON.parse(decrypted);
+              sails.log.verbose(`[ListManager] ${entity.type}:${entity.entityId} decifrato con chiave ${name}`);
+              break;
+            } catch (decErr) {
+              sails.log.verbose(`[ListManager] ${entity.type}:${entity.entityId} decrypt con ${name} fallito: ${decErr.message.substring(0,40)}`);
+            }
+          }
+
+          if (!clearData) {
+            sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: impossibile decifrare con nessuna chiave`);
+            continue;
+          }
+
           if (entity.type === 'ORG') {
-            const record = await iota.getLastDataByTag(ORGANIZZAZIONE_DATA, entity.entityId);
-            if (record && record.payload) {
-              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
-              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
-              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
-              await this._upsertOrganizzazione(clearData);
-              imported.organizzazioni++;
-            }
+            await this._upsertOrganizzazione(clearData);
+            imported.organizzazioni++;
           } else if (entity.type === 'STR') {
-            const record = await iota.getLastDataByTag(STRUTTURE_LISTE_DATA, entity.entityId);
-            if (record && record.payload) {
-              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
-              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
-              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
-              await this._upsertStruttura(clearData);
-              imported.strutture++;
-            }
+            await this._upsertStruttura(clearData);
+            imported.strutture++;
           } else if (entity.type === 'ASS') {
-            const record = await iota.getLastDataByTag(ASSISTITI_DATA, entity.entityId);
-            if (record && record.payload) {
-              const pkRecord = await this.getLastPrivateKeyOfEntityId(entity.entityId);
-              const privateKey = pkRecord?.clearData?.privateKey || iota.GET_MAIN_KEYS().privateKey;
-              const clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(record.payload, privateKey));
-              await this._upsertAssistito(clearData);
-              imported.assistiti++;
-            }
+            await this._upsertAssistito(clearData);
+            imported.assistiti++;
           }
         } catch (entityErr) {
           sails.log.warn(`[ListManager] Errore import ${entity.type}:${entity.entityId}: ${entityErr.message}`);
