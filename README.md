@@ -13,12 +13,13 @@
 
 <p align="center">
   <b>Gestione decentralizzata delle liste d'attesa per la riabilitazione sanitaria (Ex Art. 26)</b><br>
-  <i>Trasparenza, immutabilita e sicurezza attraverso la blockchain IOTA 2.0 Rebased e il permaweb Arweave</i>
+  <i>Dati business interamente on-chain su IOTA 2.0 Rebased, con backup permanente su Arweave</i>
 </p>
 
 <p align="center">
   <a href="#-panoramica">Panoramica</a> &bull;
   <a href="#-architettura">Architettura</a> &bull;
+  <a href="#-codifica-dati-on-chain">Codifica On-Chain</a> &bull;
   <a href="#-stack-tecnologico">Stack</a> &bull;
   <a href="#-modello-dati">Modello Dati</a> &bull;
   <a href="#-sicurezza-e-crittografia">Sicurezza</a> &bull;
@@ -40,7 +41,7 @@ Attualmente, queste liste vengono spesso gestite con fogli di calcolo, documenti
 - **Perdita di dati** in caso di guasti o errori umani
 - **Assenza di auditabilita** sulle modifiche effettuate
 
-Questa applicazione risolve questi problemi registrando ogni operazione sulla **blockchain IOTA 2.0 Rebased** (ledger distribuito e immutabile) e mantenendo un **backup permanente su Arweave** (permaweb). I dati sensibili degli assistiti sono protetti da un sistema di **crittografia ibrida a triplo livello** (RSA-2048 + AES-256-CBC + HMAC-SHA256).
+Questa applicazione risolve questi problemi registrando **tutti i dati business interamente sulla blockchain IOTA 2.0 Rebased**. Non esiste un database locale per i dati operativi: il DB locale (sails-disk) funge esclusivamente da **cache** ricostruibile in qualsiasi momento dalla chain. Un **backup permanente su Arweave** (permaweb) garantisce un ulteriore livello di resilienza. I dati sensibili degli assistiti sono protetti da un sistema di **crittografia ibrida a triplo livello** (RSA-2048 + AES-256-CBC + HMAC-SHA256).
 
 Il frontend e una **Single Page Application** moderna costruita con React, Vite e TailwindCSS, con design futuristico dark mode, glassmorphism e neon gradients, ottimizzata come **PWA** per l'uso su dispositivi mobili.
 
@@ -48,7 +49,7 @@ Il frontend e una **Single Page Application** moderna costruita con React, Vite 
 
 ## Architettura
 
-Il sistema e progettato su un'architettura a tre livelli, con un frontend SPA separato che comunica con il backend via REST API e WebSocket:
+Il sistema e progettato su un'architettura dove la **blockchain IOTA 2.0 e la fonte di verita unica** (source of truth). Il database locale e una cache riscrivibile. I controller CRUD rispondono immediatamente al client dopo il salvataggio in cache; la pubblicazione sulla blockchain avviene in background (`setImmediate`), senza bloccare l'utente.
 
 ```
                         +---------------------------+
@@ -75,32 +76,83 @@ Il sistema e progettato su un'architettura a tre livelli, con un frontend SPA se
                     +------------+       +-------------+
                     |                                   |
                     v                                   v
-        +-----------------------+          +-----------------------+
-        |   MySQL / sails-disk  |          |  IOTA 2.0 Rebased     |
-        |   + BlockchainData    |          |  (Ed25519 keypair +   |
-        |   (cache locale)      |          |   Programmable TX)    |
-        +-----------------------+          +-----------+-----------+
-                                                       |
-                                               backup automatico
-                                                       |
-                                                       v
-                                           +-----------------------+
-                                           |   Arweave Permaweb    |
-                                           | (backup permanente)   |
-                                           +-----------------------+
+        +-----------------------+          +----------------------------+
+        |  sails-disk (cache)   |          |   IOTA 2.0 Rebased         |
+        |  Solo cache locale,   |          |   SOURCE OF TRUTH          |
+        |  ricostruibile dalla  |          |   Ed25519 + Programmable   |
+        |  blockchain           |          |   TX Blocks (u64 encoding) |
+        +-----------------------+          +------------+---------------+
+                                                        |
+                                                backup automatico
+                                                        |
+                                                        v
+                                            +-----------------------+
+                                            |   Arweave Permaweb    |
+                                            | (backup permanente)   |
+                                            +-----------------------+
 ```
 
-### Flusso di una operazione tipica
+### Flusso di una operazione tipica (non-bloccante)
 
 1. L'utente interagisce con il frontend React (SPA)
 2. Il frontend invia una richiesta REST al backend Sails.js
-3. Il backend valida i dati e genera le chiavi crittografiche necessarie
-4. I dati vengono cifrati con il sistema ibrido RSA+AES+HMAC
-5. Il payload cifrato viene pubblicato su IOTA 2.0 tramite Programmable Transaction Blocks
-6. Il risultato viene salvato nella cache locale `BlockchainData`
-7. Una copia viene simultaneamente caricata su Arweave come backup permanente
-8. Il database locale viene aggiornato come cache per accesso rapido
-9. Il client riceve feedback in tempo reale via WebSocket durante l'intera operazione
+3. Il backend valida i dati, genera le chiavi crittografiche, salva nella cache locale
+4. **Il controller risponde immediatamente al client** (HTTP 200)
+5. In background (`setImmediate`):
+   - I dati vengono cifrati con il sistema ibrido RSA+AES+HMAC
+   - Il payload cifrato viene codificato come u64 split-coin amounts e pubblicato su IOTA 2.0
+   - L'indice MAIN_DATA viene aggiornato sulla blockchain
+   - Una copia viene caricata su Arweave come backup permanente
+6. Il client riceve feedback in tempo reale via WebSocket durante le operazioni blockchain
+
+---
+
+## Codifica Dati On-Chain
+
+Il sistema archivia i dati **interamente sulla blockchain IOTA 2.0**, senza bisogno di storage esterno. La tecnica sfrutta i **Programmable Transaction Blocks**: il payload JSON viene suddiviso in chunk da 7 byte, ciascuno codificato come amount `u64` di una operazione `splitCoins`.
+
+### Schema della transazione
+
+```
+Programmable Transaction Block:
+  splitCoins(gas, [amount0, amount1, amount2, ..., amountN])
+  transferObjects([coin0, coin1, ..., coinN], selfAddress)
+
+  amount[0] = 1                              <- Marker "exart26"
+  amount[1] = payloadLength (in bytes)       <- Lunghezza totale del JSON
+  amount[2] = chunk0  (1 byte index + 7 bytes dati)
+  amount[3] = chunk1  (1 byte index + 7 bytes dati)
+  ...
+  amount[N] = chunkN-2
+```
+
+### Codifica (`_encodePayloadToChunks`)
+
+1. Il payload JSON viene convertito in `Buffer`
+2. Il buffer viene diviso in blocchi da 7 byte
+3. Ogni blocco viene prefissato con 1 byte di indice (posizione del chunk)
+4. Il risultato (8 byte) viene interpretato come `BigInt` u64
+5. Le coin risultanti vengono trasferite a se stessi (nessuna perdita di fondi)
+
+### Decodifica (`_decodeChunksToPayload`)
+
+1. Si leggono gli input `u64` dalla transazione (`queryTransactionBlocks`)
+2. Si verifica il marker: il primo u64 deve essere `1`
+3. Il secondo u64 indica la lunghezza del payload
+4. I restanti u64 vengono convertiti in buffer da 8 byte, ordinati per indice (byte 0), concatenati i byte 1-7
+5. Il buffer viene troncato a `payloadLength` e parsato come JSON
+
+### MAIN_DATA come indice leggero
+
+Per evitare problemi di scalabilita, il sistema usa una strategia a indice:
+
+- **MAIN_DATA** contiene solo un indice leggero: la lista di `entityId` per tipo (~50 byte per entita) con il digest dell'ultima transazione
+- Ogni entita ha la propria **transazione dedicata** (`ORGANIZZAZIONE_DATA`, `STRUTTURE_LISTE_DATA`, `ASSISTITI_DATA`, `PRIVATE_KEY`)
+- MAIN_DATA serve come **start-point certificato** per il recovery: al bootstrap si legge l'indice, poi si recupera ogni entita dalla sua transazione
+
+### Lettura dalla blockchain
+
+La funzione `_queryTransactionsFromChain` interroga il nodo IOTA con `queryTransactionBlocks` filtrando per `FromAddress` (l'indirizzo del wallet), decodifica ogni transazione e filtra per tag/entityId. Non serve alcun database locale per la lettura.
 
 ---
 
@@ -112,13 +164,14 @@ Il sistema e progettato su un'architettura a tre livelli, con un frontend SPA se
 | **Build Tool** | Vite | 6 | Dev server con HMR e build ottimizzata |
 | **Styling** | TailwindCSS | 4 | Utility-first CSS (glassmorphism, neon gradients) |
 | **Animazioni** | Framer Motion | 12 | Transizioni e animazioni fluide |
+| **Grafo** | react-force-graph-2d | - | Visualizzazione interattiva force-directed |
 | **Icone** | Lucide React | 0.400+ | Set di icone moderne |
 | **Routing** | React Router DOM | 7 | Navigazione SPA |
 | **Backend** | Sails.js | 1.5.0 | Framework MVC, REST API, WebSocket |
 | **Runtime** | Node.js | >= 17 | Ambiente di esecuzione (consigliato v20+) |
 | **Blockchain** | @iota/iota-sdk | 1.10+ | IOTA 2.0 Rebased (Ed25519, Programmable TX) |
 | **Permaweb** | Arweave | 1.15.5 | Backup permanente e immutabile |
-| **Database** | MySQL / sails-disk | 3.0.1 | Cache locale per accesso rapido |
+| **Cache locale** | sails-disk | 3.0.1 | Cache ricostruibile (source of truth = blockchain) |
 | **Real-time** | Socket.io (sails-hook-sockets) | 2.0.0 | Feedback live operazioni blockchain |
 | **API Docs** | Swagger UI | 5.17.2 | Documentazione interattiva OpenAPI |
 | **Rate Limiting** | express-rate-limit | 7.1.0 | Protezione contro abusi |
@@ -152,6 +205,16 @@ Organizzazione (ASL, Ente)
 | **Assistito** | Paziente in attesa di servizio | M:N con Lista (via AssistitiListe) | nome, cognome, codiceFiscale, publicKey, privateKey |
 | **AssistitiListe** | Tabella di giunzione | N:1 con Assistito, N:1 con Lista | stato, dataInserimento, dataRimozione |
 | **BlockchainData** | Cache locale transazioni blockchain | - | digest, tag, entityId, version, payload, timestamp |
+
+### Dove vivono i dati
+
+| Modello | Cache locale (sails-disk) | Blockchain IOTA 2.0 | Arweave (backup) |
+|:--------|:------------------------:|:-------------------:|:----------------:|
+| Organizzazione | Cache | ORGANIZZAZIONE_DATA | Backup |
+| Struttura + Liste | Cache | STRUTTURE_LISTE_DATA | Backup |
+| Assistito | Cache | ASSISTITI_DATA | Backup |
+| Chiavi private | Cache | PRIVATE_KEY (cifrate RSA) | Backup |
+| Indice entita | - | MAIN_DATA | Backup |
 
 ### Stati dell'assistito in lista (`StatoLista`)
 
@@ -198,7 +261,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
   +-----+---------------+
         |
         v
-  Payload completo --> Blockchain IOTA 2.0 + Arweave
+  Payload completo --> u64 encoding --> Blockchain IOTA 2.0 + Arweave
 ```
 
 ### Gestione delle chiavi
@@ -207,7 +270,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 |:--------|:----------------|
 | **Generazione** | Ogni entita (Organizzazione, Struttura, Assistito) riceve una coppia di chiavi RSA-2048 al momento della creazione |
 | **Chiave MAIN** | Esiste una coppia di chiavi master (`MAIN_PUBLIC_KEY` / `MAIN_PRIVATE_KEY`) usata per cifrare le chiavi private delle entita |
-| **Archiviazione privata** | Le chiavi private delle entita vengono cifrate con la chiave pubblica MAIN prima di essere salvate sulla blockchain |
+| **Archiviazione privata** | Le chiavi private delle entita vengono cifrate con la chiave pubblica MAIN e salvate on-chain come transazioni PRIVATE_KEY |
 | **Protezione API** | Le chiavi private non vengono mai esposte nelle risposte JSON grazie a `customToJSON()` nei modelli |
 | **Wallet IOTA 2.0** | Singolo keypair Ed25519 derivato da mnemonic BIP39 (nessun vault Stronghold) |
 
@@ -227,34 +290,44 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 - Inserimento e rimozione assistiti dalle liste con tracciamento dello **stato** e dei **timestamp**
 - Relazioni many-to-many: un assistito puo essere in piu liste contemporaneamente
 
-### Blockchain e immutabilita
-- Ogni operazione viene registrata come **Programmable Transaction Block** sulla rete IOTA 2.0 Rebased
-- I dati sono classificati per tipo (`TransactionDataType`): dati principali, organizzazioni, strutture, liste, assistiti, chiavi private, movimenti
-- Cache locale tramite modello `BlockchainData` per query rapide
-- **Sincronizzazione bidirezionale**: il database locale puo essere ricostruito interamente dalla blockchain (`fetch-db-from-blockchain`)
+### Dati interamente on-chain
+- **Zero database locale per i dati business**: tutto e archiviato sulla blockchain IOTA 2.0 Rebased
+- I dati vengono codificati come **u64 split-coin amounts** nei Programmable Transaction Blocks
+- **MAIN_DATA come indice leggero**: contiene solo la lista di entityId per tipo, non l'intero dataset
+- Ogni entita ha la propria **transazione dedicata** sulla chain
+- Il DB locale (sails-disk) e una **cache ricostruibile** dalla blockchain in qualsiasi momento
+- **Sincronizzazione al bootstrap**: all'avvio l'app legge l'indice MAIN_DATA e ricostruisce la cache locale
+- **Controller non-bloccanti**: rispondono immediatamente al client, pubblicazione blockchain in background via `setImmediate`
 
 ### Backup permanente su Arweave
 - **Backup automatico** di ogni transazione sul permaweb Arweave
 - I dati su Arweave sono **permanenti e immutabili** per design del protocollo
 - **Recovery da Arweave**: in caso di perdita dei dati IOTA, e possibile recuperare tutto dal backup Arweave (`recover-from-arweave`)
+- Il backup e **non-bloccante**: se Arweave fallisce, l'operazione IOTA non viene interrotta
+
+### Visualizzazione Grafo
+- Pagina `/app/grafo` con **grafo interattivo force-directed** (react-force-graph-2d)
+- Tutte le entita rappresentate come nodi con **codifica colore per tipo** (organizzazioni, strutture, liste, assistiti)
+- **Pannello dettagli** al hover con chiavi, indirizzi e timestamp
+- Controlli zoom e layout
+
+### Gestione Wallet
+- **WalletInitModal**: modale globale presente in ogni pagina, si attiva automaticamente se il wallet non e inizializzato
+- Inizializzazione wallet via API `POST /api/v1/wallet/init` (genera mnemonic, mostra con copia, richiede fondi faucet)
+- Pagina dedicata per stato e informazioni wallet
+- Keypair Ed25519 singolo derivato da mnemonic BIP39
 
 ### Frontend moderno
 - **Single Page Application** con React 19 e React Router 7
 - Design futuristico **dark mode** con glassmorphism e neon gradients
 - Animazioni fluide con **Framer Motion**
-- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, Wallet
+- Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, Wallet, Grafo
 - **PWA ready** per supporto mobile
 - **Feedback WebSocket** durante le operazioni blockchain (progresso, conferme, errori)
 
 ### Documentazione API
 - **Swagger UI** integrata e accessibile a `/docs`
 - Schema OpenAPI auto-generato disponibile a `/swagger.json`
-
-### Gestione wallet
-- Pagina dedicata nel frontend per stato e informazioni wallet
-- Keypair Ed25519 singolo derivato da mnemonic BIP39
-- Mnemonic generato automaticamente al primo avvio e salvato nella configurazione
-- Richiesta automatica fondi dal **faucet testnet/devnet**
 
 ---
 
@@ -266,7 +339,7 @@ Il sistema implementa un meccanismo di **crittografia ibrida a triplo livello** 
 |:----------|:---------|:-----|
 | **Node.js** | >= 17 | Consigliato v20 LTS o v22 |
 | **npm** | >= 8 | Incluso con Node.js |
-| **MySQL** | >= 5.7 | Solo per produzione (in sviluppo usa sails-disk) |
+| **MySQL** | >= 5.7 | Solo per produzione (in sviluppo usa sails-disk come cache) |
 
 ### 1. Clonare il repository
 
@@ -308,7 +381,7 @@ module.exports = {
   IOTA_NODE_URL: null,
 
   // Mnemonic BIP39 per il keypair Ed25519
-  // Viene generato automaticamente al primo avvio se null
+  // Viene generato automaticamente via WalletInitModal se null
   IOTA_MNEMONIC: null,
 
   // Chiavi RSA-2048 per crittografia dei dati
@@ -332,16 +405,19 @@ Copiare i valori `privateKey` e `publicKey` nei campi `MAIN_PRIVATE_KEY` e `MAIN
 
 > **Importante**: conservare la chiave privata master in un luogo sicuro. Senza di essa non sara possibile decifrare i dati sulla blockchain.
 
-#### Mnemonic e Wallet
+#### Inizializzazione Wallet
 
-Il mnemonic BIP39 viene **generato automaticamente** al primo avvio se `IOTA_MNEMONIC` e impostato a `null`. Il sistema:
+Il wallet viene inizializzato tramite il **WalletInitModal**, un modale che appare automaticamente nel frontend su ogni pagina se il wallet non e ancora configurato:
 
-1. Genera un nuovo mnemonic BIP39
-2. Deriva un keypair Ed25519 dal mnemonic
-3. Salva automaticamente il mnemonic nel file di configurazione
-4. Se la rete e testnet/devnet, richiede fondi dal **faucet** automaticamente
+1. L'utente clicca "Inizializza Wallet" nel modale
+2. Il sistema chiama `POST /api/v1/wallet/init`
+3. Viene generato un nuovo mnemonic BIP39 e derivato un keypair Ed25519
+4. Il mnemonic viene salvato automaticamente nel file di configurazione
+5. Il modale mostra il mnemonic con possibilita di copiarlo
+6. Se la rete e testnet/devnet, i fondi vengono richiesti automaticamente dal **faucet**
+7. L'utente clicca "Continua" per procedere
 
-> **Nota**: e possibile impostare un mnemonic esistente prima del primo avvio per utilizzare un wallet gia esistente.
+> **Nota**: e possibile impostare un mnemonic esistente in `config/private_iota_conf.js` prima del primo avvio per utilizzare un wallet gia esistente.
 
 #### Reti disponibili
 
@@ -353,7 +429,7 @@ Il mnemonic BIP39 viene **generato automaticamente** al primo avvio se `IOTA_MNE
 
 #### Richiedere fondi dal faucet (testnet/devnet)
 
-I fondi vengono richiesti automaticamente al primo avvio del wallet. Per richiedere fondi aggiuntivi, utilizzare la pagina Wallet nel frontend oppure l'API:
+I fondi vengono richiesti automaticamente all'inizializzazione del wallet. Per richiedere fondi aggiuntivi, utilizzare la pagina Wallet nel frontend oppure l'API:
 
 ```bash
 curl http://localhost:1337/api/v1/wallet/get-info
@@ -394,47 +470,7 @@ module.exports = {
 4. Copiare l'**intero contenuto** del file JSON nel campo `ARWEAVE_WALLET_JWK`
 5. Finanziare il wallet con AR token (per testnet: [faucet.arweave.net](https://faucet.arweave.net/))
 
-#### Come funziona il backup Arweave
-
-```
-Operazione utente
-      |
-      v
-  Scrivi su IOTA 2.0 (primario, bloccante)
-      |
-      +---> Backup su Arweave (non-bloccante, in parallelo)
-      |
-      v
-  Risposta all'utente
-```
-
-- Il backup e **non-bloccante**: se Arweave fallisce, l'operazione IOTA non viene interrotta
-- I dati su Arweave sono **permanenti**: una volta scritti, non possono essere cancellati
-- I dati sono **cifrati**: stesso payload crittografico usato per IOTA
-- I tag GraphQL permettono di cercare e recuperare i dati per tipo ed entita
-
-#### Recovery da Arweave
-
-In caso di perdita dei dati IOTA, e possibile recuperare tutto dal backup Arweave:
-
-```bash
-curl -X POST http://localhost:1337/api/v1/recover-from-arweave
-```
-
-### 6. Configurare il database (produzione)
-
-Editare `config/datastores.js` con i parametri MySQL:
-
-```javascript
-default: {
-  adapter: 'sails-mysql',
-  url: 'mysql://user:password@host:3306/exart26',
-}
-```
-
-> In sviluppo, il sistema usa `sails-disk` (database su file, nessuna configurazione necessaria).
-
-### 7. Avviare l'applicazione
+### 6. Avviare l'applicazione
 
 #### Sviluppo (due terminali)
 
@@ -468,10 +504,10 @@ In produzione il frontend compilato viene servito da Sails.js tramite la rotta c
 #### Primo avvio
 
 Al primo avvio, il sistema:
-1. Inizializza il database locale (sails-disk o MySQL)
+1. Inizializza la cache locale (sails-disk)
 2. Verifica la connessione al nodo IOTA 2.0
-3. Se il mnemonic non e presente, genera un nuovo keypair Ed25519 e richiede fondi dal faucet
-4. Se il wallet e inizializzato, sincronizza il DB dalla blockchain
+3. Se il wallet non e inizializzato, il **WalletInitModal** apparira nel frontend
+4. Dopo l'inizializzazione del wallet, il bootstrap sincronizza la cache leggendo l'indice MAIN_DATA dalla blockchain
 5. Se Arweave e configurato, verifica la connessione al gateway
 6. Genera la documentazione Swagger su `/docs`
 
@@ -482,9 +518,11 @@ Al primo avvio, il sistema:
 | `Cannot find module '../../config/private_iota_conf'` | Copiare il sample: `cp config/sample_private_iota_conf.js config/private_iota_conf.js` |
 | `ERR_REQUIRE_ESM` con @iota/iota-sdk | Normale: l'SDK usa ESM, il sistema lo gestisce con `dynamic import()`. Verificare che `iota.js` usi `loadSdk()` |
 | Errore Grunt `Cannot convert a Symbol value to a string` | Warning non bloccante con Node.js >= 20, task Grunt personalizzati risolvono il problema |
-| `migrate: 'safe'` al bootstrap | Normale in produzione. In sviluppo, cancellare `.tmp/bootstrap-version.json` per forzare il re-seed |
+| WalletInitModal non appare | Verificare che `config/private_iota_conf.js` esista. Il modale appare solo se il wallet non e inizializzato |
+| Dati non sincronizzati | Usare `POST /api/v1/fetch-db-from-blockchain` per ricostruire la cache dalla blockchain |
 | Arweave non funziona | Verificare che il wallet JWK sia completo e che abbia fondi sufficienti |
 | Frontend non si connette al backend | Verificare che Sails.js sia in esecuzione sulla porta 1337 e che il proxy Vite sia configurato |
+| Transazione blockchain fallisce | Verificare il balance del wallet. Per testnet/devnet usare il faucet dalla pagina Wallet |
 
 ---
 
@@ -495,11 +533,11 @@ exart26-iota/
 |
 +-- frontend/                     # Frontend React SPA
 |   +-- src/
-|   |   +-- pages/                # Pagine: Dashboard, Organizzazioni, Strutture, Assistiti, Wallet
-|   |   +-- components/           # Componenti riutilizzabili
-|   |   +-- hooks/                # Custom React hooks
+|   |   +-- pages/                # Dashboard, Organizzazioni, Strutture, Assistiti, Wallet, Grafo
+|   |   +-- components/           # Layout, WalletInitModal, LoadingSpinner, ...
+|   |   +-- hooks/                # Custom React hooks (useApi, ...)
 |   |   +-- api/                  # Client API per comunicazione con backend
-|   |   +-- utils/                # Utility frontend
+|   |   +-- utils/                # Utility frontend (formatters, ...)
 |   |   +-- App.jsx               # Router e layout principale
 |   |   +-- main.jsx              # Entry point React
 |   |   +-- index.css             # Stili globali TailwindCSS
@@ -510,11 +548,11 @@ exart26-iota/
 +-- api/
 |   +-- controllers/              # Action-based controllers (Sails.js actions2)
 |   |   +-- dashboard/            # Dashboard
-|   |   +-- wallet/               # Verifica e info wallet
-|   |   +-- add-organizzazione.js
-|   |   +-- add-struttura.js
-|   |   +-- add-lista.js
-|   |   +-- add-assistito.js
+|   |   +-- wallet/               # get-info, init-wallet, view-verifica
+|   |   +-- add-organizzazione.js # Non-bloccante (setImmediate per blockchain)
+|   |   +-- add-struttura.js      # Non-bloccante
+|   |   +-- add-lista.js          # Non-bloccante
+|   |   +-- add-assistito.js      # Non-bloccante
 |   |   +-- add-assistito-in-lista.js
 |   |   +-- fetch-db-from-blockchain.js
 |   |   +-- recover-from-arweave.js
@@ -522,6 +560,7 @@ exart26-iota/
 |   |   +-- api-organizzazioni.js # GET /api/v1/organizzazioni (JSON)
 |   |   +-- api-strutture.js      # GET /api/v1/strutture (JSON)
 |   |   +-- api-assistiti.js      # GET /api/v1/assistiti (JSON)
+|   |   +-- api-graph-data.js     # GET /api/v1/graph-data (JSON)
 |   |   +-- view-*.js             # Controller delle viste (legacy)
 |   |
 |   +-- enums/                    # Enumerazioni
@@ -538,8 +577,8 @@ exart26-iota/
 |   |   +-- View.js
 |   |
 |   +-- utility/                  # Componenti core del sistema
-|   |   +-- iota.js               # IOTA 2.0: keypair Ed25519, publishData, query dati
-|   |   +-- ListManager.js        # Logica business, sync DB <-> blockchain
+|   |   +-- iota.js               # IOTA 2.0: u64 encoding, publishData, query on-chain
+|   |   +-- ListManager.js        # Logica business, MAIN_DATA index, sync blockchain->cache
 |   |   +-- CryptHelper.js        # Crittografia ibrida RSA+AES+HMAC
 |   |   +-- ArweaveHelper.js      # Backup e recovery da Arweave permaweb
 |   |
@@ -551,9 +590,9 @@ exart26-iota/
 +-- config/
 |   +-- routes.js                 # Definizione di tutte le rotte (REST + SPA catch-all)
 |   +-- security.js               # CSRF, CORS
-|   +-- datastores.js             # Connessione database
+|   +-- datastores.js             # Connessione database (sails-disk come cache)
 |   +-- custom.js                 # Parametri personalizzati (URL, email, token)
-|   +-- bootstrap.js              # Inizializzazione all'avvio (carica dati da blockchain)
+|   +-- bootstrap.js              # Sync cache da blockchain all'avvio (legge MAIN_DATA index)
 |   +-- policies.js               # Mapping policy -> rotte (tutte pubbliche)
 |   +-- sample_private_iota_conf.js     # Template configurazione IOTA 2.0
 |   +-- sample_private_arweave_conf.js  # Template configurazione Arweave
@@ -577,19 +616,26 @@ exart26-iota/
 | `GET` | `/api/v1/organizzazioni/:id?` | Lista organizzazioni (dettaglio se `:id`) |
 | `GET` | `/api/v1/strutture?organizzazione=X` | Lista strutture filtrate per organizzazione |
 | `GET` | `/api/v1/assistiti/:id?` | Lista assistiti (dettaglio se `:id`) |
+| `GET` | `/api/v1/graph-data` | Dati per il grafo interattivo (tutte le entita con relazioni) |
 
 ### API Operative (blockchain)
 
 | Metodo | Rotta | Descrizione |
 |:-------|:------|:------------|
-| `POST` | `/api/v1/add-organizzazione` | Crea nuova organizzazione (genera chiavi RSA, scrive su blockchain) |
-| `POST` | `/api/v1/add-struttura` | Crea nuova struttura |
-| `POST` | `/api/v1/add-lista` | Crea nuova lista d'attesa |
-| `POST` | `/api/v1/add-assistito` | Registra nuovo assistito (genera chiavi RSA) |
+| `POST` | `/api/v1/add-organizzazione` | Crea organizzazione (risposta immediata, blockchain in background) |
+| `POST` | `/api/v1/add-struttura` | Crea struttura (risposta immediata, blockchain in background) |
+| `POST` | `/api/v1/add-lista` | Crea lista d'attesa (risposta immediata, blockchain in background) |
+| `POST` | `/api/v1/add-assistito` | Registra assistito (risposta immediata, blockchain in background) |
 | `POST` | `/api/v1/add-assistito-in-lista` | Inserisce un assistito in una lista d'attesa |
-| `POST` | `/api/v1/fetch-db-from-blockchain` | Ricostruisce il DB locale dalla blockchain (richiede wallet) |
+| `POST` | `/api/v1/fetch-db-from-blockchain` | Ricostruisce la cache locale dalla blockchain (richiede wallet) |
 | `POST` | `/api/v1/recover-from-arweave` | Recupera tutti i dati dal backup Arweave (richiede wallet) |
-| `GET` | `/api/v1/wallet/get-info` | Restituisce informazioni sul wallet IOTA 2.0 |
+
+### API Wallet
+
+| Metodo | Rotta | Descrizione |
+|:-------|:------|:------------|
+| `POST` | `/api/v1/wallet/init` | Inizializza wallet: genera mnemonic, ritorna `{ success, mnemonic, address }` |
+| `GET` | `/api/v1/wallet/get-info` | Restituisce stato, balance, indirizzo e rete del wallet |
 | `GET` | `/api/v1/get-transaction` | Recupera una transazione specifica |
 
 ### Viste (legacy EJS)
@@ -645,5 +691,5 @@ Sviluppato da [**deduzzo**](https://github.com/deduzzo)
 ---
 
 <p align="center">
-  <i>ExArt26-IOTA &mdash; Trasparenza e immutabilita per le liste d'attesa sanitarie</i>
+  <i>ExArt26-IOTA &mdash; Dati sanitari interamente on-chain, trasparenti e immutabili</i>
 </p>
