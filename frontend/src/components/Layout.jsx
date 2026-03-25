@@ -128,7 +128,7 @@ export default function Layout() {
                     />
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    {syncStatus.processed}/{syncStatus.total} entita | {syncStatus.org || 0} org, {syncStatus.str || 0} str, {syncStatus.ass || 0} ass
+                    {syncStatus.processed}/{syncStatus.total} | {syncStatus.organizzazioni || 0} org, {syncStatus.strutture || 0} str, {syncStatus.assistiti || 0} ass, {syncStatus.assistitiListe || 0} mov
                   </p>
                 </div>
               )}
