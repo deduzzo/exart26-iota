@@ -47,16 +47,11 @@ export default function Strutture() {
 
   const columns = [
     {
-      key: 'id',
-      label: 'ID',
-      render: (v) => <span className="text-slate-500 font-mono text-xs">#{v}</span>,
-    },
-    {
       key: 'denominazione',
       label: 'Denominazione',
       render: (v, row) => (
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium text-slate-100">{v}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-medium text-slate-100 truncate max-w-[200px]" title={v}>{v}</span>
           <button
             onClick={(e) => { e.stopPropagation(); setInfoModal({ entityType: 'STRUTTURA', entityId: (typeof row.organizzazione === 'object' ? row.organizzazione.id : row.organizzazione) + '_' + row.id, entityData: row }); }}
             className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
@@ -65,6 +60,14 @@ export default function Strutture() {
           </button>
         </div>
       ),
+    },
+    {
+      key: 'organizzazione',
+      label: 'Organizzazione',
+      render: (v) => {
+        const name = typeof v === 'object' && v ? v.denominazione : (organizzazioni.find((o) => o.id === v)?.denominazione || v || '-');
+        return <span className="text-slate-300 text-xs">{name}</span>;
+      },
     },
     {
       key: 'indirizzo',
@@ -76,24 +79,15 @@ export default function Strutture() {
       ),
     },
     {
-      key: 'organizzazione',
-      label: 'Organizzazione',
-      render: (v) => {
-        if (typeof v === 'object' && v) return v.denominazione || '-';
-        const org = organizzazioni.find((o) => o.id === v);
-        return org?.denominazione || v || '-';
-      },
-    },
-    {
       key: 'attiva',
       label: 'Stato',
       render: (v) => (
         v !== false ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-neon-emerald/10 text-neon-emerald">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-neon-emerald/10 text-neon-emerald">
             <CheckCircle size={12} /> Attiva
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400">
             <XCircle size={12} /> Inattiva
           </span>
         )
@@ -110,6 +104,26 @@ export default function Strutture() {
           </span>
         );
       },
+    },
+    {
+      key: 'ultimaVersioneSuBlockchain',
+      label: 'Versione BC',
+      render: (v) => v != null ? (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-neon-purple/10 text-neon-purple">
+          v{v}
+        </span>
+      ) : (
+        <span className="text-slate-600 text-xs">-</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Creato',
+      render: (v) => v ? (
+        <span className="text-xs text-slate-400">
+          {new Date(v).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ) : <span className="text-slate-600 text-xs">-</span>,
     },
     {
       key: '_actions',

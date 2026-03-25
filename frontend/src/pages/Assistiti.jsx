@@ -87,6 +87,17 @@ export default function Assistiti() {
       ),
     },
     {
+      key: 'email',
+      label: 'Contatti',
+      render: (v, row) => (
+        <div className="text-xs text-slate-400 space-y-0.5">
+          {v && <div className="flex items-center gap-1"><Mail size={11} /> {v}</div>}
+          {row.telefono && <div className="flex items-center gap-1"><Phone size={11} /> {row.telefono}</div>}
+          {!v && !row.telefono && <span className="text-slate-600">-</span>}
+        </div>
+      ),
+    },
+    {
       key: 'listeAssegnate',
       label: 'Liste / Posizione',
       render: (liste) => {
@@ -111,15 +122,24 @@ export default function Assistiti() {
       },
     },
     {
-      key: 'email',
-      label: 'Contatti',
-      render: (v, row) => (
-        <div className="text-xs text-slate-400 space-y-0.5">
-          {v && <div className="flex items-center gap-1"><Mail size={11} /> {v}</div>}
-          {row.telefono && <div className="flex items-center gap-1"><Phone size={11} /> {row.telefono}</div>}
-          {!v && !row.telefono && <span className="text-slate-600">-</span>}
-        </div>
+      key: 'ultimaVersioneSuBlockchain',
+      label: 'Versione BC',
+      render: (v) => v != null ? (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-neon-purple/10 text-neon-purple">
+          v{v}
+        </span>
+      ) : (
+        <span className="text-slate-600 text-xs">-</span>
       ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Creato',
+      render: (v) => v ? (
+        <span className="text-xs text-slate-400">
+          {new Date(v).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ) : <span className="text-slate-600 text-xs">-</span>,
     },
     {
       key: '_actions',

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Building2, Plus, Search, Key, Info } from 'lucide-react';
+import { Building2, Plus, Search, Key, Info, ShieldCheck, Copy } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import Modal from '../components/Modal';
@@ -18,16 +18,12 @@ export default function Organizzazioni() {
 
   const columns = [
     {
-      key: 'id',
-      label: 'ID',
-      render: (v) => <span className="text-slate-500 font-mono text-xs">#{v}</span>,
-    },
-    {
       key: 'denominazione',
       label: 'Denominazione',
       render: (v, row) => (
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium text-slate-100">{v}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${row.publicKey ? 'bg-emerald-400' : 'bg-slate-600'}`} title={row.publicKey ? 'Chiave RSA presente' : 'Nessuna chiave RSA'} />
+          <span className="font-medium text-slate-100 truncate max-w-[200px]" title={v}>{v}</span>
           <button
             onClick={(e) => { e.stopPropagation(); setInfoModal({ entityType: 'ORGANIZZAZIONE', entityId: String(row.id), entityData: row }); }}
             className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
@@ -52,12 +48,44 @@ export default function Organizzazioni() {
     {
       key: 'publicKey',
       label: 'Chiave Pubblica',
-      render: (v) => (
-        <span className="font-mono text-xs text-slate-500 flex items-center gap-1" title={v}>
-          <Key size={12} />
-          {truncateKey(v, 20)}
+      render: (v) => v ? (
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">
+            <ShieldCheck size={12} /> RSA
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(v); }}
+            className="text-slate-600 hover:text-slate-400 transition-colors"
+            title="Copia chiave pubblica"
+          >
+            <Copy size={12} />
+          </button>
+        </div>
+      ) : (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-white/5 text-slate-500">
+          Nessuna
         </span>
       ),
+    },
+    {
+      key: 'ultimaVersioneSuBlockchain',
+      label: 'Versione BC',
+      render: (v) => v != null ? (
+        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-neon-purple/10 text-neon-purple">
+          v{v}
+        </span>
+      ) : (
+        <span className="text-slate-600 text-xs">-</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Creato',
+      render: (v) => v ? (
+        <span className="text-xs text-slate-400">
+          {new Date(v).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ) : <span className="text-slate-600 text-xs">-</span>,
     },
   ];
   const [denominazione, setDenominazione] = useState('');
