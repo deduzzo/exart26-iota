@@ -530,11 +530,28 @@ export default function Grafo() {
   const graphRef = useRef(null);
   const containerRef = useRef(null);
   const [hoveredNode, setHoveredNode] = useState(null);
+  const [connectedNodes, setConnectedNodes] = useState(new Set());
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [infoModal, setInfoModal] = useState(null);
 
   const graphData = useMemo(() => buildGraphData(data), [data]);
+
+  // Build adjacency map for hover highlighting
+  const adjacencyMap = useMemo(() => {
+    const map = new Map();
+    if (graphData?.links) {
+      for (const link of graphData.links) {
+        const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+        const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+        if (!map.has(sourceId)) map.set(sourceId, new Set());
+        if (!map.has(targetId)) map.set(targetId, new Set());
+        map.get(sourceId).add(targetId);
+        map.get(targetId).add(sourceId);
+      }
+    }
+    return map;
+  }, [graphData]);
 
   // Track container dimensions
   useEffect(() => {
@@ -561,8 +578,15 @@ export default function Grafo() {
   }, [graphData]);
 
   const handleNodeHover = useCallback((node) => {
+    document.body.style.cursor = node ? 'pointer' : 'default';
     setHoveredNode(node || null);
-  }, []);
+    if (node) {
+      const neighbors = adjacencyMap.get(node.id) || new Set();
+      setConnectedNodes(new Set([node.id, ...neighbors]));
+    } else {
+      setConnectedNodes(new Set());
+    }
+  }, [adjacencyMap]);
 
   const handleMouseMove = useCallback((e) => {
     setMousePos({ x: e.clientX, y: e.clientY });
@@ -577,8 +601,17 @@ export default function Grafo() {
 
     const size = typeInfo.size;
     const isHovered = hoveredNode?.id === node.id;
+    const isHighlighting = hoveredNode && connectedNodes.size > 0;
+    const isConnected = connectedNodes.has(node.id);
+    const dimmed = isHighlighting && !isConnected;
     const scale = isHovered ? 1.4 : 1;
     const r = size * scale;
+
+    // Apply alpha for dimmed nodes
+    const prevAlpha = ctx.globalAlpha;
+    if (dimmed) {
+      ctx.globalAlpha = 0.15;
+    }
 
     // Glow
     ctx.beginPath();
@@ -611,20 +644,40 @@ export default function Grafo() {
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.fillText(label, node.x, node.y + r + 3);
     }
-  }, [hoveredNode]);
+
+    // Restore alpha
+    ctx.globalAlpha = prevAlpha;
+  }, [hoveredNode, connectedNodes]);
 
   const linkCanvasObject = useCallback((link, ctx) => {
     const start = link.source;
     const end = link.target;
     if (!start || !end || typeof start.x !== 'number') return;
 
+    const isHighlighting = hoveredNode && connectedNodes.size > 0;
+    const sourceId = typeof start === 'object' ? start.id : start;
+    const targetId = typeof end === 'object' ? end.id : end;
+    const isConnectedLink = isHighlighting && connectedNodes.has(sourceId) && connectedNodes.has(targetId);
+
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 0.5;
+
+    if (isHighlighting) {
+      if (isConnectedLink) {
+        ctx.strokeStyle = 'rgba(0,255,255,0.6)';
+        ctx.lineWidth = 2;
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.lineWidth = 0.2;
+      }
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 0.5;
+    }
+
     ctx.stroke();
-  }, []);
+  }, [hoveredNode, connectedNodes]);
 
   if (loading) {
     return (
