@@ -707,7 +707,7 @@ export default function Debug() {
                 </div>
                 <div className="glass-static rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Saldo</p>
-                  <p className="text-sm font-mono text-orange-400">{arweaveStatus.balance || '0'}</p>
+                  <p className="text-sm font-mono text-orange-400">{typeof arweaveStatus.balance === 'object' ? arweaveStatus.balance.ar : arweaveStatus.balance || '0'} AR</p>
                 </div>
                 {arweaveStatus.arLocalRunning !== undefined && (
                   <div className="glass-static rounded-xl p-4">
