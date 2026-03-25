@@ -214,14 +214,17 @@ class ListManager {
             continue;
           }
 
+          // Usa il timestamp della TX blockchain come createdAt
+          const txTimestamp = record.timestamp || null;
+
           if (entity.type === 'ORG') {
-            this._upsertOrganizzazione(clearData);
+            this._upsertOrganizzazione(clearData, txTimestamp);
             imported.organizzazioni++;
           } else if (entity.type === 'STR') {
-            this._upsertStruttura(clearData, entity.entityId);
+            this._upsertStruttura(clearData, entity.entityId, txTimestamp);
             imported.strutture++;
           } else if (entity.type === 'ASS') {
-            this._upsertAssistito(clearData);
+            this._upsertAssistito(clearData, txTimestamp);
             imported.assistiti++;
           }
           reportProgress(`Importazione ${processed}/${total}...`, total, processed);
@@ -232,11 +235,18 @@ class ListManager {
 
       // Importa assistiti in lista (ASSISTITI_IN_LISTA) per ogni lista
       const listeCount = db.Lista.count();
+      const totalWithListe = total + listeCount;
       if (listeCount > 0) {
-        sails.log.info(`[ListManager] Sync liste assistiti per ${listeCount} liste...`);
-        reportProgress('Importazione assistiti in lista...', total, processed);
+        sails.log.info(`[ListManager] Sync liste assistiti per ${listeCount} liste (totale globale: ${totalWithListe})...`);
         try {
-          await this.updateListeAssistitiFromBlockchain();
+          await this.updateListeAssistitiFromBlockchain(null, (listeProcessed, listeTotal) => {
+            const globalProcessed = processed + listeProcessed;
+            imported.assistitiListe = db.AssistitiListe.count();
+            reportProgress(`Liste assistiti ${listeProcessed}/${listeTotal}...`, totalWithListe, globalProcessed);
+            if (listeProcessed % 50 === 0 || listeProcessed === listeTotal) {
+              sails.log.info(`[ListManager] Liste assistiti: ${listeProcessed}/${listeTotal} (${imported.assistitiListe} mov)`);
+            }
+          });
           imported.assistitiListe = db.AssistitiListe.count();
           sails.log.info(`[ListManager] Sync liste assistiti completata: ${imported.assistitiListe} movimenti`);
         } catch (alErr) {
@@ -254,7 +264,7 @@ class ListManager {
 
   // --- Upsert helpers per ricostruzione DB ---
 
-  _upsertOrganizzazione(data) {
+  _upsertOrganizzazione(data, txTimestamp = null) {
     const existing = db.Organizzazione.findOne({ id: data.id });
     const record = {
       denominazione: data.denominazione,
@@ -264,11 +274,12 @@ class ListManager {
     if (existing) {
       db.Organizzazione.updateOne({ id: data.id }).set(record);
     } else {
+      if (txTimestamp) record.createdAt = txTimestamp;
       db.Organizzazione.create({ id: data.id, ...record });
     }
   }
 
-  _upsertStruttura(data, entityId = null) {
+  _upsertStruttura(data, entityId = null, txTimestamp = null) {
     const existing = db.Struttura.findOne({ id: data.id });
     // Ricava organizzazione dal payload o dall'entityId (formato: orgId_strId)
     let orgId = data.organizzazione;
@@ -286,17 +297,18 @@ class ListManager {
     if (existing) {
       db.Struttura.updateOne({ id: data.id }).set(record);
     } else {
+      if (txTimestamp) record.createdAt = txTimestamp;
       db.Struttura.create({ id: data.id, ...record });
     }
     // Importa anche le liste se presenti nel payload
     if (data.liste && Array.isArray(data.liste)) {
       for (const lista of data.liste) {
-        this._upsertLista(lista, data.id);
+        this._upsertLista(lista, data.id, txTimestamp);
       }
     }
   }
 
-  _upsertLista(data, strutturaId) {
+  _upsertLista(data, strutturaId, txTimestamp = null) {
     const existing = db.Lista.findOne({ id: data.id });
     const record = {
       denominazione: data.denominazione,
@@ -308,11 +320,12 @@ class ListManager {
     if (existing) {
       db.Lista.updateOne({ id: data.id }).set(record);
     } else {
+      if (txTimestamp) record.createdAt = txTimestamp;
       db.Lista.create({ id: data.id, ...record });
     }
   }
 
-  _upsertAssistito(data) {
+  _upsertAssistito(data, txTimestamp = null) {
     const existing = db.Assistito.findOne({ id: data.id });
     const anonId = data.anonId || (data.codiceFiscale ? generateAnonId(data.codiceFiscale) : 'UNKNOWN');
     const record = {
@@ -330,11 +343,12 @@ class ListManager {
     if (existing) {
       db.Assistito.updateOne({ id: data.id }).set(record);
     } else {
+      if (txTimestamp) record.createdAt = txTimestamp;
       db.Assistito.create({ id: data.id, ...record });
     }
   }
 
-  async updateListeAssistitiFromBlockchain(idLista) {
+  async updateListeAssistitiFromBlockchain(idLista, onProgress = null) {
     let liste = null;
     if (idLista) {
       liste = db.Lista.find({id: idLista});
@@ -342,16 +356,50 @@ class ListManager {
       liste = db.Lista.find();
     }
     if (liste && liste.length > 0) {
+      // Ottimizzazione: scarica TUTTE le TX ASSISTITI_IN_LISTA in un batch
+      // invece di fare N query (una per lista)
+      let allListeTx = [];
+      try {
+        allListeTx = await iota.getAllDataByTag(ASSISTITI_IN_LISTA);
+      } catch (e) {
+        sails.log.warn('[ListManager] Errore fetch ASSISTITI_IN_LISTA:', e.message);
+      }
+
+      if (allListeTx.length === 0) {
+        sails.log.info('[ListManager] Nessuna TX ASSISTITI_IN_LISTA sulla chain, skip');
+        if (onProgress) onProgress(liste.length, liste.length);
+        return;
+      }
+
+      // Crea mappa entityId -> TX (ultima per entityId)
+      const txByEntityId = new Map();
+      for (const tx of allListeTx) {
+        const existing = txByEntityId.get(tx.entityId);
+        if (!existing || (tx.version || 0) > (existing.version || 0)) {
+          txByEntityId.set(tx.entityId, tx);
+        }
+      }
+      sails.log.info(`[ListManager] ${txByEntityId.size} liste con TX ASSISTITI_IN_LISTA`);
+
+      let listeProcessed = 0;
       for (let lista of liste) {
-        let listaEntityId = getWalletIdLista(lista.id);
-        let record = await iota.getLastDataByTag(ASSISTITI_IN_LISTA, listaEntityId);
-        let strutturaEntityId = getWalletIdStruttura(lista.struttura);
-        let privateKeyData = await this.getLastPrivateKeyOfEntityId(strutturaEntityId);
-        if (record && record.payload) {
+        listeProcessed++;
+        if (onProgress) onProgress(listeProcessed, liste.length);
+        try {
+          let listaEntityId = getWalletIdLista(lista.id);
+          let record = txByEntityId.get(listaEntityId);
+          if (!record || !record.payload) continue; // Skip liste senza TX
+
+          let strutturaEntityId = getWalletIdStruttura(lista.struttura);
+          let privateKeyData = await this.getLastPrivateKeyOfEntityId(strutturaEntityId);
+          if (!privateKeyData?.clearData?.privateKey) continue;
+
           let data = record.payload;
           let clearData = await CryptHelper.receiveAndDecrypt(data, privateKeyData.clearData.privateKey);
           data.clearData = JSON.parse(clearData);
           this.updateDBFromJsonListeAssistiti(data.clearData);
+        } catch (e) {
+          sails.log.verbose(`[ListManager] Lista ${lista.id} skip: ${e.message}`);
         }
       }
     }
