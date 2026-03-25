@@ -230,7 +230,21 @@ class ListManager {
         }
       }
 
-      sails.log.info(`[ListManager] Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass`);
+      // Importa assistiti in lista (ASSISTITI_IN_LISTA) per ogni lista
+      const listeCount = db.Lista.count();
+      if (listeCount > 0) {
+        sails.log.info(`[ListManager] Sync liste assistiti per ${listeCount} liste...`);
+        reportProgress('Importazione assistiti in lista...', total, processed);
+        try {
+          await this.updateListeAssistitiFromBlockchain();
+          imported.assistitiListe = db.AssistitiListe.count();
+          sails.log.info(`[ListManager] Sync liste assistiti completata: ${imported.assistitiListe} movimenti`);
+        } catch (alErr) {
+          sails.log.warn(`[ListManager] Sync liste assistiti fallita: ${alErr.message}`);
+        }
+      }
+
+      sails.log.info(`[ListManager] Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass, ${imported.assistitiListe || 0} mov`);
       return { success: true, data: imported, source: 'iota' };
     } catch (err) {
       sails.log.warn('[ListManager] Sync fallita:', err.message);
@@ -686,23 +700,20 @@ class ListManager {
   }
 
   updateDBFromJsonListeAssistiti(assistitiListe) {
-    for (let lista of assistitiListe) {
-      let assititoLista = db.AssistitiListe.findOne({id: lista.id});
-      if (assititoLista) {
-        db.AssistitiListe.updateOne({id: lista.id}).set({
-          assistito: lista.assistito,
-          lista: lista.lista,
-          stato: lista.stato,
-          chiuso: lista.chiuso
-        });
+    for (let al of assistitiListe) {
+      const record = {
+        assistito: al.assistito,
+        lista: al.lista,
+        stato: al.stato,
+        chiuso: al.chiuso,
+        dataOraIngresso: al.dataOraIngresso || null,
+        dataOraUscita: al.dataOraUscita || null,
+      };
+      let existing = db.AssistitiListe.findOne({id: al.id});
+      if (existing) {
+        db.AssistitiListe.updateOne({id: al.id}).set(record);
       } else {
-        db.AssistitiListe.create({
-          id: lista.id,
-          assistito: lista.assistito,
-          lista: lista.lista,
-          stato: lista.stato,
-          chiuso: lista.chiuso
-        });
+        db.AssistitiListe.create({ id: al.id, ...record });
       }
     }
   }
