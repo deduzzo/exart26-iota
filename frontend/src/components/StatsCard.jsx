@@ -19,6 +19,8 @@ export default function StatsCard({ icon: Icon, label, value, color = 'cyan' }) 
     purple: 'from-neon-purple/20 to-neon-purple/5 text-neon-purple',
     emerald: 'from-neon-emerald/20 to-neon-emerald/5 text-neon-emerald',
     amber: 'from-amber-500/20 to-amber-500/5 text-amber-500',
+    blue: 'from-blue-500/20 to-blue-500/5 text-blue-400',
+    red: 'from-red-500/20 to-red-500/5 text-red-400',
   };
 
   return (

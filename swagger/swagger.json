@@ -88,6 +88,9 @@
       "name": "Inizializza dati di prova"
     },
     {
+      "name": "API Entity Transactions"
+    },
+    {
       "name": "Get wallet info"
     },
     {
@@ -98,6 +101,24 @@
     },
     {
       "name": "API Pubblico Liste"
+    },
+    {
+      "name": "Arweave Status"
+    },
+    {
+      "name": "Arweave Switch Mode"
+    },
+    {
+      "name": "Arweave Transactions"
+    },
+    {
+      "name": "Arweave Test Upload"
+    },
+    {
+      "name": "Arweave Test Verify"
+    },
+    {
+      "name": "Arweave Consistency"
     },
     {
       "name": "API Organizzazioni"
@@ -1531,11 +1552,49 @@
     "/api/v1/load-test": {
       "post": {
         "summary": "Inizializza dati di prova",
-        "description": "Crea dati massivi per test UI. Solo DB in-memory + MAIN_DATA su blockchain.",
+        "description": "Crea dati massivi per test UI. Solo DB locale + MAIN_DATA su blockchain.",
         "tags": [
           "Inizializza dati di prova"
         ],
         "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/entity-transactions": {
+      "get": {
+        "summary": "API Entity Transactions",
+        "description": "Ritorna tutte le transazioni blockchain per una entita specifica.",
+        "tags": [
+          "API Entity Transactions"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success"
@@ -1623,6 +1682,178 @@
         "responses": {
           "200": {
             "description": "Liste pubbliche con statistiche."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/status": {
+      "get": {
+        "summary": "Arweave Status",
+        "description": "Ritorna lo stato dettagliato di Arweave (configurazione, modo, statistiche).",
+        "tags": [
+          "Arweave Status"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/switch-mode": {
+      "post": {
+        "summary": "Arweave Switch Mode",
+        "description": "Cambia la modalita di Arweave tra production e test.",
+        "tags": [
+          "Arweave Switch Mode"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "production",
+                "test"
+              ]
+            },
+            "description": "Modalita Arweave: production o test."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/transactions": {
+      "get": {
+        "summary": "Arweave Transactions",
+        "description": "Ritorna le transazioni Arweave per un dato tipo, utile per debug.",
+        "tags": [
+          "Arweave Transactions"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataType",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Tipo di dato (es. ORGANIZZAZIONE_DATA, STRUTTURE_LISTE_DATA, ASSISTITI_DATA)."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 20,
+              "example": 20
+            },
+            "description": "Numero massimo di transazioni da ritornare."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/test-upload": {
+      "post": {
+        "summary": "Arweave Test Upload",
+        "description": "Esegue un upload di test su Arweave per verificare la connettivita.",
+        "tags": [
+          "Arweave Test Upload"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/test-verify": {
+      "post": {
+        "summary": "Arweave Test Verify",
+        "description": "Verifica una transazione Arweave per ID.",
+        "tags": [
+          "Arweave Test Verify"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "txId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID della transazione Arweave da verificare."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/arweave/consistency": {
+      "get": {
+        "summary": "Arweave Consistency",
+        "description": "Verifica la consistenza tra le transazioni IOTA e i backup Arweave.",
+        "tags": [
+          "Arweave Consistency"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
           },
           "404": {
             "description": "Resource not found"

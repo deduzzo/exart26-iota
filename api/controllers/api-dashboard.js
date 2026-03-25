@@ -23,6 +23,11 @@ module.exports = {
     let assistitiCount = db.Assistito.count();
     let listeAperte = db.Lista.count({aperta: true});
     let assistitiInCoda = db.AssistitiListe.count({stato: 1, chiuso: false});
+    let assistitiInLista = assistitiInCoda;
+    let assistitiUsciti = db.AssistitiListe.count({chiuso: true});
+    let transazioniTotali = db.BlockchainData.count();
+    let assistitiListeCount = db.AssistitiListe.count();
+    let oggettiTotali = organizzazioniCount + struttureCount + listeCount + assistitiCount + assistitiListeCount;
 
     let walletInitialized = await iota.isWalletInitialized();
     let walletInfo = null;
@@ -115,6 +120,10 @@ module.exports = {
         assistiti: assistitiCount,
         listeAperte: listeAperte,
         assistitiInCoda: assistitiInCoda,
+        assistitiInLista: assistitiInLista,
+        assistitiUsciti: assistitiUsciti,
+        transazioniTotali: transazioniTotali,
+        oggettiTotali: oggettiTotali,
       },
       walletInitialized,
       walletInfo,

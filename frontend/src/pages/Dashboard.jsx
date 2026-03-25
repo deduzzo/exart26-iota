@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield } from 'lucide-react';
+import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield, UserCheck, UserMinus, Hash, Layers } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -67,7 +67,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Stats Grid */}
-      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <motion.div variants={item}>
           <StatsCard icon={Building2} label="Organizzazioni" value={stats.organizzazioni || 0} color="purple" />
         </motion.div>
@@ -79,6 +79,18 @@ export default function Dashboard() {
         </motion.div>
         <motion.div variants={item}>
           <StatsCard icon={Users} label="Assistiti" value={stats.assistiti || 0} color="amber" />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatsCard icon={UserCheck} label="In Lista" value={stats.assistitiInLista || stats.assistitiInCoda || 0} color="blue" />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatsCard icon={UserMinus} label="Usciti" value={stats.assistitiUsciti || 0} color="red" />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatsCard icon={Hash} label="Transazioni BC" value={stats.transazioniTotali || 0} color="purple" />
+        </motion.div>
+        <motion.div variants={item}>
+          <StatsCard icon={Layers} label="Oggetti Totali" value={stats.oggettiTotali || 0} color="cyan" />
         </motion.div>
       </motion.div>
 
