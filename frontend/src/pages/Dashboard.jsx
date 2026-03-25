@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield, UserCheck, UserMinus, Hash, Layers } from 'lucide-react';
+import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield, UserCheck, UserMinus, Hash, Layers, Info } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import { useApi } from '../hooks/useApi';
 import { getDashboardData, getWalletInfo } from '../api/endpoints';
 
@@ -33,19 +35,34 @@ const TIPO_LABELS = {
   USCITA_DA_LISTA: 'Uscita Lista',
 };
 
-const operazioniColumns = [
-  { key: 'tipo', label: 'Tipo', render: (v) => (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-white/5 ${TIPO_COLORS[v] || 'text-slate-400'}`}>
-      {TIPO_LABELS[v] || v}
-    </span>
-  )},
-  { key: 'label', label: 'Dettaglio', render: (v) => <span className="font-medium text-sm">{v}</span> },
-  { key: 'timestamp', label: 'Data', render: (v) => v ? new Date(v).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-' },
-];
-
 export default function Dashboard() {
   const { data: dashboard, loading: dashLoading, error: dashError } = useApi(getDashboardData);
   const { data: wallet, loading: walletLoading } = useApi(getWalletInfo);
+  const [infoModal, setInfoModal] = useState(null);
+
+  const operazioniColumns = [
+    { key: 'tipo', label: 'Tipo', render: (v) => (
+      <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-white/5 ${TIPO_COLORS[v] || 'text-slate-400'}`}>
+        {TIPO_LABELS[v] || v}
+      </span>
+    )},
+    { key: 'label', label: 'Dettaglio', render: (v) => <span className="font-medium text-sm">{v}</span> },
+    { key: 'timestamp', label: 'Data', render: (v) => v ? new Date(v).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-' },
+    { key: 'entityId', label: '', render: (v, row) => (
+      row.entityType && row.entityId ? (
+        <button
+          onClick={() => setInfoModal({
+            entityType: row.entityType,
+            entityId: row.entityType === 'ASSISTITO' ? 'ASS#' + row.entityId : String(row.entityId),
+            entityData: row
+          })}
+          className="text-slate-500 hover:text-cyan-400 transition-colors"
+        >
+          <Info size={14} />
+        </button>
+      ) : null
+    )},
+  ];
 
   const loading = dashLoading || walletLoading;
 
@@ -167,6 +184,14 @@ export default function Dashboard() {
           </p>
         </motion.div>
       )}
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
     </div>
   );
 }
