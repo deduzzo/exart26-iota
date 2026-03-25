@@ -34,17 +34,22 @@ Il DB locale NON contiene dati business autoritativi. Puo essere cancellato e ri
 
 ### Codifica Dati On-Chain (u64 split-coin)
 
-I dati vengono archiviati interamente on-chain usando i **Programmable Transaction Blocks** di IOTA 2.0. Il payload JSON viene suddiviso in chunk da 7 byte, ciascuno codificato come amount `u64` di una operazione `splitCoins`:
+I dati vengono archiviati interamente on-chain usando i **Programmable Transaction Blocks** di IOTA 2.0. Il payload JSON viene **compresso con gzip**, suddiviso in chunk da 6 byte, ciascuno codificato come amount `u64` di una operazione `splitCoins`:
 
 ```
 Programmable Transaction Block:
-  splitCoins(gas, [amount0, amount1, ..., amountN])
+  splitCoins(gas, [amount0, amount1, ..., amountN])  // batch da max 500
   transferObjects([coin0, coin1, ..., coinN], selfAddress)
 
-  amount[0] = 1                              <- Marker "exart26"
-  amount[1] = payloadLength (in bytes)       <- Lunghezza totale del JSON
-  amount[2..N] = chunk (1 byte index + 7 bytes dati = u64)
+  amount[0] = 2                              <- Marker (1=legacy JSON, 2=gzip)
+  amount[1] = payloadLength (in bytes)       <- Lunghezza del buffer compresso
+  amount[2..N] = chunk (2 bytes index + 6 bytes dati = u64)
 ```
+
+Se il payload compresso supera il limite di una TX (~3KB), viene automaticamente diviso in piu TX collegate con **chain-linking**:
+- Ogni parte e un wrapper JSON: `{app, _chain: {tag, entityId, part, total, prev}, _data: base64(bytes)}`
+- Alla lettura, `_reassembleChainedTxs` ricostruisce il payload originale seguendo la catena `prev`
+- Le publicKey vengono rimosse dal payload prima della cifratura (~60% riduzione)
 
 Funzioni chiave in `iota.js`:
 - `_encodePayloadToChunks(payloadStr)` - JSON -> array di BigInt u64
@@ -267,6 +272,9 @@ npx eslint api/
 | POST | /api/v1/arweave/test-verify | Verifica transazione Arweave: `{ txId }` |
 | GET | /api/v1/arweave/consistency | Consistency check IOTA vs Arweave per entita |
 | GET | /api/v1/get-transaction | Recupera transazione specifica |
+| GET | /api/v1/export-data | Esporta snapshot JSON completo di tutti i dati (download) |
+| POST | /api/v1/verify-snapshot | Confronta snapshot JSON con stato attuale del DB (body: `{ snapshot }`) |
+| GET | /api/v1/pending-tx | Numero TX blockchain in coda (pending) |
 | GET | /swagger.json | Schema OpenAPI |
 | GET | /docs | Swagger UI |
 | GET | /csrfToken | Token CSRF |
@@ -279,7 +287,7 @@ npx eslint api/
 
 ## Note Sviluppo
 - **Dati interamente on-chain**: il DB locale e solo una cache. Source of truth = blockchain IOTA 2.0
-- **Controller non-bloccanti**: tutti i CRUD (inclusi add-assistito-in-lista e rimuovi-assistito-da-lista) rispondono immediatamente, blockchain publishing in background via `setImmediate()`
+- **Controller sincroni**: tutti i CRUD attendono la conferma blockchain prima di rispondere (zero TX perse). I controller `add-assistito-in-lista` e `rimuovi-assistito-da-lista` pubblicano in modo sincrono con retry automatico
 - **MAIN_DATA e un indice leggero**: contiene solo entityId per tipo (~50 byte per entita), non l'intero dataset
 - Nessuna autenticazione: tutte le rotte sono pubbliche
 - Ogni entita (Organizzazione, Struttura, Lista, Assistito) ha una coppia RSA generata alla creazione
@@ -317,3 +325,16 @@ npx eslint api/
 - **Arweave Produzione/Test**: toggle da UI nella pagina Wallet. Test usa ArLocal (nodo locale in-memory su porta 1984). Stato runtime in `.tmp/arweave-runtime-state.json`
 - **Pagina Debug sezione Arweave**: transazioni per DataType, consistency check IOTA vs Arweave, test interattivo (upload + verify)
 - **6 endpoint API Arweave**: status, switch-mode, transactions, test-upload, test-verify, consistency
+- **Compressione gzip**: tutti i payload on-chain vengono compressi con gzip (marker 2, backward-compatible con marker 1 legacy). Riduzione ~20% su dati cifrati
+- **Rimozione publicKey dai payload**: le chiavi RSA non vengono incluse nei dati on-chain (gia salvate come TX PRIVATE_KEY). Riduzione ~60% dimensione payload
+- **Chain-linking**: payload troppo grandi per una singola TX vengono automaticamente divisi in piu TX collegate con `prev`. Riassemblaggio trasparente alla lettura. Nessun limite pratico sulla dimensione dei dati
+- **Coda TX sequenziale**: `_enqueueTx()` in iota.js serializza tutte le pubblicazioni per evitare conflitti IOTA (no TX parallele dallo stesso wallet)
+- **Retry automatico**: `_publishDataWithRetry()` riprova fino a 3 volte per errori di equivocation/conflict
+- **Export/Verifica Snapshot**: `GET /api/v1/export-data` scarica JSON completo, `POST /api/v1/verify-snapshot` confronta record-per-record con stato attuale
+- **Dashboard export**: pulsante "Esporta Snapshot JSON" e sezione "Verifica Integrita Dati" con upload file e confronto visuale
+- **WebSocket real-time**: `sails.sockets.blast('dataChanged', {...})` in tutti i controller CRUD. Frontend auto-refresh via `useRealtimeRefresh` hook (debounce 300ms). Ogni pagina si aggiorna automaticamente quando un utente fa un'operazione
+- **Sync Logger**: file dettagliati in `logs/` con snapshot `process.memoryUsage()` nei punti chiave della sync (INIT, POST_INDEX, POST_BULK_CACHE, POST_ENTITIES, POST_MOVIMENTI, END). Delta e peak memory nel riepilogo
+- **Bulk cache sync**: `getAllTransactionsCached()` scarica tutte le TX dalla chain in un'unica passata, partiziona per tag, evita query multiple. `clearBulkCache()` libera memoria a fine sync
+- **`ListManager.getWalletIdOrganizzazione/Struttura/Lista`**: helper statici esportati per i controller, usano `db.js` invece di Waterline (che e vuoto)
+- **`stripKeysForBlockchain(obj)`**: rimuove publicKey/privateKey prima della cifratura on-chain
+- **Documentazione**: documento completo per NotebookLM (`docs/ExArt26_IOTA_Documentazione_Completa.md`) e presentazione HTML interattiva 17 slide (`docs/presentazione-exart26.html`)
