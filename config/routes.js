@@ -135,6 +135,8 @@ module.exports.routes = {
     });
   },
 
+  'GET    /api/v1/entity-transactions':   { action: 'api-entity-transactions' },
+
   // SPA catch-all: serve index.html per le rotte frontend React
   // Deve essere l'ultima rotta
   'GET /app/*': {
