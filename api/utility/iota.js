@@ -331,7 +331,11 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
     // Aspetta conferma
     await client.waitForTransaction({ digest: result.digest });
 
-    const explorerUrl = (config.IOTA_EXPLORER_URL || 'https://explorer.rebased.iota.org') + '/txblock/' + result.digest;
+    const network = config.IOTA_NETWORK || 'testnet';
+    const base = config.IOTA_EXPLORER_URL || 'https://explorer.rebased.iota.org';
+    const explorerUrl = network && network !== 'mainnet'
+      ? `${base}/${network}/txblock/${result.digest}`
+      : `${base}/txblock/${result.digest}`;
     sails.log.info(`[iota] publishData OK: digest=${result.digest}`);
     if (typeof sails !== 'undefined') {
       sails.helpers.consoleSocket(`TX: ${explorerUrl}`, _socketId);

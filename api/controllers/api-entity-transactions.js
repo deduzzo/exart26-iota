@@ -44,10 +44,16 @@ module.exports = {
 
     const transactions = [];
     let explorerBase = 'https://explorer.rebased.iota.org';
+    let network = 'testnet';
     try {
       const status = await iota.getStatusAndBalance();
       if (status.explorerUrl) explorerBase = status.explorerUrl;
+      if (status.network) network = status.network;
     } catch (e) { /* use default */ }
+    // Costruisci base URL con network path (testnet/mainnet)
+    const explorerTxBase = network && network !== 'mainnet'
+      ? `${explorerBase}/${network}/txblock`
+      : `${explorerBase}/txblock`;
 
     for (const { tag, eid } of tagsToSearch) {
       try {
@@ -59,7 +65,7 @@ module.exports = {
             version: tx.version || null,
             timestamp: tx.timestamp || null,
             timestampFormatted: tx.timestamp ? new Date(tx.timestamp).toLocaleString('it-IT') : null,
-            explorerUrl: `${explorerBase}/txblock/${tx.digest}`,
+            explorerUrl: `${explorerTxBase}/${tx.digest}`,
           });
         }
       } catch (e) { /* skip */ }
