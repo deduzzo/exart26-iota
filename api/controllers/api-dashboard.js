@@ -43,8 +43,69 @@ module.exports = {
       }
     }
 
-    // Ultime 10 operazioni (assistiti inseriti in lista) con dettagli
-    let ultimeOperazioni = db.AssistitiListe.findWithDetails({}, { sort: 'al.createdAt DESC', limit: 10 });
+    // Ultime operazioni: activity feed aggregato da tutte le tabelle
+    const ultimeOperazioni = [];
+
+    // Creazione organizzazioni
+    for (const o of db.Organizzazione.find({}, { sort: 'createdAt DESC', limit: 5 })) {
+      ultimeOperazioni.push({
+        tipo: 'ORGANIZZAZIONE_CREATA',
+        label: o.denominazione,
+        entityType: 'ORGANIZZAZIONE',
+        entityId: o.id,
+        timestamp: o.createdAt,
+      });
+    }
+
+    // Creazione strutture
+    for (const s of db.Struttura.find({}, { sort: 'createdAt DESC', limit: 5 })) {
+      ultimeOperazioni.push({
+        tipo: 'STRUTTURA_CREATA',
+        label: s.denominazione,
+        entityType: 'STRUTTURA',
+        entityId: s.id,
+        timestamp: s.createdAt,
+      });
+    }
+
+    // Creazione liste
+    for (const l of db.Lista.find({}, { sort: 'createdAt DESC', limit: 5 })) {
+      ultimeOperazioni.push({
+        tipo: 'LISTA_CREATA',
+        label: l.denominazione,
+        entityType: 'LISTA',
+        entityId: l.id,
+        timestamp: l.createdAt,
+      });
+    }
+
+    // Creazione assistiti
+    for (const a of db.Assistito.find({}, { sort: 'createdAt DESC', limit: 5 })) {
+      ultimeOperazioni.push({
+        tipo: 'ASSISTITO_CREATO',
+        label: `${a.cognome} ${a.nome}`,
+        entityType: 'ASSISTITO',
+        entityId: a.id,
+        timestamp: a.createdAt,
+      });
+    }
+
+    // Inserimenti in lista (stato 1 = in coda)
+    const ingressi = db.AssistitiListe.findWithDetails({}, { sort: 'al.createdAt DESC', limit: 10 });
+    for (const al of ingressi) {
+      ultimeOperazioni.push({
+        tipo: al.chiuso ? 'USCITA_DA_LISTA' : 'INGRESSO_IN_LISTA',
+        label: `${al.assNome ? al.assCognome + ' ' + al.assNome : 'Assistito #' + al.assistito} → ${al.listaDenominazione || 'Lista #' + al.lista}`,
+        entityType: 'ASSISTITO',
+        entityId: al.assistito,
+        stato: al.stato,
+        timestamp: al.chiuso ? (al.dataOraUscita || al.updatedAt) : (al.dataOraIngresso || al.createdAt),
+      });
+    }
+
+    // Ordina per timestamp DESC e prendi le ultime 15
+    ultimeOperazioni.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    ultimeOperazioni.splice(15);
 
     return {
       stats: {

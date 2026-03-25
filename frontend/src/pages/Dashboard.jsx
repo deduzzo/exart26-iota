@@ -16,17 +16,31 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+const TIPO_COLORS = {
+  ORGANIZZAZIONE_CREATA: 'text-purple-400',
+  STRUTTURA_CREATA: 'text-cyan-400',
+  LISTA_CREATA: 'text-emerald-400',
+  ASSISTITO_CREATO: 'text-amber-400',
+  INGRESSO_IN_LISTA: 'text-blue-400',
+  USCITA_DA_LISTA: 'text-red-400',
+};
+const TIPO_LABELS = {
+  ORGANIZZAZIONE_CREATA: 'Nuova Org',
+  STRUTTURA_CREATA: 'Nuova Struttura',
+  LISTA_CREATA: 'Nuova Lista',
+  ASSISTITO_CREATO: 'Nuovo Assistito',
+  INGRESSO_IN_LISTA: 'Ingresso Lista',
+  USCITA_DA_LISTA: 'Uscita Lista',
+};
+
 const operazioniColumns = [
-  { key: 'assistito', label: 'Assistito', render: (v) => {
-    if (v && typeof v === 'object') return <span className="font-medium">{v.cognome} {v.nome}</span>;
-    return <span className="text-slate-500">ID: {v || '-'}</span>;
-  }},
-  { key: 'lista', label: 'Lista', render: (v) => {
-    if (v && typeof v === 'object') return v.denominazione;
-    return <span className="text-slate-500">-</span>;
-  }},
-  { key: 'stato', label: 'Stato', render: (v) => <StatusBadge status={v} /> },
-  { key: 'dataOraIngresso', label: 'Data', render: (v) => v ? new Date(v).toLocaleDateString('it-IT') : '-' },
+  { key: 'tipo', label: 'Tipo', render: (v) => (
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-white/5 ${TIPO_COLORS[v] || 'text-slate-400'}`}>
+      {TIPO_LABELS[v] || v}
+    </span>
+  )},
+  { key: 'label', label: 'Dettaglio', render: (v) => <span className="font-medium text-sm">{v}</span> },
+  { key: 'timestamp', label: 'Data', render: (v) => v ? new Date(v).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-' },
 ];
 
 export default function Dashboard() {
