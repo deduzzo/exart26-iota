@@ -95,8 +95,8 @@ module.exports = {
       });
     }
 
-    // Inserimenti in lista (stato 1 = in coda)
-    const ingressi = db.AssistitiListe.findWithDetails({}, { sort: 'al.createdAt DESC', limit: 10 });
+    // Inserimenti/uscite lista — usa timestamp business (dataOraIngresso/Uscita), non createdAt
+    const ingressi = db.AssistitiListe.findWithDetails({}, { sort: 'al.dataOraIngresso DESC', limit: 10 });
     for (const al of ingressi) {
       ultimeOperazioni.push({
         tipo: al.chiuso ? 'USCITA_DA_LISTA' : 'INGRESSO_IN_LISTA',
