@@ -180,6 +180,20 @@ class ListManager {
             sails.log.info(`[ListManager] Sync ${processed}/${total}: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass...`);
           }
 
+          // Skip se l'entità esiste già nel DB con la stessa versione (sync incrementale)
+          if (entity.type === 'ORG') {
+            const existing = db.Organizzazione.findOne({ id: parseInt(entity.entityId) || entity.entityId });
+            if (existing && existing.ultimaVersioneSuBlockchain > 0) { imported.organizzazioni++; continue; }
+          } else if (entity.type === 'STR') {
+            const strId = entity.entityId.includes('_') ? parseInt(entity.entityId.split('_')[1]) : entity.entityId;
+            const existing = db.Struttura.findOne({ id: strId });
+            if (existing && existing.ultimaVersioneSuBlockchain > 0) { imported.strutture++; continue; }
+          } else if (entity.type === 'ASS') {
+            const assId = parseInt((entity.entityId || '').replace('ASS#', ''));
+            const existing = db.Assistito.findOne({ id: assId });
+            if (existing && existing.ultimaVersioneSuBlockchain > 0) { imported.assistiti++; continue; }
+          }
+
           const record = await iota.getLastDataByTag(tag, entity.entityId);
           if (!record || !record.payload) {
             sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: nessun record sulla blockchain`);
