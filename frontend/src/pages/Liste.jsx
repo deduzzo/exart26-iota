@@ -215,6 +215,11 @@ export default function Liste() {
                       <Tag size={9} />{lista.tag}
                     </span>
                   )}
+                  {lista.createdAt && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      Creata: {new Date(lista.createdAt).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                    </p>
+                  )}
                 </div>
                 <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
                   lista.aperta !== false ? 'bg-neon-emerald/10 text-neon-emerald' : 'bg-red-500/10 text-red-400'
@@ -354,7 +359,7 @@ export default function Liste() {
                               </button>
                             </div>
                             <p className="text-xs text-slate-500">
-                              CF: {item.assistito?.codiceFiscale} | Ingresso: {new Date(item.dataOraIngresso).toLocaleDateString('it-IT')}
+                              CF: {item.assistito?.codiceFiscale} | Ingresso: {item.dataOraIngresso ? new Date(item.dataOraIngresso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
                             </p>
                           </div>
                         </div>
@@ -403,8 +408,8 @@ export default function Liste() {
                               </button>
                             </div>
                             <p className="text-xs text-slate-500">
-                              {new Date(item.dataOraIngresso).toLocaleDateString('it-IT')}
-                              {item.dataOraUscita && ` → ${new Date(item.dataOraUscita).toLocaleDateString('it-IT')}`}
+                              In: {item.dataOraIngresso ? new Date(item.dataOraIngresso).toLocaleDateString('it-IT') : '-'}
+                              {item.dataOraUscita && ` → Out: ${new Date(item.dataOraUscita).toLocaleDateString('it-IT')}`}
                             </p>
                           </div>
                         </div>
