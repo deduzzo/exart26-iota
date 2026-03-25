@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
   Network, ZoomIn, ZoomOut, Maximize, Copy, Check,
-  Building2, Hospital, List, Users, AlertCircle, Loader2
+  Building2, Hospital, List, Users, AlertCircle, Loader2, Info
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { getGraphData } from '../api/endpoints';
 import { truncateKey, formatDateTime } from '../utils/formatters';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 
 const NODE_TYPES = {
   organizzazione: {
@@ -233,7 +234,7 @@ function CopyButton({ text }) {
   );
 }
 
-function HoverPanel({ node, position }) {
+function HoverPanel({ node, position, onInfoClick }) {
   if (!node) return null;
 
   const typeInfo = NODE_TYPES[node.type];
@@ -270,13 +271,25 @@ function HoverPanel({ node, position }) {
             >
               <Icon size={16} style={{ color: typeInfo.color }} />
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-wider" style={{ color: typeInfo.color }}>
-                {typeInfo.label}
-              </p>
-              <p className="text-white font-semibold truncate max-w-[240px]">
-                {node.label}
-              </p>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs uppercase tracking-wider" style={{ color: typeInfo.color }}>
+                  {typeInfo.label}
+                </p>
+                <p className="text-white font-semibold truncate max-w-[240px]">
+                  {node.label}
+                </p>
+              </div>
+              {node.type !== 'trattati' && (
+                <span className="pointer-events-auto flex-shrink-0">
+                  <button
+                    onClick={() => onInfoClick && onInfoClick(node)}
+                    className="text-slate-400 hover:text-cyan-400 transition-colors"
+                  >
+                    <Info size={14} />
+                  </button>
+                </span>
+              )}
             </div>
           </div>
 
@@ -519,6 +532,7 @@ export default function Grafo() {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [infoModal, setInfoModal] = useState(null);
 
   const graphData = useMemo(() => buildGraphData(data), [data]);
 
@@ -720,7 +734,28 @@ export default function Grafo() {
         enablePanInteraction={true}
       />
 
-      <HoverPanel node={hoveredNode} position={mousePos} />
+      <HoverPanel
+        node={hoveredNode}
+        position={mousePos}
+        onInfoClick={(node) => {
+          const mapping = {
+            organizzazione: { entityType: 'ORGANIZZAZIONE', entityId: String(node.data?.id || node.id) },
+            struttura: { entityType: 'STRUTTURA', entityId: (node.data?.organizzazione || '') + '_' + (node.data?.id || node.id) },
+            lista: { entityType: 'STRUTTURA', entityId: (node.data?.organizzazione || '') + '_' + (node.data?.struttura || '') },
+            assistito: { entityType: 'ASSISTITO', entityId: 'ASS#' + (node.data?.id || node.id) },
+          };
+          const m = mapping[node.type];
+          if (m) setInfoModal({ ...m, entityData: node.data || {} });
+        }}
+      />
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
     </motion.div>
   );
 }
