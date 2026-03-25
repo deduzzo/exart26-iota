@@ -1,53 +1,65 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Building2, Plus, Search, Key } from 'lucide-react';
+import { Building2, Plus, Search, Key, Info } from 'lucide-react';
 import DataTable from '../components/DataTable';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useApi } from '../hooks/useApi';
 import { getOrganizzazioni, addOrganizzazione } from '../api/endpoints';
 import { truncateKey } from '../utils/formatters';
 
-const columns = [
-  {
-    key: 'id',
-    label: 'ID',
-    render: (v) => <span className="text-slate-500 font-mono text-xs">#{v}</span>,
-  },
-  {
-    key: 'denominazione',
-    label: 'Denominazione',
-    render: (v) => <span className="font-medium text-slate-100">{v}</span>,
-  },
-  {
-    key: 'strutture',
-    label: 'Strutture',
-    render: (v) => {
-      const count = Array.isArray(v) ? v.length : (v || 0);
-      return (
-        <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-medium bg-neon-cyan/10 text-neon-cyan">
-          {count}
-        </span>
-      );
-    },
-  },
-  {
-    key: 'publicKey',
-    label: 'Chiave Pubblica',
-    render: (v) => (
-      <span className="font-mono text-xs text-slate-500 flex items-center gap-1" title={v}>
-        <Key size={12} />
-        {truncateKey(v, 20)}
-      </span>
-    ),
-  },
-];
-
 export default function Organizzazioni() {
   const { addToast } = useOutletContext();
   const { data, loading, error, reload } = useApi(getOrganizzazioni);
   const [modalOpen, setModalOpen] = useState(false);
+  const [infoModal, setInfoModal] = useState(null);
+
+  const columns = [
+    {
+      key: 'id',
+      label: 'ID',
+      render: (v) => <span className="text-slate-500 font-mono text-xs">#{v}</span>,
+    },
+    {
+      key: 'denominazione',
+      label: 'Denominazione',
+      render: (v, row) => (
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-slate-100">{v}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setInfoModal({ entityType: 'ORGANIZZAZIONE', entityId: String(row.id), entityData: row }); }}
+            className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+          >
+            <Info size={14} />
+          </button>
+        </div>
+      ),
+    },
+    {
+      key: 'strutture',
+      label: 'Strutture',
+      render: (v) => {
+        const count = Array.isArray(v) ? v.length : (v || 0);
+        return (
+          <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-medium bg-neon-cyan/10 text-neon-cyan">
+            {count}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'publicKey',
+      label: 'Chiave Pubblica',
+      render: (v) => (
+        <span className="font-mono text-xs text-slate-500 flex items-center gap-1" title={v}>
+          <Key size={12} />
+          {truncateKey(v, 20)}
+        </span>
+      ),
+    },
+  ];
   const [denominazione, setDenominazione] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -176,6 +188,14 @@ export default function Organizzazioni() {
           </div>
         </form>
       </Modal>
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
     </div>
   );
 }

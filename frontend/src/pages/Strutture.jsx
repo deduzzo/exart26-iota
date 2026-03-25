@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Hospital, Plus, Search, MapPin, CheckCircle, XCircle, ListFilter } from 'lucide-react';
+import { Hospital, Plus, Search, MapPin, CheckCircle, XCircle, ListFilter, Info } from 'lucide-react';
 import DataTable from '../components/DataTable';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useApi } from '../hooks/useApi';
@@ -22,6 +23,7 @@ export default function Strutture() {
   const [selectedStruttura, setSelectedStruttura] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [infoModal, setInfoModal] = useState(null);
 
   // Form state for new struttura
   const [form, setForm] = useState({
@@ -52,7 +54,17 @@ export default function Strutture() {
     {
       key: 'denominazione',
       label: 'Denominazione',
-      render: (v) => <span className="font-medium text-slate-100">{v}</span>,
+      render: (v, row) => (
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-slate-100">{v}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setInfoModal({ entityType: 'STRUTTURA', entityId: (typeof row.organizzazione === 'object' ? row.organizzazione.id : row.organizzazione) + '_' + row.id, entityData: row }); }}
+            className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+          >
+            <Info size={14} />
+          </button>
+        </div>
+      ),
     },
     {
       key: 'indirizzo',
@@ -325,6 +337,14 @@ export default function Strutture() {
           </div>
         </form>
       </Modal>
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
 
       {/* Add Lista Modal */}
       <Modal open={listaModalOpen} onClose={() => { setListaModalOpen(false); setSelectedStruttura(null); }} title={`Nuova Lista - ${selectedStruttura?.denominazione || ''}`}>

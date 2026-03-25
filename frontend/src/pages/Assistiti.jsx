@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
-import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus, FileText, Printer } from 'lucide-react';
+import { Users, Plus, Search, Mail, Phone, MapPin, Calendar, CreditCard, UserPlus, ListPlus, FileText, Printer, Info } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import VoucherPrint from '../components/VoucherPrint';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -22,6 +23,7 @@ export default function Assistiti() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [voucherAssistito, setVoucherAssistito] = useState(null);
+  const [infoModal, setInfoModal] = useState(null);
 
   // Strutture data for "add to list" modal
   const { data: struttureData } = useApi(getStrutture);
@@ -71,7 +73,15 @@ export default function Assistiti() {
       label: 'Assistito',
       render: (v, row) => (
         <div>
-          <span className="font-medium text-slate-100">{v} {row.nome}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-slate-100">{v} {row.nome}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setInfoModal({ entityType: 'ASSISTITO', entityId: 'ASS#' + row.id, entityData: row }); }}
+              className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+            >
+              <Info size={14} />
+            </button>
+          </div>
           <div className="text-xs text-slate-500 font-mono mt-0.5">{row.codiceFiscale}</div>
         </div>
       ),
@@ -511,6 +521,14 @@ export default function Assistiti() {
           </div>
         )}
       </Modal>
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
 
       {/* Voucher nascosto per stampa */}
       {voucherAssistito && (
