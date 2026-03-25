@@ -134,3 +134,4 @@ lib-cov
 
 /wallet-db
 /config/private_*
+/logs

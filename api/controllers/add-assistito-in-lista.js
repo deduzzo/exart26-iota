@@ -66,26 +66,43 @@ module.exports = {
       return exits.invalid({error: 'Errore durante l\'inserimento.'});
     }
 
-    // Blockchain publish in background (non-bloccante)
-    const idAssistito = inputs.idAssistito;
-    const idLista = inputs.idLista;
-    setImmediate(async () => {
-      try {
-        const manager = new ListManager();
-        sails.log.info(`[add-assistito-in-lista] Blockchain: pubblicazione...`);
-        const result = await manager.aggiungiAssistitoInListaToBlockchain(idAssistito, idLista);
-        if (result) {
-          const {res1, res2, res3} = result;
-          sails.log.info(`[add-assistito-in-lista] Blockchain: LISTE_IN_CODA=${res1?.success} MOVIMENTI=${res2?.success} ASSISTITI_IN_LISTA=${res3?.success}`);
+    // Blockchain publish SINCRONO con retry — garantisce che la TX venga registrata
+    const manager = new ListManager();
+    let blockchainResult = null;
+    try {
+      sails.log.info(`[add-assistito-in-lista] Blockchain: pubblicazione ASS#${inputs.idAssistito} -> Lista#${inputs.idLista} (record #${assistitoLista.id})...`);
+      blockchainResult = await manager.aggiungiAssistitoInListaToBlockchain(inputs.idAssistito, inputs.idLista);
+      if (blockchainResult) {
+        const {res1, res2, res3} = blockchainResult;
+        sails.log.info(`[add-assistito-in-lista] Blockchain: LIC=${res1?.success} MOV=${res2?.success} AIL=${res3?.success}`);
+
+        // Se qualche TX fallisce, logga errore ma non annullare il record locale
+        if (!res1?.success || !res2?.success) {
+          sails.log.warn(`[add-assistito-in-lista] ATTENZIONE: TX parzialmente fallita LIC=${res1?.success} MOV=${res2?.success} AIL=${res3?.success}`);
         }
-      } catch (err) {
-        sails.log.warn('[add-assistito-in-lista] Blockchain error:', err.message || err);
+      } else {
+        sails.log.warn(`[add-assistito-in-lista] Blockchain: nessuna TX pubblicata`);
       }
+    } catch (err) {
+      sails.log.warn('[add-assistito-in-lista] Blockchain error:', err.message || err);
+    }
+
+    const assistitoRec = db.Assistito.findOne({id: inputs.idAssistito});
+    const listaRec = db.Lista.findOne({id: inputs.idLista});
+    await sails.helpers.broadcastEvent('dataChanged', {
+      action: 'INGRESSO_IN_LISTA',
+      entity: 'assistitoLista',
+      id: assistitoLista.id,
+      label: `${assistitoRec?.cognome || ''} ${assistitoRec?.nome || ''} → ${listaRec?.denominazione || ''}`,
     });
 
     return exits.success({
       assistitoLista,
-      blockchainStatus: 'publishing',
+      blockchain: blockchainResult ? {
+        listeInCoda: blockchainResult.res1?.success || false,
+        movimenti: blockchainResult.res2?.success || false,
+        assistitiInLista: blockchainResult.res3?.success || false,
+      } : null,
       error: null
     });
   }

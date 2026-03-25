@@ -45,7 +45,6 @@ module.exports = {
       return exits.invalid({error: 'L\'assistito non e in coda.'});
     }
 
-    // Fetch related assistito and lista for logging and blockchain
     const recordAssistito = db.Assistito.findOne({id: record.assistito});
     const recordLista = db.Lista.findOne({id: record.lista});
 
@@ -53,10 +52,11 @@ module.exports = {
     sails.log.info(`[rimuovi] ${assistitoNome} rimosso da lista #${record.lista} con stato ${inputs.stato}`);
 
     // 1. Aggiorna il record principale
+    const dataOraUscita = Date.now();
     const updated = db.AssistitiListe.updateOne({id: inputs.idAssistitoListe}).set({
       stato: inputs.stato,
       chiuso: true,
-      dataOraUscita: Date.now(),
+      dataOraUscita,
     });
 
     // 2. Gestisci le altre liste
@@ -65,13 +65,13 @@ module.exports = {
 
     for (const azione of azioniAltreListe) {
       if (azione.azione === 'rimuovi' && azione.idAssistitoListe) {
-        const statoRimozione = azione.statoRimozione || 4; // default: cambio lista
+        const statoRimozione = azione.statoRimozione || 4;
         const altroRecord = db.AssistitiListe.findOne({id: azione.idAssistitoListe});
         if (altroRecord && altroRecord.stato === 1) {
           db.AssistitiListe.updateOne({id: azione.idAssistitoListe}).set({
             stato: statoRimozione,
             chiuso: true,
-            dataOraUscita: Date.now(),
+            dataOraUscita,
           });
           sails.log.info(`[rimuovi] ${assistitoNome} rimosso anche da lista #${altroRecord.lista} con stato ${statoRimozione}`);
           risultatiAltreListe.push({ id: azione.idAssistitoListe, azione: 'rimosso', stato: statoRimozione });
@@ -81,37 +81,46 @@ module.exports = {
       }
     }
 
-    // 3. Blockchain publish in background
-    setImmediate(async () => {
-      try {
-        const iota = require('../utility/iota');
-        const {MOVIMENTI_ASSISTITI_LISTA} = require('../enums/TransactionDataType');
-        const lista = db.Lista.findOne({id: record.lista});
-        const struttura = lista ? db.Struttura.findOne({id: lista.struttura}) : null;
-        if (lista && struttura) {
-          const movimentoData = {
-            idAssistitoListe: record.id,
-            assistito: record.assistito,
-            lista: lista.id,
-            statoOld: 1,
-            statoNew: inputs.stato,
-            dataOraUscita: Date.now(),
-            azioniAltreListe: risultatiAltreListe,
-          };
-          const entityId = await Lista.getWalletIdLista({id: lista.id});
-          const encrypted = await CryptHelper.encryptAndSend(JSON.stringify(movimentoData), null, struttura.publicKey);
-          const res = await iota.publishData(MOVIMENTI_ASSISTITI_LISTA, encrypted.data, entityId);
-          sails.log.info(`[rimuovi] Blockchain: MOVIMENTI ${res.success ? 'OK' : 'FAILED'}`);
-        }
-      } catch (err) {
-        sails.log.warn('[rimuovi] Blockchain error:', err.message || err);
+    // 3. Blockchain publish SINCRONO — garantisce registrazione
+    let blockchainOk = false;
+    try {
+      const iota = require('../utility/iota');
+      const {MOVIMENTI_ASSISTITI_LISTA} = require('../enums/TransactionDataType');
+      const lista = db.Lista.findOne({id: record.lista});
+      const struttura = lista ? db.Struttura.findOne({id: lista.struttura}) : null;
+      if (lista && struttura) {
+        const movimentoData = {
+          idAssistitoListe: record.id,
+          assistito: record.assistito,
+          lista: lista.id,
+          statoOld: 1,
+          statoNew: inputs.stato,
+          dataOraUscita,
+          azioniAltreListe: risultatiAltreListe,
+        };
+        const entityId = `${struttura.organizzazione || 0}_${struttura.id}_${lista.id}`;
+        sails.log.info(`[rimuovi] Blockchain: entityId=${entityId}`);
+        const encrypted = await CryptHelper.encryptAndSend(JSON.stringify(movimentoData), null, struttura.publicKey);
+        const res = await iota.publishData(MOVIMENTI_ASSISTITI_LISTA, encrypted.data, entityId);
+        blockchainOk = res.success;
+        sails.log.info(`[rimuovi] Blockchain: MOVIMENTI ${res.success ? 'OK' : 'FAILED'}${res.error ? ' err:'+res.error : ''}`);
       }
+    } catch (err) {
+      sails.log.warn('[rimuovi] Blockchain error:', err.message || err);
+    }
+
+    const statiNomi = {2:'in assistenza',3:'completato',4:'cambio lista',5:'rinuncia',6:'annullato'};
+    await sails.helpers.broadcastEvent('dataChanged', {
+      action: 'USCITA_DA_LISTA',
+      entity: 'assistitoLista',
+      id: record.id,
+      label: `${assistitoNome} → ${recordLista?.denominazione || ''} (${statiNomi[inputs.stato] || inputs.stato})`,
     });
 
     return exits.success({
       record: updated,
       altreListe: risultatiAltreListe,
-      blockchainStatus: 'publishing',
+      blockchain: { movimenti: blockchainOk },
       error: null,
     });
   }

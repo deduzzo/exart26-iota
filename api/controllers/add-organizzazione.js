@@ -42,7 +42,7 @@ module.exports = {
       // Le 3 pubblicazioni vanno in parallelo per velocizzare
       const manager = new ListManager();
       const orgId = nuovaOrganizzazione.id;
-      const walletId = await Organizzazione.getWalletIdOrganizzazione({id: orgId});
+      const walletId = ListManager.getWalletIdOrganizzazione(orgId);
 
       sails.log.info(`[add-organizzazione] Pubblicazione blockchain per org #${orgId}...`);
 
@@ -55,6 +55,13 @@ module.exports = {
 
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-organizzazione] Blockchain: MAIN_DATA=${res3.success}`);
+
+      await sails.helpers.broadcastEvent('dataChanged', {
+        action: 'ORGANIZZAZIONE_CREATA',
+        entity: 'organizzazione',
+        id: orgId,
+        label: nuovaOrganizzazione.denominazione,
+      });
 
       return exits.success({
         organizzazione: {...nuovaOrganizzazione, privateKey: undefined},

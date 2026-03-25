@@ -24,6 +24,7 @@ module.exports = {
         });
         if (result.success) {
           sails.log.info('[sync-reset] Risync completata');
+          await sails.helpers.broadcastEvent('dataChanged', { action: 'SYNC_COMPLETATA', entity: 'system' });
         }
       } catch (err) {
         sails.log.warn('[sync-reset] Risync fallita:', err.message);

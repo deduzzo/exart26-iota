@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const iota = require('./iota');
 const CryptHelper = require('./CryptHelper');
 const ArweaveHelper = require('./ArweaveHelper');
@@ -15,6 +17,83 @@ const {
 } = require('../enums/TransactionDataType');
 const {INSERITO_IN_CODA} = require('../enums/StatoLista');
 
+// --- Sync Logger: scrive log dettagliati su file per debug ---
+const LOGS_DIR = path.resolve(__dirname, '../../logs');
+class SyncLogger {
+  constructor() {
+    this._stream = null;
+    this._startTime = null;
+    this._memSnapshots = [];
+  }
+
+  start() {
+    try {
+      if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const filePath = path.join(LOGS_DIR, `sync-${ts}.log`);
+      this._stream = fs.createWriteStream(filePath, { flags: 'a' });
+      this._stream.on('error', (err) => {
+        console.warn('[SyncLogger] Errore scrittura log:', err.message);
+        this._stream = null;
+      });
+      this._startTime = Date.now();
+      this._memSnapshots = [];
+      this.log('=== SYNC STARTED ===');
+      this.logMemory('INIT');
+      return filePath;
+    } catch (e) {
+      console.warn('[SyncLogger] Impossibile creare file di log:', e.message);
+      return null;
+    }
+  }
+
+  log(msg) {
+    if (!this._stream) return;
+    const elapsed = this._startTime ? ((Date.now() - this._startTime) / 1000).toFixed(1) : '0.0';
+    const line = `[+${elapsed}s] ${msg}\n`;
+    this._stream.write(line);
+  }
+
+  logMemory(label) {
+    if (!this._stream) return;
+    const mem = process.memoryUsage();
+    const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
+    const snapshot = {
+      label,
+      elapsed: this._startTime ? ((Date.now() - this._startTime) / 1000).toFixed(1) : '0.0',
+      heapUsed: mb(mem.heapUsed),
+      heapTotal: mb(mem.heapTotal),
+      rss: mb(mem.rss),
+      external: mb(mem.external),
+      arrayBuffers: mb(mem.arrayBuffers || 0),
+    };
+    this._memSnapshots.push(snapshot);
+    this.log(`[MEMORY:${label}] heap=${snapshot.heapUsed}/${snapshot.heapTotal}MB rss=${snapshot.rss}MB ext=${snapshot.external}MB buffers=${snapshot.arrayBuffers}MB`);
+  }
+
+  end(success) {
+    if (!this._stream) return;
+    this.logMemory('END');
+    const elapsed = this._startTime ? ((Date.now() - this._startTime) / 1000).toFixed(1) : '0.0';
+    this.log(`=== SYNC ${success ? 'COMPLETED' : 'FAILED'} in ${elapsed}s ===`);
+
+    // Scrivi riepilogo memoria
+    if (this._memSnapshots.length > 1) {
+      const first = this._memSnapshots[0];
+      const last = this._memSnapshots[this._memSnapshots.length - 1];
+      this.log(`[MEMORY DELTA] heap: ${first.heapUsed}MB -> ${last.heapUsed}MB (${(parseFloat(last.heapUsed) - parseFloat(first.heapUsed)).toFixed(1)}MB) rss: ${first.rss}MB -> ${last.rss}MB`);
+
+      // Peak memory
+      const peakHeap = Math.max(...this._memSnapshots.map(s => parseFloat(s.heapUsed)));
+      const peakRss = Math.max(...this._memSnapshots.map(s => parseFloat(s.rss)));
+      this.log(`[MEMORY PEAK] heap=${peakHeap.toFixed(1)}MB rss=${peakRss.toFixed(1)}MB`);
+    }
+
+    this._stream.end();
+    this._stream = null;
+  }
+}
+
 // --- Inlined static model helpers (decoupled from Waterline) ---
 
 function getWalletIdOrganizzazione(id) {
@@ -24,7 +103,8 @@ function getWalletIdOrganizzazione(id) {
 function getWalletIdStruttura(id) {
   const struttura = db.Struttura.findOne({ id });
   if (struttura) {
-    return struttura.organizzazione + '_' + struttura.id;
+    const orgId = struttura.organizzazione || 0;
+    return orgId + '_' + struttura.id;
   }
   return null;
 }
@@ -34,10 +114,31 @@ function getWalletIdLista(id) {
   if (lista) {
     const struttura = db.Struttura.findOne({ id: lista.struttura });
     if (struttura) {
-      return struttura.organizzazione + '_' + struttura.id + '_' + lista.id;
+      const orgId = struttura.organizzazione || 0;
+      const walletId = orgId + '_' + struttura.id + '_' + lista.id;
+      if (!struttura.organizzazione) {
+        sails.log.warn(`[getWalletIdLista] Struttura #${struttura.id} ha organizzazione=null, walletId=${walletId}`);
+      }
+      return walletId;
     }
   }
   return null;
+}
+
+// Rimuove publicKey e privateKey dal payload prima della cifratura on-chain.
+// Le chiavi sono gia salvate come TX PRIVATE_KEY dedicate.
+// Riduce il payload di ~900 byte per entita.
+function stripKeysForBlockchain(obj) {
+  if (Array.isArray(obj)) return obj.map(stripKeysForBlockchain);
+  if (!obj || typeof obj !== 'object') return obj;
+  const copy = { ...obj };
+  delete copy.publicKey;
+  delete copy.privateKey;
+  // Ricorsivo per strutture annidate (es. liste dentro struttura)
+  if (copy.liste && Array.isArray(copy.liste)) {
+    copy.liste = copy.liste.map(stripKeysForBlockchain);
+  }
+  return copy;
 }
 
 function generateAnonId(codiceFiscale) {
@@ -100,7 +201,10 @@ class ListManager {
    * Se l'indice non esiste, fa discovery scansionando tutte le tx per tag.
    */
   async updateDBfromBlockchain(onProgress = null) {
-    sails.log.info('[ListManager] Inizio sync da blockchain...');
+    const syncLog = new SyncLogger();
+    const logFile = syncLog.start();
+    sails.log.info(`[ListManager] Inizio sync da blockchain... (log: ${logFile || 'N/A'})`);
+
     let imported = { organizzazioni: 0, strutture: 0, liste: 0, assistiti: 0, assistitiListe: 0 };
     const reportProgress = (status, total, processed) => {
       imported.assistitiListe = db.AssistitiListe.count();
@@ -163,18 +267,27 @@ class ListManager {
         }
       }
 
-      // Pre-scarica TX movimenti lista per il progresso globale (riusate dopo)
-      let _cachedMovTx = [];
-      let _cachedListeInCodaTx = [];
+      syncLog.log(`Indice: ${uniqueEntities.length} entita uniche`);
+      syncLog.logMemory('POST_INDEX');
+
+      // Pre-carica TUTTE le TX dalla chain in un'unica passata (bulk cache)
+      // Evita di ri-scaricare e ri-decodificare tutte le TX per ogni tag
       let movTxCount = 0;
       try {
-        const tx1 = await iota.getAllDataByTag(ASSISTITI_IN_LISTA);
-        const tx2 = await iota.getAllDataByTag(MOVIMENTI_ASSISTITI_LISTA);
-        _cachedMovTx = [...tx1, ...tx2];
-        _cachedListeInCodaTx = await iota.getAllDataByTag(LISTE_IN_CODA);
-        movTxCount = _cachedMovTx.length + _cachedListeInCodaTx.length;
-        sails.log.info(`[ListManager] TX movimenti totali: ${movTxCount} (${tx1.length} AIL + ${tx2.length} MOV + ${_cachedListeInCodaTx.length} LIC)`);
-      } catch (e) { /* ignore */ }
+        const bulkData = await iota.getAllTransactionsCached();
+        // Log tutti i tag presenti nella bulk cache
+        const tagSummary = Object.entries(bulkData).map(([t, arr]) => `${t}:${arr.length}`).join(', ');
+        syncLog.log(`BULK CACHE TAGS: [${tagSummary}]`);
+        syncLog.logMemory('POST_BULK_CACHE');
+        const tx1 = await iota.getByTagFromCache(ASSISTITI_IN_LISTA);
+        const tx2 = await iota.getByTagFromCache(MOVIMENTI_ASSISTITI_LISTA);
+        const lic = await iota.getByTagFromCache(LISTE_IN_CODA);
+        movTxCount = tx1.length + tx2.length + lic.length;
+        syncLog.log(`TX movimenti: ${tx1.length} AIL + ${tx2.length} MOV + ${lic.length} LIC = ${movTxCount}`);
+        sails.log.info(`[ListManager] TX movimenti totali: ${movTxCount} (${tx1.length} AIL + ${tx2.length} MOV + ${lic.length} LIC)`);
+      } catch (e) {
+        syncLog.log(`ERRORE pre-caricamento TX: ${e.message}`);
+      }
 
       // Totale globale: entità + movimenti lista
       const total = uniqueEntities.length + movTxCount;
@@ -193,8 +306,10 @@ class ListManager {
           if (processed % 10 === 0 || processed === 1 || processed === total) {
             sails.log.info(`[ListManager] Sync ${processed}/${total}: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass...`);
           }
+          if (processed % 20 === 0) syncLog.logMemory(`ENTITY_${processed}`);
 
           // Skip se l'entità esiste già nel DB con la stessa versione (sync incrementale)
+          // NOTA: per le strutture, verifichiamo anche che le liste associate esistano
           let skipped = false;
           if (entity.type === 'ORG') {
             const existing = db.Organizzazione.findOne({ id: parseInt(entity.entityId) || entity.entityId });
@@ -202,7 +317,16 @@ class ListManager {
           } else if (entity.type === 'STR') {
             const strId = entity.entityId.includes('_') ? parseInt(entity.entityId.split('_')[1]) : entity.entityId;
             const existing = db.Struttura.findOne({ id: strId });
-            if (existing && existing.ultimaVersioneSuBlockchain > 0) { imported.strutture++; skipped = true; }
+            // Skip struttura solo se anche le sue liste esistono nel DB
+            if (existing && existing.ultimaVersioneSuBlockchain > 0) {
+              const listeCount = db.Lista.count({ struttura: strId });
+              if (listeCount > 0) {
+                imported.strutture++;
+                skipped = true;
+              } else {
+                syncLog.log(`STR ${strId}: struttura esiste ma 0 liste nel DB, re-import`);
+              }
+            }
           } else if (entity.type === 'ASS') {
             const assId = parseInt((entity.entityId || '').replace('ASS#', ''));
             const existing = db.Assistito.findOne({ id: assId });
@@ -215,8 +339,11 @@ class ListManager {
           }
           if (skipped) continue;
 
-          const record = await iota.getLastDataByTag(tag, entity.entityId);
+          // Usa la bulk cache se disponibile, altrimenti query diretta
+          const tagResults = await iota.getByTagFromCache(tag, entity.entityId);
+          const record = tagResults.length > 0 ? tagResults[0] : null;
           if (!record || !record.payload) {
+            syncLog.log(`WARN: ${entity.type}:${entity.entityId} nessun record sulla blockchain`);
             sails.log.warn(`[ListManager] ${entity.type}:${entity.entityId}: nessun record sulla blockchain`);
             continue;
           }
@@ -268,61 +395,160 @@ class ListManager {
         }
       }
 
-      // Importa movimenti lista usando TX già scaricate (cached)
-      if (_cachedMovTx.length > 0 || _cachedListeInCodaTx.length > 0) {
-        sails.log.info(`[ListManager] Importazione ${_cachedMovTx.length + _cachedListeInCodaTx.length} TX movimenti lista...`);
-        const pkCache = new Map();
-        try {
-          // Processa MOVIMENTI
-          for (const tx of _cachedMovTx) {
-            processed++;
-            reportProgress(`Movimenti lista ${processed}/${total}...`, total, processed);
-            try {
-              if (!tx.payload) continue;
-              const parts = (tx.entityId || '').split('_');
-              const strEntityId = parts.length >= 2 ? parts[0] + '_' + parts[1] : null;
-              if (!strEntityId) continue;
-              if (!pkCache.has(strEntityId)) {
-                pkCache.set(strEntityId, await this.getLastPrivateKeyOfEntityId(strEntityId));
-              }
-              const pkData = pkCache.get(strEntityId);
-              if (!pkData?.clearData?.privateKey) continue;
-              const clearData = await CryptHelper.receiveAndDecrypt(tx.payload, pkData.clearData.privateKey);
-              const parsed = JSON.parse(clearData);
-              if (Array.isArray(parsed)) this.updateDBFromJsonListeAssistiti(parsed);
-              else if (parsed?.id) this.updateDBFromJsonListeAssistiti([parsed]);
-            } catch (e) { /* skip */ }
-          }
+      syncLog.logMemory('POST_ENTITIES');
+      syncLog.log(`Entita importate: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass`);
 
-          // Processa LISTE_IN_CODA
-          for (const tx of _cachedListeInCodaTx) {
-            processed++;
-            reportProgress(`Liste in coda ${processed}/${total}...`, total, processed);
-            try {
-              if (!tx.payload) continue;
-              let clearData = null;
-              const entityPk = await this.getLastPrivateKeyOfEntityId(tx.entityId);
-              const keysToTry = [];
-              if (entityPk?.clearData?.privateKey) keysToTry.push(entityPk.clearData.privateKey);
-              keysToTry.push(iota.GET_MAIN_KEYS().privateKey);
-              for (const key of keysToTry) {
-                try { clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(tx.payload, key)); break; } catch (e) { /* next */ }
-              }
-              if (clearData && Array.isArray(clearData)) this.updateDBFromJsonListeAssistiti(clearData);
-            } catch (e) { /* skip */ }
-          }
+      // Importa movimenti lista dalla bulk cache (gia in memoria dalla query unica)
+      // PRIMA ingressi (AIL + LIC + MOV con id), POI uscite (MOV con idAssistitoListe)
+      // Questo garantisce che i record vengano creati prima di essere aggiornati
+      {
+        const allTx = [
+          ...(await iota.getByTagFromCache(ASSISTITI_IN_LISTA)),
+          ...(await iota.getByTagFromCache(MOVIMENTI_ASSISTITI_LISTA)),
+        ];
+        // Separa ingressi e uscite, processa ingressi prima
+        // Ingressi vanno in ordine cronologico, uscite dopo
+        allTx.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        const movTx = allTx;
+        const licTx = await iota.getByTagFromCache(LISTE_IN_CODA);
 
-          imported.assistitiListe = db.AssistitiListe.count();
-          sails.log.info(`[ListManager] Movimenti lista completati: ${imported.assistitiListe} record`);
-        } catch (alErr) {
-          sails.log.warn(`[ListManager] Sync movimenti fallita: ${alErr.message}`);
+        if (movTx.length > 0 || licTx.length > 0) {
+          sails.log.info(`[ListManager] Importazione ${movTx.length + licTx.length} TX movimenti lista...`);
+          const pkCache = new Map();
+          try {
+            // Processa MOVIMENTI in batch - ogni TX viene processata e scartata
+            // entityId formato: orgId_strId_listaId (es. "1_3_5" o "null_4_5")
+            let movOk = 0, movSkip = 0, movErr = 0, movIngressi = 0, movUscite = 0;
+            for (let i = 0; i < movTx.length; i++) {
+              const tx = movTx[i];
+              movTx[i] = null; // Libera riferimento per GC
+              processed++;
+              reportProgress(`Movimenti lista ${processed}/${total}...`, total, processed);
+              try {
+                if (!tx.payload) { movSkip++; continue; }
+                const parts = (tx.entityId || '').split('_');
+
+                // Costruisci le varianti di entityId per trovare la chiave privata:
+                // Il formato e orgId_strId_listaId. Cerchiamo la chiave della struttura (orgId_strId)
+                // Se orgId e "null", proviamo a ricostruire dal DB usando strId
+                let strEntityId = parts.length >= 2 ? parts[0] + '_' + parts[1] : null;
+
+                // Se orgId e "null", ricostruisci dal DB
+                if (strEntityId && parts[0] === 'null' && parts[1]) {
+                  const strId = parseInt(parts[1]);
+                  const str = db.Struttura.findOne({ id: strId });
+                  if (str && str.organizzazione) {
+                    strEntityId = str.organizzazione + '_' + strId;
+                  }
+                }
+
+                if (!strEntityId) { syncLog.log(`MOV skip: entityId malformato: ${tx.entityId}`); movSkip++; continue; }
+
+                // Prova chiavi in ordine: struttura, poi MAIN
+                let decrypted = null;
+                const keysToTry = [];
+
+                if (!pkCache.has(strEntityId)) {
+                  pkCache.set(strEntityId, await this.getLastPrivateKeyOfEntityId(strEntityId));
+                }
+                const pkData = pkCache.get(strEntityId);
+                if (pkData?.clearData?.privateKey) {
+                  keysToTry.push({ name: strEntityId, key: pkData.clearData.privateKey });
+                }
+                keysToTry.push({ name: 'MAIN', key: iota.GET_MAIN_KEYS().privateKey });
+
+                for (const { name, key } of keysToTry) {
+                  try {
+                    decrypted = await CryptHelper.receiveAndDecrypt(tx.payload, key);
+                    break;
+                  } catch (e) { /* next key */ }
+                }
+
+                if (!decrypted) {
+                  if (movSkip < 5) syncLog.log(`MOV skip: decifratura fallita per ${tx.entityId} (strEntityId=${strEntityId})`);
+                  movSkip++;
+                  continue;
+                }
+
+                const parsed = JSON.parse(decrypted);
+                if (movOk < 3) {
+                  syncLog.log(`MOV sample [${tx.entityId}]: isArray=${Array.isArray(parsed)} keys=${JSON.stringify(Object.keys(parsed || {}))} data=${JSON.stringify(parsed).substring(0, 300)}`);
+                }
+                // I MOVIMENTI possono avere 2 formati:
+                // 1. Array/oggetto AssistitiListe: { id, assistito, lista, stato, chiuso, ... }
+                // 2. Oggetto movimento (rimozione): { idAssistitoListe, assistito, lista, statoOld, statoNew, dataOraUscita, azioniAltreListe }
+                if (Array.isArray(parsed)) {
+                  this.updateDBFromJsonListeAssistiti(parsed);
+                  movIngressi += parsed.length;
+                } else if (parsed?.idAssistitoListe) {
+                  // Formato rimozione: { idAssistitoListe, assistito, lista, statoOld, statoNew, dataOraUscita }
+                  this._applyMovimento(parsed);
+                  movUscite++;
+                } else if (parsed?.version !== undefined && Array.isArray(parsed?.lista)) {
+                  // Formato ASSISTITI_IN_LISTA: { version, lista: [{id, assistito, lista, stato, ...}] }
+                  this.updateDBFromJsonListeAssistiti(parsed.lista);
+                  movIngressi += parsed.lista.length;
+                } else if (parsed?.id && parsed?.assistito && parsed?.lista) {
+                  // Formato singolo ingresso: { id, assistito, lista, stato, ... }
+                  this.updateDBFromJsonListeAssistiti([parsed]);
+                  movIngressi++;
+                } else {
+                  if (movSkip < 3) syncLog.log(`MOV formato sconosciuto [${tx.entityId}]: ${JSON.stringify(parsed).substring(0, 200)}`);
+                }
+                movOk++;
+              } catch (e) {
+                movErr++;
+                if (movErr <= 5) syncLog.log(`MOV errore [${tx.entityId}]: ${e.message}`);
+              }
+            }
+            syncLog.log(`Movimenti: ${movOk} ok (${movIngressi} ingressi, ${movUscite} uscite), ${movSkip} skip, ${movErr} errori su ${movOk + movSkip + movErr} totali`);
+
+            // Processa LISTE_IN_CODA
+            for (let i = 0; i < licTx.length; i++) {
+              const tx = licTx[i];
+              licTx[i] = null; // Libera riferimento per GC
+              processed++;
+              reportProgress(`Liste in coda ${processed}/${total}...`, total, processed);
+              try {
+                if (!tx.payload) continue;
+                let clearData = null;
+                const entityPk = await this.getLastPrivateKeyOfEntityId(tx.entityId);
+                const keysToTry = [];
+                if (entityPk?.clearData?.privateKey) keysToTry.push(entityPk.clearData.privateKey);
+                keysToTry.push(iota.GET_MAIN_KEYS().privateKey);
+                for (const key of keysToTry) {
+                  try { clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(tx.payload, key)); break; } catch (e) { /* next */ }
+                }
+                if (clearData && Array.isArray(clearData)) this.updateDBFromJsonListeAssistiti(clearData);
+              } catch (e) { /* skip */ }
+            }
+
+            imported.assistitiListe = db.AssistitiListe.count();
+            syncLog.logMemory('POST_MOVIMENTI');
+            syncLog.log(`Movimenti completati: ${imported.assistitiListe} record`);
+            sails.log.info(`[ListManager] Movimenti lista completati: ${imported.assistitiListe} record`);
+          } catch (alErr) {
+            syncLog.log(`ERRORE movimenti: ${alErr.message}`);
+            sails.log.warn(`[ListManager] Sync movimenti fallita: ${alErr.message}`);
+          }
         }
       }
 
       imported.assistitiListe = db.AssistitiListe.count();
-      sails.log.info(`[ListManager] Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.assistiti} ass, ${imported.assistitiListe} mov`);
+      imported.liste = db.Lista.count();
+
+      // Libera la bulk cache dalla memoria
+      iota.clearBulkCache();
+
+      syncLog.logMemory('POST_CLEAR_CACHE');
+      syncLog.log(`Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.liste} liste, ${imported.assistiti} ass, ${imported.assistitiListe} mov`);
+      syncLog.end(true);
+      sails.log.info(`[ListManager] Sync completata: ${imported.organizzazioni} org, ${imported.strutture} str, ${imported.liste} liste, ${imported.assistiti} ass, ${imported.assistitiListe} mov`);
       return { success: true, data: imported, source: 'iota' };
     } catch (err) {
+      iota.clearBulkCache(); // Libera anche in caso di errore
+      syncLog.log(`SYNC FALLITA: ${err.message}\n${err.stack || ''}`);
+      syncLog.end(false);
       sails.log.warn('[ListManager] Sync fallita:', err.message);
       return { success: false, data: [], error: err.message };
     }
@@ -340,7 +566,8 @@ class ListManager {
     if (existing) {
       db.Organizzazione.updateOne({ id: data.id }).set(record);
     } else {
-      if (txTimestamp) record.createdAt = txTimestamp;
+      // Usa il createdAt dal payload originale se disponibile, altrimenti txTimestamp
+      record.createdAt = data.createdAt || txTimestamp || Date.now();
       db.Organizzazione.create({ id: data.id, ...record });
     }
   }
@@ -363,7 +590,7 @@ class ListManager {
     if (existing) {
       db.Struttura.updateOne({ id: data.id }).set(record);
     } else {
-      if (txTimestamp) record.createdAt = txTimestamp;
+      record.createdAt = data.createdAt || txTimestamp || Date.now();
       db.Struttura.create({ id: data.id, ...record });
     }
     // Importa anche le liste se presenti nel payload
@@ -386,7 +613,7 @@ class ListManager {
     if (existing) {
       db.Lista.updateOne({ id: data.id }).set(record);
     } else {
-      if (txTimestamp) record.createdAt = txTimestamp;
+      record.createdAt = data.createdAt || txTimestamp || Date.now();
       db.Lista.create({ id: data.id, ...record });
     }
   }
@@ -409,7 +636,7 @@ class ListManager {
     if (existing) {
       db.Assistito.updateOne({ id: data.id }).set(record);
     } else {
-      if (txTimestamp) record.createdAt = txTimestamp;
+      record.createdAt = data.createdAt || txTimestamp || Date.now();
       db.Assistito.create({ id: data.id, ...record });
     }
   }
@@ -600,7 +827,12 @@ class ListManager {
   }
 
   async getLastPrivateKeyOfEntityId(entityId) {
-    let record = await iota.getLastDataByTag(PRIVATE_KEY, entityId);
+    // Usa la bulk cache se disponibile (durante sync), altrimenti query diretta
+    const tagResults = await iota.getByTagFromCache(PRIVATE_KEY, entityId);
+    let record = tagResults.length > 0 ? tagResults[0] : null;
+    if (!record) {
+      record = await iota.getLastDataByTag(PRIVATE_KEY, entityId);
+    }
     if (record && record.payload) {
       let data = record.payload;
       let clearData = await CryptHelper.receiveAndDecrypt(data, iota.GET_MAIN_KEYS().privateKey);
@@ -617,7 +849,8 @@ class ListManager {
       let organizzazioneStrutture = db.Organizzazione.findOne({id: idOrganizzazione});
       if (organizzazioneStrutture) {
         organizzazioneStrutture.ultimaVersioneSuBlockchain = organizzazioneStrutture.ultimaVersioneSuBlockchain + 1;
-        let data = await CryptHelper.encryptAndSend(JSON.stringify(organizzazioneStrutture), organizzazioneStrutture.ultimaVersioneSuBlockchain, organizzazioneStrutture.publicKey);
+        let payloadObj = stripKeysForBlockchain(organizzazioneStrutture);
+        let data = await CryptHelper.encryptAndSend(JSON.stringify(payloadObj), organizzazioneStrutture.ultimaVersioneSuBlockchain, organizzazioneStrutture.publicKey);
         let res = await iota.publishData(ORGANIZZAZIONE_DATA, data.data, entityId, organizzazioneStrutture.ultimaVersioneSuBlockchain);
         if (res.success) {
           db.Organizzazione.updateOne({id: idOrganizzazione}).set({ultimaVersioneSuBlockchain: organizzazioneStrutture.ultimaVersioneSuBlockchain});
@@ -652,7 +885,8 @@ class ListManager {
         // Manual populate: attach liste for this struttura
         strutturaCode.liste = db.Lista.find({struttura: idStruttura});
         strutturaCode.ultimaVersioneSuBlockchain = strutturaCode.ultimaVersioneSuBlockchain + 1;
-        let data = await CryptHelper.encryptAndSend(JSON.stringify(strutturaCode), strutturaCode.ultimaVersioneSuBlockchain, strutturaCode.publicKey);
+        let payloadObj = stripKeysForBlockchain(strutturaCode);
+        let data = await CryptHelper.encryptAndSend(JSON.stringify(payloadObj), strutturaCode.ultimaVersioneSuBlockchain, strutturaCode.publicKey);
         let res = await iota.publishData(STRUTTURE_LISTE_DATA, data.data, entityId, strutturaCode.ultimaVersioneSuBlockchain);
         if (res.success) {
           db.Struttura.updateOne({id: idStruttura}).set({ultimaVersioneSuBlockchain: strutturaCode.ultimaVersioneSuBlockchain});
@@ -754,7 +988,8 @@ class ListManager {
       let assistito = db.Assistito.findOne({id: id});
       if (assistito) {
         assistito.ultimaVersioneSuBlockchain = assistito.ultimaVersioneSuBlockchain + 1;
-        let data = await CryptHelper.encryptAndSend(JSON.stringify(assistito), assistito.ultimaVersioneSuBlockchain, assistito.publicKey);
+        let payloadObj = stripKeysForBlockchain(assistito);
+        let data = await CryptHelper.encryptAndSend(JSON.stringify(payloadObj), assistito.ultimaVersioneSuBlockchain, assistito.publicKey);
         let res = await iota.publishData(ASSISTITI_DATA, data.data, entityId, assistito.ultimaVersioneSuBlockchain);
         if (res.success) {
           db.Assistito.updateOne({id: id}).set({ultimaVersioneSuBlockchain: assistito.ultimaVersioneSuBlockchain});
@@ -796,37 +1031,30 @@ class ListManager {
         let res2 = {success: false};
         let assistitoEntityId = 'ASS#' + idAssistito;
         let listaEntityId = getWalletIdLista(idLista);
+        // Trova tutte le liste in coda per questo assistito (inclusa quella appena aggiunta dal controller)
         let listeInCoda = db.AssistitiListe.find({assistito: idAssistito, stato: INSERITO_IN_CODA, chiuso: false});
-        if ((listeInCoda.length > 0 && (listeInCoda.find((l) => l.lista === idLista)) === undefined) || listeInCoda.length === 0) {
-          let assistitoLista = null;
+        // Trova il record specifico per questa lista (gia creato dal controller)
+        let assistitoLista = listeInCoda.find((l) => l.lista === idLista);
+        sails.log.info(`[ListManager] aggiungiAssistito: ASS#${idAssistito} lista#${idLista} listeInCoda=${listeInCoda.length} assistitoLista=${assistitoLista?.id || 'null'} listaEntityId=${listaEntityId} haStrutturaKey=${!!lista.struttura?.publicKey}`);
+        if (assistitoLista) {
           try {
-            assistitoLista = db.AssistitiListe.create({
-              assistito: idAssistito,
-              lista: idLista,
-              stato: INSERITO_IN_CODA,
-              dataOraIngresso: Date.now(),
-            });
-            let data = await CryptHelper.encryptAndSend(JSON.stringify([assistitoLista, ...listeInCoda]), null, assistito.publicKey);
+            let data = await CryptHelper.encryptAndSend(JSON.stringify(listeInCoda), null, assistito.publicKey);
             res1 = await iota.publishData(LISTE_IN_CODA, data.data, assistitoEntityId);
             if (res1.success) {
               this._backupToArweave(LISTE_IN_CODA, data.data, idAssistito);
             }
-            if (!res1.success) {
-              db.AssistitiListe.destroy({id: assistitoLista.id});
-            } else {
+            if (res1.success) {
               let data2 = await CryptHelper.encryptAndSend(JSON.stringify(assistitoLista), null, lista.struttura.publicKey);
               res2 = await iota.publishData(MOVIMENTI_ASSISTITI_LISTA, data2.data, listaEntityId);
               if (res2.success) {
                 this._backupToArweave(MOVIMENTI_ASSISTITI_LISTA, data2.data, idLista);
               }
-              if (!res2.success) {
-                db.AssistitiListe.destroy({id: assistitoLista.id});
-              }
+            }
+            if (!res1.success || !res2.success) {
+              sails.log.warn(`[ListManager] aggiungiAssistito TX fallita: res1=${res1.success} res2=${res2.success}`);
             }
           } catch (e) {
-            if (assistitoLista) {
-              db.AssistitiListe.destroy({id: assistitoLista.id});
-            }
+            sails.log.warn(`[ListManager] aggiungiAssistito errore blockchain: ${e.message}`);
           }
           let res3 = {success: false};
           let listaFromBlockchain = null;
@@ -860,6 +1088,49 @@ class ListManager {
 
   }
 
+  /**
+   * Applica un movimento (rimozione) dalla blockchain al DB locale.
+   * Formato: { idAssistitoListe, assistito, lista, statoOld, statoNew, dataOraUscita, azioniAltreListe }
+   */
+  _applyMovimento(mov) {
+    // Aggiorna il record principale
+    const existing = db.AssistitiListe.findOne({ id: mov.idAssistitoListe });
+    if (existing) {
+      db.AssistitiListe.updateOne({ id: mov.idAssistitoListe }).set({
+        stato: mov.statoNew,
+        chiuso: true,
+        dataOraUscita: mov.dataOraUscita || null,
+      });
+    } else {
+      // Se il record non esiste (es. sync parziale), crealo gia con lo stato finale
+      db.AssistitiListe.create({
+        id: mov.idAssistitoListe,
+        assistito: mov.assistito,
+        lista: mov.lista,
+        stato: mov.statoNew,
+        chiuso: true,
+        dataOraIngresso: null,
+        dataOraUscita: mov.dataOraUscita || null,
+      });
+    }
+
+    // Applica azioni sulle altre liste
+    if (mov.azioniAltreListe && Array.isArray(mov.azioniAltreListe)) {
+      for (const azione of mov.azioniAltreListe) {
+        if (azione.azione === 'rimosso' && azione.id) {
+          const altroRecord = db.AssistitiListe.findOne({ id: azione.id });
+          if (altroRecord) {
+            db.AssistitiListe.updateOne({ id: azione.id }).set({
+              stato: azione.stato || 4,
+              chiuso: true,
+              dataOraUscita: mov.dataOraUscita || null,
+            });
+          }
+        }
+      }
+    }
+  }
+
   updateDBFromJsonListeAssistiti(assistitiListe) {
     for (let al of assistitiListe) {
       const record = {
@@ -870,8 +1141,15 @@ class ListManager {
         dataOraIngresso: al.dataOraIngresso || null,
         dataOraUscita: al.dataOraUscita || null,
       };
+      // Preserva i timestamp originali dalla blockchain
+      if (al.createdAt) record.createdAt = al.createdAt;
+      if (al.updatedAt) record.updatedAt = al.updatedAt;
+
       let existing = db.AssistitiListe.findOne({id: al.id});
       if (existing) {
+        // Non sovrascrivere un record che ha gia uno stato piu avanzato (es. gia rimosso)
+        // stato 1=in coda, 2+=uscito. Se existing.stato > al.stato, non retrocedere.
+        if (existing.stato > al.stato) continue;
         db.AssistitiListe.updateOne({id: al.id}).set(record);
       } else {
         db.AssistitiListe.create({ id: al.id, ...record });
@@ -879,5 +1157,10 @@ class ListManager {
     }
   }
 }
+
+// Esporta anche le helper functions per i controller
+ListManager.getWalletIdOrganizzazione = getWalletIdOrganizzazione;
+ListManager.getWalletIdStruttura = getWalletIdStruttura;
+ListManager.getWalletIdLista = getWalletIdLista;
 
 module.exports = ListManager;

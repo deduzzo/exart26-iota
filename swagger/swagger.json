@@ -91,6 +91,12 @@
       "name": "API Entity Transactions"
     },
     {
+      "name": "Export data"
+    },
+    {
+      "name": "Verify snapshot"
+    },
+    {
       "name": "Get wallet info"
     },
     {
@@ -1598,6 +1604,72 @@
         "responses": {
           "200": {
             "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/export-data": {
+      "get": {
+        "summary": "Export data",
+        "description": "Esporta tutti i dati del sistema in formato JSON per backup/verifica.",
+        "tags": [
+          "Export data"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Dati esportati."
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/verify-snapshot": {
+      "post": {
+        "summary": "Verify snapshot",
+        "description": "Confronta uno snapshot JSON precedente con lo stato attuale del DB.",
+        "tags": [
+          "Verify snapshot"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "snapshot",
+            "required": true,
+            "schema": {},
+            "description": "Il contenuto JSON dello snapshot da verificare"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "Risultato verifica."
+                    },
+                    {
+                      "type": "string",
+                      "description": "Success"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
             "description": "Resource not found"

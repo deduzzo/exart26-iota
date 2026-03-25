@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const CONFIG_PATH = path.resolve(__dirname, '../../config/private_iota_conf.js');
 
@@ -18,6 +19,13 @@ let _keypair = null;
 let _client = null;
 let _address = null;
 let _socketId = undefined;
+
+// Lock sequenziale per TX: IOTA non permette TX parallele dallo stesso wallet
+let _txQueue = Promise.resolve();
+function _enqueueTx(fn) {
+  _txQueue = _txQueue.then(fn, fn);
+  return _txQueue;
+}
 
 // Config - caricata on-demand per evitare crash se il file non esiste
 let _config = null;
@@ -243,8 +251,8 @@ async function getStatusAndBalance() {
 
 const CHUNK_DATA_SIZE = 6; // 6 bytes dati + 2 bytes indice = 8 bytes = 1 u64
 
-function _encodePayloadToChunks(payloadStr) {
-  const payloadBytes = Buffer.from(payloadStr);
+function _encodePayloadToChunks(payload) {
+  const payloadBytes = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, 'utf8');
   const chunks = [];
   for (let i = 0; i < payloadBytes.length; i += CHUNK_DATA_SIZE) {
     const chunk = payloadBytes.subarray(i, i + CHUNK_DATA_SIZE);
@@ -259,7 +267,7 @@ function _encodePayloadToChunks(payloadStr) {
   return { chunks, length: payloadBytes.length };
 }
 
-function _decodeChunksToPayload(u64Values, payloadLength) {
+function _decodeChunksToBuffer(u64Values, payloadLength) {
   const buffers = u64Values.map(val => {
     const hex = BigInt(val).toString(16).padStart(16, '0');
     return Buffer.from(hex, 'hex');
@@ -267,7 +275,7 @@ function _decodeChunksToPayload(u64Values, payloadLength) {
   // New format: 2-byte index (Big Endian) + 6 bytes data
   buffers.sort((a, b) => ((a[0] << 8) | a[1]) - ((b[0] << 8) | b[1]));
   const combined = Buffer.concat(buffers.map(b => b.subarray(2)));
-  return combined.subarray(0, payloadLength).toString();
+  return combined.subarray(0, payloadLength);
 }
 
 /**
@@ -287,15 +295,100 @@ function _decodeChunksToPayload(u64Values, payloadLength) {
  * @param {number|null} version - Versione del dato
  * @returns {object} { success, digest, error }
  */
-async function publishData(tag, dataObject, entityId = null, version = null) {
-  try {
-    const sdk = await loadSdk();
-    const client = await getClient();
-    const keypair = await getKeypair();
-    const address = await getAddress();
-    const config = _getConfig();
+// Contatore TX pending per monitoraggio
+let _pendingTxCount = 0;
 
-    const payload = JSON.stringify({
+async function publishData(tag, dataObject, entityId = null, version = null) {
+  // Serializza le TX: IOTA non permette TX parallele dallo stesso wallet
+  _pendingTxCount++;
+  try {
+    const result = await _enqueueTx(() => _publishDataWithRetry(tag, dataObject, entityId, version));
+    return result;
+  } finally {
+    _pendingTxCount--;
+  }
+}
+
+function getPendingTxCount() { return _pendingTxCount; }
+
+async function _publishDataWithRetry(tag, dataObject, entityId = null, version = null, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const result = await _publishDataImpl(tag, dataObject, entityId, version);
+    if (result.success) return result;
+
+    // Se e un errore di equivocation/conflict, aspetta e riprova
+    const retryable = result.error && (
+      result.error.includes('equivocation') ||
+      result.error.includes('ObjectVersionUnavailableForConsumption') ||
+      result.error.includes('Could not find the referenced object')
+    );
+
+    if (retryable && attempt < maxRetries) {
+      const wait = attempt * 2000;
+      sails.log.warn(`[iota] publishData retry ${attempt}/${maxRetries} per ${tag}:${entityId} tra ${wait}ms (${result.error.substring(0, 80)})`);
+      await new Promise(r => setTimeout(r, wait));
+    } else {
+      if (attempt > 1) sails.log.warn(`[iota] publishData FALLITA dopo ${attempt} tentativi per ${tag}:${entityId}`);
+      return result;
+    }
+  }
+}
+
+// Max chunks per singola TX (1024 comandi - overhead splitCoins batch - transfers)
+const MAX_CHUNKS_PER_TX = 500;
+// Max payload compresso per singola "parte" di una chain (con margine per wrapper)
+const MAX_PART_BYTES = MAX_CHUNKS_PER_TX * CHUNK_DATA_SIZE - 200;
+
+/**
+ * Pubblica una singola TX on-chain (senza chain-linking).
+ * Usata internamente sia per TX normali che per parti di una chain.
+ */
+async function _publishSingleTx(marker, payloadBuf) {
+  const sdk = await loadSdk();
+  const client = await getClient();
+  const keypair = await getKeypair();
+  const address = await getAddress();
+  const config = _getConfig();
+
+  const { chunks, length: payloadLength } = _encodePayloadToChunks(payloadBuf);
+  const tx = new sdk.Transaction();
+
+  const allAmounts = [BigInt(marker), BigInt(payloadLength), ...chunks];
+  const BATCH_SIZE = 500;
+  const allCoins = [];
+  for (let i = 0; i < allAmounts.length; i += BATCH_SIZE) {
+    const batch = allAmounts.slice(i, i + BATCH_SIZE);
+    const coins = tx.splitCoins(tx.gas, batch.map(a => tx.pure.u64(a)));
+    if (Array.isArray(coins)) {
+      for (let j = 0; j < batch.length; j++) allCoins.push(coins[j]);
+    } else {
+      allCoins.push(coins);
+    }
+  }
+  for (let i = 0; i < allCoins.length; i++) {
+    tx.transferObjects([allCoins[i]], address);
+  }
+  tx.setGasBudget(Math.max(10000000, chunks.length * 500000));
+
+  const result = await client.signAndExecuteTransaction({
+    signer: keypair,
+    transaction: tx,
+    options: { showInput: true, showEffects: true },
+  });
+  await client.waitForTransaction({ digest: result.digest });
+
+  const network = config.IOTA_NETWORK || 'testnet';
+  const explorerUrl = `https://explorer.iota.org/txblock/${result.digest}${network !== 'mainnet' ? '?network=' + network : ''}`;
+  if (typeof sails !== 'undefined') {
+    try { sails.helpers.consoleSocket(`TX: ${explorerUrl}`, _socketId); } catch (e) { /* */ }
+  }
+
+  return { digest: result.digest, explorerUrl, chunks: chunks.length, bytes: payloadLength };
+}
+
+async function _publishDataImpl(tag, dataObject, entityId = null, version = null) {
+  try {
+    const payloadJson = JSON.stringify({
       app: APP_TAG,
       tag: tag,
       entityId: entityId,
@@ -304,46 +397,59 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
       timestamp: Date.now(),
     });
 
-    const { chunks, length: payloadLength } = _encodePayloadToChunks(payload);
+    // Comprimi con gzip
+    const compressedBuf = zlib.gzipSync(payloadJson);
+    const compressionRatio = ((1 - compressedBuf.length / payloadJson.length) * 100).toFixed(0);
 
-    const tx = new sdk.Transaction();
-
-    // Amounts: [1 (marker), payloadLength, ...dataChunks]
-    const allAmounts = [BigInt(1), BigInt(payloadLength), ...chunks];
-    const coins = tx.splitCoins(tx.gas, allAmounts.map(a => tx.pure.u64(a)));
-
-    // Trasferisci tutti a noi stessi
-    for (let i = 0; i < allAmounts.length; i++) {
-      tx.transferObjects([coins[i]], address);
+    // Se entra in una singola TX → pubblica direttamente
+    if (compressedBuf.length <= MAX_PART_BYTES) {
+      sails.log.info(`[iota] publishData: tag=${tag} entityId=${entityId} json=${payloadJson.length}B gz=${compressedBuf.length}B (-${compressionRatio}%)`);
+      const result = await _publishSingleTx(2, compressedBuf);
+      sails.log.info(`[iota] publishData OK: ${result.digest} (${result.chunks} chunks)`);
+      return { success: true, digest: result.digest, explorerUrl: result.explorerUrl, error: null };
     }
 
-    // Gas budget proporzionale alla dimensione dei dati
-    tx.setGasBudget(Math.max(10000000, chunks.length * 500000));
+    // Chain-linking: payload troppo grande, divide in parti collegate con prev
+    sails.log.info(`[iota] publishData CHAIN: tag=${tag} entityId=${entityId} gz=${compressedBuf.length}B supera ${MAX_PART_BYTES}B, splitting...`);
 
-    sails.log.info(`[iota] publishData: tag=${tag} entityId=${entityId} payload=${payloadLength}bytes chunks=${chunks.length}`);
-
-    const result = await client.signAndExecuteTransaction({
-      signer: keypair,
-      transaction: tx,
-      options: { showInput: true, showEffects: true },
-    });
-
-    // Aspetta conferma
-    await client.waitForTransaction({ digest: result.digest });
-
-    const network = config.IOTA_NETWORK || 'testnet';
-    const explorerUrl = `https://explorer.iota.org/txblock/${result.digest}${network !== 'mainnet' ? '?network=' + network : ''}`;
-    sails.log.info(`[iota] publishData OK: digest=${result.digest}`);
-    if (typeof sails !== 'undefined') {
-      sails.helpers.consoleSocket(`TX: ${explorerUrl}`, _socketId);
+    // Dividi il buffer compresso in parti
+    const parts = [];
+    for (let i = 0; i < compressedBuf.length; i += MAX_PART_BYTES) {
+      parts.push(compressedBuf.subarray(i, i + MAX_PART_BYTES));
     }
 
-    return {
-      success: true,
-      digest: result.digest,
-      explorerUrl: explorerUrl,
-      error: null,
-    };
+    sails.log.info(`[iota] publishData CHAIN: ${parts.length} parti da pubblicare`);
+
+    // Pubblica ogni parte come TX separata
+    // Ogni parte e un JSON wrapper: {app, _chain: {part, total, prev?}, _data: base64(bytes)}
+    let prevDigest = null;
+    let lastResult = null;
+
+    for (let i = 0; i < parts.length; i++) {
+      const partWrapper = JSON.stringify({
+        app: APP_TAG,
+        _chain: {
+          tag: tag,
+          entityId: entityId,
+          version: version,
+          part: i,
+          total: parts.length,
+          prev: prevDigest,
+        },
+        _data: parts[i].toString('base64'),
+        timestamp: Date.now(),
+      });
+
+      // Le parti wrapper sono piccole (base64 di ~2.8KB = ~3.7KB + overhead < 5KB)
+      const partBuf = zlib.gzipSync(partWrapper);
+      const result = await _publishSingleTx(2, partBuf);
+      sails.log.info(`[iota] publishData CHAIN part ${i+1}/${parts.length}: ${result.digest} (${result.chunks} chunks)`);
+      prevDigest = result.digest;
+      lastResult = result;
+    }
+
+    sails.log.info(`[iota] publishData CHAIN OK: ${parts.length} parti, ultimo digest=${lastResult.digest}`);
+    return { success: true, digest: lastResult.digest, explorerUrl: lastResult.explorerUrl, error: null, chainParts: parts.length };
   } catch (e) {
     console.error('[iota] publishData error:', e.message || e);
     return { success: false, digest: null, error: e.message || String(e) };
@@ -356,27 +462,99 @@ async function publishData(tag, dataObject, entityId = null, version = null) {
  * Decodifica il payload da una transazione IOTA 2.0.
  * Legge gli input u64 della transazione e ricostruisce il JSON.
  */
+// Markers: 1 = legacy (JSON non compresso), 2 = gzip compresso
+const MARKER_LEGACY = BigInt(1);
+const MARKER_GZIP = BigInt(2);
+
 function _decodeTransactionPayload(txDetail) {
   try {
     const inputs = txDetail.transaction?.data?.transaction?.inputs || [];
     const u64Inputs = inputs.filter(i => i.valueType === 'u64').map(i => BigInt(i.value));
 
-    // Verifica marker (primo u64 deve essere 1)
-    if (u64Inputs.length < 3 || u64Inputs[0] !== BigInt(1)) return null;
+    if (u64Inputs.length < 3) return null;
+    const marker = u64Inputs[0];
+    if (marker !== MARKER_LEGACY && marker !== MARKER_GZIP) return null;
 
     const payloadLength = Number(u64Inputs[1]);
     const dataChunks = u64Inputs.slice(2);
+    const rawBuf = _decodeChunksToBuffer(dataChunks, payloadLength);
 
-    const payloadStr = _decodeChunksToPayload(dataChunks, payloadLength);
+    let payloadStr;
+    if (marker === MARKER_GZIP) {
+      payloadStr = zlib.gunzipSync(rawBuf).toString('utf8');
+    } else {
+      payloadStr = rawBuf.toString('utf8');
+    }
+
     const parsed = JSON.parse(payloadStr);
-
-    // Verifica che sia una nostra transazione
     if (parsed.app !== APP_TAG) return null;
 
     return parsed;
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Riassembla le TX chain-linked.
+ * Se una TX ha `_chain`, cerca tutte le parti, le ordina, concatena i buffer,
+ * decomprime e restituisce il payload originale completo.
+ */
+function _reassembleChainedTxs(decodedTxs) {
+  const normal = [];
+  const chainParts = {}; // key: tag_entityId_version → parts[]
+
+  for (const tx of decodedTxs) {
+    if (tx.decoded._chain) {
+      const chain = tx.decoded._chain;
+      const chainKey = `${chain.tag}_${chain.entityId}_${chain.version}`;
+      if (!chainParts[chainKey]) chainParts[chainKey] = [];
+      chainParts[chainKey].push({
+        part: chain.part,
+        total: chain.total,
+        data: tx.decoded._data,
+        digest: tx.digest,
+        timestamp: tx.decoded.timestamp,
+        chain: chain,
+      });
+    } else {
+      normal.push(tx);
+    }
+  }
+
+  // Riassembla ogni chain
+  for (const [chainKey, parts] of Object.entries(chainParts)) {
+    parts.sort((a, b) => a.part - b.part);
+
+    // Verifica completezza
+    if (parts.length !== parts[0].total) {
+      sails.log.warn(`[iota] Chain ${chainKey}: ${parts.length}/${parts[0].total} parti trovate (incompleta)`);
+      continue;
+    }
+
+    try {
+      // Concatena i buffer base64 delle parti
+      const combinedBuf = Buffer.concat(parts.map(p => Buffer.from(p.data, 'base64')));
+      // Decomprimi il payload originale (era stato gzippato prima di essere diviso)
+      const payloadStr = zlib.gunzipSync(combinedBuf).toString('utf8');
+      const parsed = JSON.parse(payloadStr);
+
+      if (parsed.app !== APP_TAG) continue;
+
+      // Aggiungi come TX normale con il digest dell'ultima parte
+      normal.push({
+        decoded: parsed,
+        digest: parts[parts.length - 1].digest,
+        _chainParts: parts.length,
+      });
+
+      sails.log.verbose(`[iota] Chain ${chainKey}: riassemblata da ${parts.length} parti`);
+    } catch (e) {
+      sails.log.warn(`[iota] Chain ${chainKey}: errore riassemblaggio: ${e.message}`);
+    }
+  }
+
+  return normal;
 }
 
 /**
@@ -446,6 +624,101 @@ async function getAllDataByTag(tag, entityId = null) {
   return await _queryTransactionsFromChain(tag, entityId, 100);
 }
 
+// --- Cache per sync bulk (evita query multiple della stessa chain) ---
+let _bulkCache = null;
+
+/**
+ * Scarica TUTTE le transazioni dalla chain UNA SOLA VOLTA e le partiziona per tag.
+ * Evita di ri-scaricare e ri-decodificare tutte le TX per ogni chiamata getAllDataByTag.
+ * Chiama clearBulkCache() quando la sync e finita per liberare memoria.
+ */
+async function getAllTransactionsCached() {
+  if (_bulkCache) return _bulkCache;
+
+  const client = await getClient();
+  const address = await getAddress();
+
+  const byTag = {};
+  let cursor = null;
+  let hasMore = true;
+  let totalDecoded = 0;
+  let totalFetched = 0;
+  let totalSkipped = 0;
+  let pages = 0;
+
+  while (hasMore) {
+    const opts = {
+      filter: { FromAddress: address },
+      options: { showInput: true },
+      limit: 50,
+      order: 'descending',
+    };
+    if (cursor) opts.cursor = cursor;
+
+    const txBlocks = await client.queryTransactionBlocks(opts);
+    pages++;
+    totalFetched += txBlocks.data.length;
+
+    // Prima passata: decodifica tutte le TX (normali + chain parts)
+    const allDecodedInPage = [];
+    for (const tx of txBlocks.data) {
+      const decoded = _decodeTransactionPayload(tx);
+      if (!decoded) {
+        totalSkipped++;
+        continue;
+      }
+      allDecodedInPage.push({ decoded, digest: tx.digest });
+      totalDecoded++;
+    }
+
+    // Riassembla eventuali chain-linked TX
+    const reassembled = _reassembleChainedTxs(allDecodedInPage);
+
+    for (const tx of reassembled) {
+      const d = tx.decoded;
+      const t = d.tag || d._chain?.tag || '_unknown';
+      if (!byTag[t]) byTag[t] = [];
+      byTag[t].push({
+        payload: d.data,
+        version: d.version,
+        timestamp: d.timestamp,
+        digest: tx.digest,
+        tag: d.tag,
+        entityId: d.entityId,
+      });
+    }
+
+    hasMore = txBlocks.hasNextPage;
+    cursor = txBlocks.nextCursor;
+  }
+
+  const tagSummary = Object.entries(byTag).map(([t, arr]) => `${t}:${arr.length}`).join(', ');
+  sails.log.info(`[iota] Bulk cache: ${pages} pagine, ${totalFetched} TX scaricate, ${totalDecoded} decodificate, ${totalSkipped} skippate, tag: [${tagSummary}]`);
+  _bulkCache = byTag;
+  return _bulkCache;
+}
+
+/**
+ * Recupera TX per tag dalla bulk cache (se disponibile) o dalla chain.
+ */
+async function getByTagFromCache(tag, entityId = null) {
+  if (_bulkCache) {
+    let results = _bulkCache[tag] || [];
+    if (entityId !== null && entityId !== undefined) {
+      results = results.filter(r => String(r.entityId) === String(entityId));
+    }
+    return results;
+  }
+  return await _queryTransactionsFromChain(tag, entityId, 100);
+}
+
+/**
+ * Libera la bulk cache dalla memoria.
+ */
+function clearBulkCache() {
+  _bulkCache = null;
+}
+
 // --- Request faucet ---
 
 async function requestFaucet() {
@@ -484,8 +757,12 @@ module.exports = {
   getAddress,
   showBalanceFormatted,
   publishData,
+  getPendingTxCount,
   getLastDataByTag,
   getAllDataByTag,
+  getAllTransactionsCached,
+  getByTagFromCache,
+  clearBulkCache,
   requestFaucet,
   GET_MAIN_KEYS,
   getClient,

@@ -74,7 +74,8 @@ module.exports = {
 
     // Pubblica su blockchain (sincrono, parallelo)
     const manager = new ListManager();
-    const walletId = await Assistito.getWalletIdAssistito({id: assistito.id});
+    const walletId = 'ASS#' + assistito.id;
+    sails.log.info(`[add-assistito] walletId=${walletId}`);
 
     sails.log.info(`[add-assistito] Pubblicazione blockchain...`);
 
@@ -83,6 +84,8 @@ module.exports = {
     const res2 = await manager.updatePrivateKey(walletId, keyPairAss.privateKey);
     sails.log.info(`[add-assistito] Blockchain: PK=${res2.success}`);
     // MAIN_DATA non aggiornato per velocita - gli assistiti vengono trovati via discovery
+
+    await sails.helpers.broadcastEvent('dataChanged', { action: 'ASSISTITO_CREATO', entity: 'assistito', id: assistito.id, label: `${assistito.cognome} ${assistito.nome}` });
 
     return exits.success({
       assistito: {...assistito, privateKey: undefined},

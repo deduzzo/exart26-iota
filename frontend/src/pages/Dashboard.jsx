@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield, UserCheck, UserMinus, Hash, Layers, Info } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Building2, Hospital, FileText, Users, Wallet, Database, RefreshCw, Shield, UserCheck, UserMinus, Hash, Layers, Info, Download, Upload, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -39,6 +39,34 @@ export default function Dashboard() {
   const { data: dashboard, loading: dashLoading, error: dashError } = useApi(getDashboardData);
   const { data: wallet, loading: walletLoading } = useApi(getWalletInfo);
   const [infoModal, setInfoModal] = useState(null);
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleVerifyFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVerifyLoading(true);
+    setVerifyResult(null);
+    try {
+      const text = await file.text();
+      const snapshot = JSON.parse(text);
+      const csrfRes = await fetch('/csrfToken');
+      const { _csrf } = await csrfRes.json();
+      const res = await fetch('/api/v1/verify-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': _csrf },
+        body: JSON.stringify({ snapshot }),
+      });
+      const data = await res.json();
+      setVerifyResult(data);
+    } catch (err) {
+      setVerifyResult({ error: err.message || 'Errore durante la verifica' });
+    } finally {
+      setVerifyLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const operazioniColumns = [
     { key: 'tipo', label: 'Tipo', render: (v) => (
@@ -151,6 +179,20 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
+            <div className="border-t border-white/5 pt-3 mt-3">
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = '/api/v1/export-data';
+                  a.download = `exart26-export-${Date.now()}.json`;
+                  a.click();
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan hover:bg-neon-cyan/20 transition-all text-sm font-medium"
+              >
+                <Download size={16} />
+                Esporta Snapshot JSON
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -171,6 +213,124 @@ export default function Dashboard() {
           />
         </motion.div>
       </div>
+
+      {/* Verifica Snapshot */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="mt-6 glass-static rounded-2xl p-5"
+      >
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Shield size={18} className="text-neon-emerald" /> Verifica Integrita Dati
+        </h3>
+        <p className="text-slate-400 text-sm mb-4">
+          Carica uno snapshot JSON esportato in precedenza per verificare che lo stato attuale del database sia identico.
+        </p>
+        <div className="flex items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleVerifyFile}
+            className="hidden"
+            id="snapshot-file"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={verifyLoading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neon-emerald/10 border border-neon-emerald/20 text-neon-emerald hover:bg-neon-emerald/20 transition-all text-sm font-medium disabled:opacity-50"
+          >
+            {verifyLoading ? <LoadingSpinner size={16} /> : <Upload size={16} />}
+            {verifyLoading ? 'Verifica in corso...' : 'Carica Snapshot e Verifica'}
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {verifyResult && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-4 overflow-hidden"
+            >
+              {verifyResult.error ? (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <div className="flex items-center gap-2 text-red-400 font-medium mb-1">
+                    <XCircle size={18} /> Errore
+                  </div>
+                  <p className="text-red-300 text-sm">{verifyResult.error}</p>
+                </div>
+              ) : verifyResult.identical ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="flex items-center gap-2 text-emerald-400 font-medium mb-2">
+                    <CheckCircle size={18} /> Ricostruzione Perfetta
+                  </div>
+                  <p className="text-emerald-300 text-sm">{verifyResult.summary}</p>
+                  {verifyResult.snapshotDate && (
+                    <p className="text-slate-400 text-xs mt-2">Snapshot del: {new Date(verifyResult.snapshotDate).toLocaleString('it-IT')}</p>
+                  )}
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                    {['organizzazioni', 'strutture', 'liste', 'assistiti'].map(k => (
+                      <div key={k} className="bg-white/5 rounded-lg p-2">
+                        <div className="text-emerald-400 font-bold text-lg">{verifyResult.statsComparison?.attuale?.[k] || 0}</div>
+                        <div className="text-slate-500 text-xs capitalize">{k}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-center gap-2 text-amber-400 font-medium mb-2">
+                    <AlertTriangle size={18} /> Differenze Trovate
+                  </div>
+                  <p className="text-amber-300 text-sm mb-3">{verifyResult.summary}</p>
+
+                  {verifyResult.statsComparison?.diffs?.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">Conteggi</h4>
+                      <div className="space-y-1">
+                        {verifyResult.statsComparison.diffs.map((d, i) => (
+                          <div key={i} className="flex justify-between text-sm bg-white/5 rounded px-3 py-1">
+                            <span className="text-slate-300 capitalize">{d.campo}</span>
+                            <span>
+                              <span className="text-emerald-400">{d.originale}</span>
+                              <span className="text-slate-500 mx-2">→</span>
+                              <span className="text-amber-400">{d.attuale}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {verifyResult.recordComparison?.diffs?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">
+                        Dettaglio Record ({verifyResult.recordComparison.totalDiffs} differenze)
+                      </h4>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {verifyResult.recordComparison.diffs.map((d, i) => (
+                          <div key={i} className="text-xs bg-white/5 rounded px-3 py-1.5">
+                            <span className="text-slate-400">{d.tabella}#{d.id}</span>
+                            {d.tipo === 'MANCANTE' && <span className="text-red-400 ml-2">MANCANTE nel DB</span>}
+                            {d.tipo === 'EXTRA' && <span className="text-blue-400 ml-2">EXTRA nel DB</span>}
+                            {d.tipo === 'DIVERSO' && (
+                              <span className="text-amber-400 ml-2">
+                                .{d.campo}: {JSON.stringify(d.originale).substring(0, 30)} → {JSON.stringify(d.attuale).substring(0, 30)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* Error state */}
       {dashError && (

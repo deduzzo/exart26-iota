@@ -36,7 +36,8 @@ module.exports = {
 
       const manager = new ListManager();
       const strId = nuovaStruttura.id;
-      const walletId = await Struttura.getWalletIdStruttura({id: strId});
+      const walletId = ListManager.getWalletIdStruttura(strId);
+      sails.log.info(`[add-struttura] walletId=${walletId}`);
 
       sails.log.info(`[add-struttura] Pubblicazione blockchain per struttura #${strId}...`);
 
@@ -46,6 +47,8 @@ module.exports = {
       sails.log.info(`[add-struttura] Blockchain: PK=${res2.success}`);
       const res3 = await manager.updateOrganizzazioniStruttureListeToBlockchain();
       sails.log.info(`[add-struttura] Blockchain: MAIN=${res3.success}`);
+
+      await sails.helpers.broadcastEvent('dataChanged', { action: 'STRUTTURA_CREATA', entity: 'struttura', id: nuovaStruttura.id, label: nuovaStruttura.denominazione });
 
       return exits.success({
         struttura: {...nuovaStruttura, privateKey: undefined},

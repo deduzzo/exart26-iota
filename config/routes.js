@@ -136,6 +136,14 @@ module.exports.routes = {
   },
 
   'GET    /api/v1/entity-transactions':   { action: 'api-entity-transactions' },
+  'GET    /api/v1/export-data':          { action: 'export-data' },
+  'POST   /api/v1/verify-snapshot':     { action: 'verify-snapshot' },
+  'GET    /api/v1/pending-tx':          {
+    fn: (req, res) => {
+      const iota = require('../api/utility/iota');
+      return res.json({ pending: iota.getPendingTxCount() });
+    }
+  },
 
   // SPA catch-all: serve index.html per le rotte frontend React
   // Deve essere l'ultima rotta
