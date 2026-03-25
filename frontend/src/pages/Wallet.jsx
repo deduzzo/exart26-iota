@@ -8,7 +8,7 @@ import {
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import { useApi } from '../hooks/useApi';
-import { getWalletInfo, initWallet, resetWallet, fetchDbFromBlockchain, recoverFromArweave, getDashboardData, getArweaveStatus, switchArweaveMode } from '../api/endpoints';
+import { getWalletInfo, initWallet, resetWallet, fetchDbFromBlockchain, recoverFromArweave, resetSync, getDashboardData, getArweaveStatus, switchArweaveMode } from '../api/endpoints';
 import { truncateAddress } from '../utils/formatters';
 
 export default function Wallet() {
@@ -17,6 +17,7 @@ export default function Wallet() {
   const { data: dashboard } = useApi(getDashboardData);
   const [syncing, setSyncing] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [resettingSync, setResettingSync] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -131,6 +132,19 @@ export default function Wallet() {
       addToast(`Errore recovery: ${err.message}`, 'error');
     } finally {
       setRecovering(false);
+    }
+  };
+
+  const handleSyncReset = async () => {
+    if (!confirm('Cancellare tutti i dati locali e risincronizzare dalla blockchain?')) return;
+    setResettingSync(true);
+    try {
+      await resetSync();
+      addToast('Database locale svuotato. Risincronizzazione in corso...', 'success');
+    } catch (err) {
+      addToast(`Errore reset: ${err.message}`, 'error');
+    } finally {
+      setResettingSync(false);
     }
   };
 
@@ -419,6 +433,38 @@ export default function Wallet() {
               {!arweaveEnabled && (
                 <p className="text-xs text-slate-600 mt-2 text-center">Richiede configurazione Arweave</p>
               )}
+            </div>
+
+            {/* Reset Sync - Svuota DB locale */}
+            <div className="glass-static rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-amber-500/10">
+                  <Trash2 size={20} className="text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-sm">Reset Database Locale</h4>
+                  <p className="text-xs text-slate-500">Svuota cache SQLite e risincronizza dalla blockchain</p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSyncReset}
+                disabled={resettingSync}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 text-amber-500 text-sm font-medium hover:bg-amber-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resettingSync ? (
+                  <>
+                    <LoadingSpinner size={16} />
+                    Reset in corso...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Reset e Risincronizza
+                  </>
+                )}
+              </motion.button>
             </div>
           </div>
         </motion.div>
