@@ -16,7 +16,7 @@
     "react-force-graph": "^1.48.2",
     "react-force-graph-2d": "^1.29.1",
     "react-router-dom": "^7.0.0",
-    "socket.io-client": "^4.7.0"
+    "socket.io-client": "^2.5.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

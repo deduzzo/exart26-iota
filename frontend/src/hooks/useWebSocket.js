@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { io } from 'socket.io-client';
+import io from 'socket.io-client';
 
 // Singleton socket: una sola connessione per tutta l'app
 let _socket = null;
@@ -7,15 +7,22 @@ let _listeners = new Set();
 
 function getSocket() {
   if (!_socket) {
-    _socket = io('/', { transports: ['websocket', 'polling'] });
+    // socket.io v2 client compatibile con Sails.js (server socket.io v2)
+    _socket = io('/', {
+      transports: ['websocket', 'polling'],
+    });
     _socket.on('connect', () => {
       console.log('[ws] Connesso:', _socket.id);
     });
     _socket.on('disconnect', () => {
       console.log('[ws] Disconnesso');
     });
+    _socket.on('connect_error', (err) => {
+      console.log('[ws] Errore connessione:', err.message || err);
+    });
     // Relay dataChanged a tutti i listener registrati
     _socket.on('dataChanged', (data) => {
+      console.log('[ws] dataChanged:', data?.action, data?.label);
       _listeners.forEach(fn => fn(data));
     });
   }
@@ -40,7 +47,7 @@ export function useWebSocket(onMessage) {
     setConnected(socket.connected);
 
     const handler = (data) => {
-      setMessages(prev => [...prev.slice(-49), data]); // Keep last 50
+      setMessages(prev => [...prev.slice(-49), data]);
       onMessage?.(data);
     };
     _listeners.add(handler);
@@ -65,12 +72,10 @@ export function useRealtimeRefresh(reloadFn, filterEntities = null) {
   reloadRef.current = reloadFn;
 
   useEffect(() => {
-    const socket = getSocket();
+    getSocket(); // Assicura connessione
 
     const handler = (data) => {
-      // Se filtro specificato, ricarica solo per quelle entity
       if (filterEntities && !filterEntities.includes(data.entity)) return;
-      // Debounce: aspetta 300ms per evitare refresh multipli ravvicinati
       clearTimeout(handler._timer);
       handler._timer = setTimeout(() => {
         reloadRef.current?.();
@@ -82,5 +87,5 @@ export function useRealtimeRefresh(reloadFn, filterEntities = null) {
       clearTimeout(handler._timer);
       _listeners.delete(handler);
     };
-  }, [filterEntities?.join(',')]);
+  }, [filterEntities?.join?.(',')]);
 }
