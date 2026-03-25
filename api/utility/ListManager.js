@@ -356,50 +356,97 @@ class ListManager {
       liste = db.Lista.find();
     }
     if (liste && liste.length > 0) {
-      // Ottimizzazione: scarica TUTTE le TX ASSISTITI_IN_LISTA in un batch
-      // invece di fare N query (una per lista)
-      let allListeTx = [];
+      // Scarica TUTTE le TX di movimenti lista in batch
+      // Cerchiamo sia ASSISTITI_IN_LISTA che MOVIMENTI_ASSISTITI_LISTA
+      let allMovTx = [];
+      let allListeInCodaTx = [];
       try {
-        allListeTx = await iota.getAllDataByTag(ASSISTITI_IN_LISTA);
+        const tx1 = await iota.getAllDataByTag(ASSISTITI_IN_LISTA);
+        const tx2 = await iota.getAllDataByTag(MOVIMENTI_ASSISTITI_LISTA);
+        allMovTx = [...tx1, ...tx2];
+        sails.log.info(`[ListManager] TX movimenti lista: ${tx1.length} ASSISTITI_IN_LISTA + ${tx2.length} MOVIMENTI`);
       } catch (e) {
-        sails.log.warn('[ListManager] Errore fetch ASSISTITI_IN_LISTA:', e.message);
+        sails.log.warn('[ListManager] Errore fetch TX movimenti lista:', e.message);
       }
 
-      if (allListeTx.length === 0) {
-        sails.log.info('[ListManager] Nessuna TX ASSISTITI_IN_LISTA sulla chain, skip');
+      // Scarica anche LISTE_IN_CODA per ricostruire le code
+      try {
+        allListeInCodaTx = await iota.getAllDataByTag(LISTE_IN_CODA);
+        sails.log.info(`[ListManager] TX LISTE_IN_CODA: ${allListeInCodaTx.length}`);
+      } catch (e) {
+        sails.log.warn('[ListManager] Errore fetch LISTE_IN_CODA:', e.message);
+      }
+
+      const totalTx = allMovTx.length + allListeInCodaTx.length;
+      if (totalTx === 0) {
+        sails.log.info('[ListManager] Nessuna TX movimenti lista sulla chain, skip');
         if (onProgress) onProgress(liste.length, liste.length);
         return;
       }
 
-      // Crea mappa entityId -> TX (ultima per entityId)
-      const txByEntityId = new Map();
-      for (const tx of allListeTx) {
-        const existing = txByEntityId.get(tx.entityId);
-        if (!existing || (tx.version || 0) > (existing.version || 0)) {
-          txByEntityId.set(tx.entityId, tx);
+      // Cache chiavi private per struttura (evita N query)
+      const pkCache = new Map();
+
+      // Processa MOVIMENTI_ASSISTITI_LISTA — ogni TX è un singolo movimento
+      let movProcessed = 0;
+      for (const tx of allMovTx) {
+        movProcessed++;
+        if (onProgress) onProgress(movProcessed, totalTx);
+        try {
+          if (!tx.payload) continue;
+          // Trova la struttura dalla lista entityId (formato orgId_strId_listaId)
+          const parts = (tx.entityId || '').split('_');
+          const strEntityId = parts.length >= 2 ? parts[0] + '_' + parts[1] : null;
+          if (!strEntityId) continue;
+
+          if (!pkCache.has(strEntityId)) {
+            pkCache.set(strEntityId, await this.getLastPrivateKeyOfEntityId(strEntityId));
+          }
+          const pkData = pkCache.get(strEntityId);
+          if (!pkData?.clearData?.privateKey) continue;
+
+          const clearData = await CryptHelper.receiveAndDecrypt(tx.payload, pkData.clearData.privateKey);
+          const parsed = JSON.parse(clearData);
+          // Può essere un singolo oggetto o un array
+          if (Array.isArray(parsed)) {
+            this.updateDBFromJsonListeAssistiti(parsed);
+          } else if (parsed && parsed.id) {
+            this.updateDBFromJsonListeAssistiti([parsed]);
+          }
+        } catch (e) {
+          sails.log.verbose(`[ListManager] Movimento skip: ${e.message}`);
         }
       }
-      sails.log.info(`[ListManager] ${txByEntityId.size} liste con TX ASSISTITI_IN_LISTA`);
 
-      let listeProcessed = 0;
-      for (let lista of liste) {
-        listeProcessed++;
-        if (onProgress) onProgress(listeProcessed, liste.length);
+      // Processa LISTE_IN_CODA — ogni TX è la coda completa di un assistito
+      for (const tx of allListeInCodaTx) {
+        movProcessed++;
+        if (onProgress) onProgress(movProcessed, totalTx);
         try {
-          let listaEntityId = getWalletIdLista(lista.id);
-          let record = txByEntityId.get(listaEntityId);
-          if (!record || !record.payload) continue; // Skip liste senza TX
+          if (!tx.payload) continue;
+          // entityId è ASS#id — serve la chiave dell'assistito
+          const assId = (tx.entityId || '').replace('ASS#', '');
+          const ass = db.Assistito.findOne({ id: parseInt(assId) });
+          if (!ass?.publicKey) continue;
 
-          let strutturaEntityId = getWalletIdStruttura(lista.struttura);
-          let privateKeyData = await this.getLastPrivateKeyOfEntityId(strutturaEntityId);
-          if (!privateKeyData?.clearData?.privateKey) continue;
+          // Prova decrittazione con chiave entità o MAIN
+          let clearData = null;
+          const entityPk = await this.getLastPrivateKeyOfEntityId(tx.entityId);
+          const keysToTry = [];
+          if (entityPk?.clearData?.privateKey) keysToTry.push(entityPk.clearData.privateKey);
+          keysToTry.push(iota.GET_MAIN_KEYS().privateKey);
 
-          let data = record.payload;
-          let clearData = await CryptHelper.receiveAndDecrypt(data, privateKeyData.clearData.privateKey);
-          data.clearData = JSON.parse(clearData);
-          this.updateDBFromJsonListeAssistiti(data.clearData);
+          for (const key of keysToTry) {
+            try {
+              clearData = JSON.parse(await CryptHelper.receiveAndDecrypt(tx.payload, key));
+              break;
+            } catch (e) { /* try next */ }
+          }
+          if (clearData && Array.isArray(clearData)) {
+            this.updateDBFromJsonListeAssistiti(clearData);
+          }
         } catch (e) {
-          sails.log.verbose(`[ListManager] Lista ${lista.id} skip: ${e.message}`);
+          sails.log.verbose(`[ListManager] Lista in coda skip: ${e.message}`);
         }
       }
     }
