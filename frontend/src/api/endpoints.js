@@ -63,6 +63,10 @@ export const getPublicListe = () => api('/api/v1/public/liste');
 export const getSyncStatus = () => api('/api/v1/sync-status');
 export const resetSync = () => api('/api/v1/sync-reset', { method: 'POST' });
 
+// Entity transactions (blockchain activity log)
+export const getEntityTransactions = (type, entityId) =>
+  api(`/api/v1/entity-transactions?type=${type}&entityId=${entityId}`);
+
 // Debug
 export const getDebugData = () => api('/api/v1/debug');
 
