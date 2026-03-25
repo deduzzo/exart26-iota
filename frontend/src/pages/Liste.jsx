@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOutletContext } from 'react-router-dom';
 import {
   FileText, Users, ChevronRight, Clock, CheckCircle, UserPlus,
-  UserMinus, History, ArrowRightCircle, XCircle, Ban, Tag, Edit3, Search
+  UserMinus, History, ArrowRightCircle, XCircle, Ban, Tag, Edit3, Search, Info
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import BlockchainInfoModal from '../components/BlockchainInfoModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import { useApi } from '../hooks/useApi';
@@ -37,6 +38,7 @@ export default function Liste() {
   const [editingTag, setEditingTag] = useState(null);
   const [tagInput, setTagInput] = useState('');
   const [filterText, setFilterText] = useState('');
+  const [infoModal, setInfoModal] = useState(null);
 
   const strutture = struttureData?.strutture || struttureData || [];
   const assistiti = assistitiData?.assistiti || assistitiData || [];
@@ -194,7 +196,19 @@ export default function Liste() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="font-semibold text-sm">{lista.denominazione}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-semibold text-sm">{lista.denominazione}</h3>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setInfoModal({
+                        entityType: 'STRUTTURA',
+                        entityId: lista.struttura || lista.strutturaId,
+                        entityData: { ...lista, tipo: 'Lista' }
+                      }); }}
+                      className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+                    >
+                      <Info size={14} />
+                    </button>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">{lista.strutturaNome}</p>
                   {lista.tag && (
                     <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-neon-purple/10 text-neon-purple text-[10px]">
@@ -324,9 +338,21 @@ export default function Liste() {
                             {item.posizione}
                           </span>
                           <div>
-                            <p className="font-medium text-sm">
-                              {item.assistito?.cognome} {item.assistito?.nome}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-sm">
+                                {item.assistito?.cognome} {item.assistito?.nome}
+                              </p>
+                              <button
+                                onClick={() => setInfoModal({
+                                  entityType: 'ASSISTITO',
+                                  entityId: 'ASS#' + item.assistito?.id,
+                                  entityData: item.assistito
+                                })}
+                                className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+                              >
+                                <Info size={14} />
+                              </button>
+                            </div>
                             <p className="text-xs text-slate-500">
                               CF: {item.assistito?.codiceFiscale} | Ingresso: {new Date(item.dataOraIngresso).toLocaleDateString('it-IT')}
                             </p>
@@ -361,9 +387,21 @@ export default function Liste() {
                       <div key={item.id} className="glass-static rounded-xl p-3 flex items-center justify-between text-sm">
                         <div className="flex items-center gap-3">
                           <div>
-                            <p className="font-medium">
-                              {item.assistito?.cognome} {item.assistito?.nome}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium">
+                                {item.assistito?.cognome} {item.assistito?.nome}
+                              </p>
+                              <button
+                                onClick={() => setInfoModal({
+                                  entityType: 'ASSISTITO',
+                                  entityId: 'ASS#' + item.assistito?.id,
+                                  entityData: item.assistito
+                                })}
+                                className="text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+                              >
+                                <Info size={14} />
+                              </button>
+                            </div>
                             <p className="text-xs text-slate-500">
                               {new Date(item.dataOraIngresso).toLocaleDateString('it-IT')}
                               {item.dataOraUscita && ` → ${new Date(item.dataOraUscita).toLocaleDateString('it-IT')}`}
@@ -510,6 +548,14 @@ export default function Liste() {
           </motion.button>
         </div>
       </Modal>
+
+      <BlockchainInfoModal
+        open={!!infoModal}
+        onClose={() => setInfoModal(null)}
+        entityType={infoModal?.entityType}
+        entityId={infoModal?.entityId}
+        entityData={infoModal?.entityData}
+      />
     </div>
   );
 }
